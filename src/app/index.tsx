@@ -72,10 +72,10 @@ export default function DashboardScreen() {
       todayStart.setHours(0, 0, 0, 0);
       const todayStartStr = todayStart.toISOString();
 
-      const todayVisitsRow = await db.getFirstAsync<{ count: number }>(
+      const todayVisitsRow = (await db.getFirstAsync(
         'SELECT COUNT(*) as count FROM consultations WHERE date >= ?;',
         [todayStartStr]
-      );
+      )) as { count: number } | null;
       const visitsToday = todayVisitsRow?.count || 0;
 
       // 3. New patients this month
@@ -84,15 +84,15 @@ export default function DashboardScreen() {
       monthStart.setHours(0, 0, 0, 0);
       const monthStartStr = monthStart.toISOString();
 
-      const newPatientsRow = await db.getFirstAsync<{ count: number }>(
+      const newPatientsRow = (await db.getFirstAsync(
         'SELECT COUNT(*) as count FROM patients WHERE created_at >= ?;',
         [monthStartStr]
-      );
+      )) as { count: number } | null;
       const newMois = newPatientsRow?.count || 0;
 
       // 4. Compute Top Pathologies from all consultations
       // We need to fetch and decrypt diagnostics
-      const consRows = await db.getAllAsync<any>('SELECT diagnostic FROM consultations WHERE diagnostic IS NOT NULL;');
+      const consRows = (await db.getAllAsync('SELECT diagnostic FROM consultations WHERE diagnostic IS NOT NULL;')) as any[];
       const pathCounts: Record<string, number> = {};
 
       const { decryptData } = require('../security/encryption');
@@ -121,7 +121,7 @@ export default function DashboardScreen() {
       });
 
       // 5. Load Today's Appointments (Rendez-vous)
-      const rdvRows = await db.getAllAsync<any>(
+      const rdvRows = (await db.getAllAsync(
         `SELECT rv.*, p.nom as p_nom, p.prenom as p_prenom 
          FROM rendez_vous rv
          JOIN patients p ON rv.patient_id = p.id
@@ -131,7 +131,7 @@ export default function DashboardScreen() {
           todayStartStr,
           new Date(todayStart.getTime() + 24 * 60 * 60 * 1000).toISOString(),
         ]
-      );
+      )) as any[];
 
       const decryptedRdvs = [];
       for (const row of rdvRows) {
@@ -151,7 +151,7 @@ export default function DashboardScreen() {
       const tomorrowStartStr = tomorrowStart.toISOString();
       const tomorrowEndStr = new Date(tomorrowStart.getTime() + 24 * 60 * 60 * 1000).toISOString();
 
-      const rdvTomorrowRows = await db.getAllAsync<any>(
+      const rdvTomorrowRows = (await db.getAllAsync(
         `SELECT rv.*, p.nom as p_nom, p.prenom as p_prenom 
          FROM rendez_vous rv
          JOIN patients p ON rv.patient_id = p.id
@@ -161,7 +161,7 @@ export default function DashboardScreen() {
           tomorrowStartStr,
           tomorrowEndStr,
         ]
-      );
+      )) as any[];
 
       const decryptedTomorrowRdvs = [];
       for (const row of rdvTomorrowRows) {
@@ -449,7 +449,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingTop: 20,
+    paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 24) + 12 : 20,
     paddingBottom: 16,
     borderBottomWidth: 1,
     borderBottomColor: '#2F5C77',
@@ -470,9 +470,9 @@ const styles = StyleSheet.create({
   },
   syncBtn: {
     backgroundColor: '#1E3E52',
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
@@ -480,9 +480,9 @@ const styles = StyleSheet.create({
   },
   lockBtn: {
     backgroundColor: '#1E3E52',
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,

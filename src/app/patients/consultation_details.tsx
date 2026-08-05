@@ -10,6 +10,7 @@ import {
   Alert,
   Modal,
   Platform,
+  StatusBar,
 } from 'react-native';
 import { useLocalSearchParams, useRouter, Link } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -67,10 +68,10 @@ export default function ConsultationDetailsScreen() {
       const db = await getDatabase();
       
       // 1. Fetch consultation row
-      const row = (await db.getFirstAsync(
+      const row = await db.getFirstAsync(
         'SELECT * FROM consultations WHERE id = ?;',
         [id]
-      )) as any;
+      ) as any;
 
       if (!row) {
         showAlert('Erreur', 'Consultation non trouvée');
@@ -79,10 +80,10 @@ export default function ConsultationDetailsScreen() {
       }
 
       // 2. Fetch corresponding constants
-      const constRow = (await db.getFirstAsync(
+      const constRow = await db.getFirstAsync(
         'SELECT * FROM constantes WHERE consultation_id = ?;',
         [id]
-      )) as any;
+      ) as any;
 
       const constantes = constRow
         ? {
@@ -223,10 +224,10 @@ export default function ConsultationDetailsScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <Link href={`/patients/${consultation.patient_id}`} style={styles.backButton}>
-          <View pointerEvents="none">
+        <Link href={`/patients/${consultation.patient_id}`} asChild>
+          <TouchableOpacity style={styles.backButton}>
             <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
-          </View>
+          </TouchableOpacity>
         </Link>
         <Text style={styles.title}>Détail de la Visite</Text>
         <View style={styles.placeholder} />
@@ -284,7 +285,7 @@ export default function ConsultationDetailsScreen() {
 
           <Link
             href={{
-              pathname: '/ordonnances/create',
+              pathname: '/patients/ordonnance_create' as any,
               params: { consultationId: id, patientId: patient.id },
             }}
             asChild
@@ -465,7 +466,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingTop: Platform.OS === 'web' ? 80 : 16,
+    paddingTop: Platform.OS === 'web' ? 80 : (Platform.OS === 'android' ? (StatusBar.currentHeight || 24) + 12 : 16),
     paddingBottom: 16,
     borderBottomWidth: 1,
     borderBottomColor: '#2F5C77',

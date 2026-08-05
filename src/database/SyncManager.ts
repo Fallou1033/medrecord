@@ -44,7 +44,7 @@ export async function triggerSynchronization(): Promise<{ success: boolean; sync
     const db = await getDatabase();
 
     // 1. Sync Patients
-    const unsyncedPatients = await db.getAllAsync<any>('SELECT * FROM patients WHERE is_synced = 0;');
+    const unsyncedPatients = (await db.getAllAsync('SELECT * FROM patients WHERE is_synced = 0;')) as any[];
     if (unsyncedPatients.length > 0) {
       console.log(`MedRecord Sync: Pushing ${unsyncedPatients.length} patients to Supabase...`);
       for (const patient of unsyncedPatients) {
@@ -74,7 +74,7 @@ export async function triggerSynchronization(): Promise<{ success: boolean; sync
     }
 
     // 2. Sync Antécédents
-    const unsyncedAntecedents = await db.getAllAsync<any>('SELECT * FROM antecedents WHERE is_synced = 0;');
+    const unsyncedAntecedents = (await db.getAllAsync('SELECT * FROM antecedents WHERE is_synced = 0;')) as any[];
     if (unsyncedAntecedents.length > 0) {
       console.log(`MedRecord Sync: Pushing ${unsyncedAntecedents.length} antecedents...`);
       for (const row of unsyncedAntecedents) {
@@ -85,7 +85,7 @@ export async function triggerSynchronization(): Promise<{ success: boolean; sync
     }
 
     // 3. Sync Consultations
-    const unsyncedConsultations = await db.getAllAsync<any>('SELECT * FROM consultations WHERE is_synced = 0;');
+    const unsyncedConsultations = (await db.getAllAsync('SELECT * FROM consultations WHERE is_synced = 0;')) as any[];
     if (unsyncedConsultations.length > 0) {
       console.log(`MedRecord Sync: Pushing ${unsyncedConsultations.length} consultations...`);
       for (const row of unsyncedConsultations) {
@@ -95,7 +95,7 @@ export async function triggerSynchronization(): Promise<{ success: boolean; sync
     }
 
     // 4. Sync Constantes
-    const unsyncedConstantes = await db.getAllAsync<any>('SELECT * FROM constantes WHERE is_synced = 0;');
+    const unsyncedConstantes = (await db.getAllAsync('SELECT * FROM constantes WHERE is_synced = 0;')) as any[];
     if (unsyncedConstantes.length > 0) {
       console.log(`MedRecord Sync: Pushing ${unsyncedConstantes.length} vitals...`);
       for (const row of unsyncedConstantes) {
@@ -105,7 +105,7 @@ export async function triggerSynchronization(): Promise<{ success: boolean; sync
     }
 
     // 5. Sync Ordonnances
-    const unsyncedOrdonnances = await db.getAllAsync<any>('SELECT * FROM ordonnances WHERE is_synced = 0;');
+    const unsyncedOrdonnances = (await db.getAllAsync('SELECT * FROM ordonnances WHERE is_synced = 0;')) as any[];
     if (unsyncedOrdonnances.length > 0) {
       console.log(`MedRecord Sync: Pushing ${unsyncedOrdonnances.length} prescriptions...`);
       for (const row of unsyncedOrdonnances) {
@@ -115,7 +115,7 @@ export async function triggerSynchronization(): Promise<{ success: boolean; sync
     }
 
     // 6. Sync Certificats
-    const unsyncedCertificats = await db.getAllAsync<any>('SELECT * FROM certificats WHERE is_synced = 0;');
+    const unsyncedCertificats = (await db.getAllAsync('SELECT * FROM certificats WHERE is_synced = 0;')) as any[];
     if (unsyncedCertificats.length > 0) {
       console.log(`MedRecord Sync: Pushing ${unsyncedCertificats.length} certificates...`);
       for (const row of unsyncedCertificats) {
@@ -125,7 +125,7 @@ export async function triggerSynchronization(): Promise<{ success: boolean; sync
     }
 
     // 7. Sync Vaccinations
-    const unsyncedVaccinations = await db.getAllAsync<any>('SELECT * FROM vaccinations WHERE is_synced = 0;');
+    const unsyncedVaccinations = (await db.getAllAsync('SELECT * FROM vaccinations WHERE is_synced = 0;')) as any[];
     if (unsyncedVaccinations.length > 0) {
       console.log(`MedRecord Sync: Pushing ${unsyncedVaccinations.length} vaccinations...`);
       for (const row of unsyncedVaccinations) {
@@ -135,7 +135,7 @@ export async function triggerSynchronization(): Promise<{ success: boolean; sync
     }
 
     // 8. Sync Rendez-vous
-    const unsyncedRdv = await db.getAllAsync<any>('SELECT * FROM rendez_vous WHERE is_synced = 0;');
+    const unsyncedRdv = (await db.getAllAsync('SELECT * FROM rendez_vous WHERE is_synced = 0;')) as any[];
     if (unsyncedRdv.length > 0) {
       console.log(`MedRecord Sync: Pushing ${unsyncedRdv.length} appointments...`);
       for (const row of unsyncedRdv) {
@@ -145,7 +145,7 @@ export async function triggerSynchronization(): Promise<{ success: boolean; sync
     }
 
     // 9. Sync Examens
-    const unsyncedExamens = await db.getAllAsync<any>('SELECT * FROM examens WHERE is_synced = 0;');
+    const unsyncedExamens = (await db.getAllAsync('SELECT * FROM examens WHERE is_synced = 0;')) as any[];
     if (unsyncedExamens.length > 0) {
       console.log(`MedRecord Sync: Pushing ${unsyncedExamens.length} lab exams...`);
       for (const row of unsyncedExamens) {

@@ -19,7 +19,7 @@ interface SecurityContextType {
   user: UserProfile | null;
   biometricsEnabled: boolean;
   loading: boolean;
-  setupSecurity: (pin: string, nom: string, prenom: string, email: string) => Promise<void>;
+  setupSecurity: (pin: string, nom: string, prenom: string, email: string, telephone?: string | null) => Promise<void>;
   unlockWithPin: (pin: string) => Promise<boolean>;
   unlockWithBiometrics: () => Promise<boolean>;
   lock: () => void;
@@ -90,10 +90,10 @@ export const SecurityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     };
   }, []);
 
-  const setupSecurity = async (pin: string, nom: string, prenom: string, email: string) => {
+  const setupSecurity = async (pin: string, nom: string, prenom: string, email: string, telephone?: string | null) => {
     setLoading(true);
     try {
-      const profile = await setupPIN(pin, nom, prenom, email);
+      const profile = await setupPIN(pin, nom, prenom, email, telephone || '+221 77 123 4567');
       setUser(profile);
       setIsSetup(true);
       setIsLocked(false);

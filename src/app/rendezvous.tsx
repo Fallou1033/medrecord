@@ -12,6 +12,7 @@ import {
   SafeAreaView,
   ScrollView,
   Platform,
+  Linking,
 } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -19,6 +20,7 @@ import {
   getRendezVous,
   addRendezVous,
   updateRendezVousStatut,
+  updateRendezVous,
   getPatients,
   Patient,
   RendezVous,
@@ -45,6 +47,61 @@ export default function RendezVousScreen() {
   const [timeStr, setTimeStr] = useState('09:00'); // HH:MM
   const [status, setStatus] = useState<RendezVous['statut']>('PROGRAMME');
   const [saving, setSaving] = useState(false);
+
+  // Search query state for appointments
+  const [searchQuery, setSearchQuery] = useState('');
+
+  // Modal State for editing Appointment
+  const [editModalVisible, setEditModalVisible] = useState(false);
+  const [selectedRdv, setSelectedRdv] = useState<RendezVous | null>(null);
+  const [editDateStr, setEditDateStr] = useState('');
+  const [editTimeStr, setEditTimeStr] = useState('');
+  const [editStatus, setEditStatus] = useState<RendezVous['statut']>('PROGRAMME');
+  const [editSaving, setEditSaving] = useState(false);
+
+  const openEditModal = (rdv: RendezVous) => {
+    setSelectedRdv(rdv);
+    const dateObj = new Date(rdv.date_heure);
+    const yyyy = dateObj.getFullYear();
+    const mm = String(dateObj.getMonth() + 1).padStart(2, '0');
+    const dd = String(dateObj.getDate()).padStart(2, '0');
+    const hh = String(dateObj.getHours()).padStart(2, '0');
+    const min = String(dateObj.getMinutes()).padStart(2, '0');
+
+    setEditDateStr(`${yyyy}-${mm}-${dd}`);
+    setEditTimeStr(`${hh}:${min}`);
+    setEditStatus(rdv.statut);
+    setEditModalVisible(true);
+  };
+
+  const handleSaveEditRdv = async () => {
+    if (!user || !selectedRdv) return;
+    if (!editDateStr.trim() || !editTimeStr.trim()) {
+      Alert.alert('Erreur', 'Veuillez renseigner la date et l\'heure du rendez-vous.');
+      return;
+    }
+
+    const fullDateTime = `${editDateStr.trim()}T${editTimeStr.trim()}:00`;
+    setEditSaving(true);
+    try {
+      await updateRendezVous(
+        selectedRdv.id,
+        {
+          date_heure: fullDateTime,
+          statut: editStatus,
+        },
+        user.id
+      );
+      setEditModalVisible(false);
+      Alert.alert('Succès', 'Le rendez-vous a été modifié avec succès.');
+      loadData();
+    } catch (err) {
+      console.error(err);
+      Alert.alert('Erreur', 'Impossible de modifier le rendez-vous.');
+    } finally {
+      setEditSaving(false);
+    }
+  };
 
   // Load appointments
   useFocusEffect(
@@ -142,6 +199,79 @@ export default function RendezVousScreen() {
     }
   };
 
+  const formatPhoneForAction = (rawPhone: string | null | undefined): string => {
+    if (!rawPhone) return '';
+    let cleaned = rawPhone.replace(/[^0-9+]/g, '');
+    if (!cleaned) return '';
+    if (!cleaned.startsWith('+')) {
+      if (cleaned.startsWith('221')) {
+        cleaned = '+' + cleaned;
+      } else {
+        cleaned = '+221' + cleaned;
+      }
+    }
+    return cleaned;
+  };
+
+  const handleSendWhatsApp = (item: RendezVous) => {
+    const patientName = `${item.patient_prenom || ''} ${item.patient_nom || ''}`.trim() || 'Patient';
+    const docName = user ? `Dr ${user.prenom} ${user.nom}` : 'Dr Mohamadou Bamba Diop';
+    const dateObj = new Date(item.date_heure);
+    const dateFormatted = formatDateFR(dateObj);
+    const timeFormatted = dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+    const message = `Bonjour ${patientName}, votre rendez-vous médical avec le ${docName} est confirmé pour le ${dateFormatted} à ${timeFormatted}. Merci de vous présenter à l'heure au cabinet.`;
+    const cleanPhone = formatPhoneForAction(item.patient_telephone);
+    const encodedMsg = encodeURIComponent(message);
+
+    let url = `whatsapp://send?text=${encodedMsg}`;
+    if (cleanPhone) {
+      url = `whatsapp://send?phone=${cleanPhone}&text=${encodedMsg}`;
+    }
+
+    Linking.canOpenURL(url).then((supported) => {
+      if (supported || Platform.OS === 'web') {
+        Linking.openURL(url);
+      } else {
+        Linking.openURL(`https://wa.me/${cleanPhone}?text=${encodedMsg}`);
+      }
+    }).catch(() => {
+      Linking.openURL(`https://wa.me/${cleanPhone}?text=${encodedMsg}`);
+    });
+  };
+
+  const handleSendSMS = (item: RendezVous) => {
+    const patientName = `${item.patient_prenom || ''} ${item.patient_nom || ''}`.trim() || 'Patient';
+    const docName = user ? `Dr ${user.prenom} ${user.nom}` : 'Dr Mohamadou Bamba Diop';
+    const dateObj = new Date(item.date_heure);
+    const dateFormatted = formatDateFR(dateObj);
+    const timeFormatted = dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+    const message = `Bonjour ${patientName}, votre rendez-vous médical avec le ${docName} est confirmé pour le ${dateFormatted} à ${timeFormatted}.`;
+    const cleanPhone = formatPhoneForAction(item.patient_telephone);
+    const encodedMsg = encodeURIComponent(message);
+    const smsUrl = Platform.OS === 'ios' ? `sms:${cleanPhone}&body=${encodedMsg}` : `sms:${cleanPhone}?body=${encodedMsg}`;
+
+    Linking.openURL(smsUrl).catch(() => {
+      Alert.alert('Erreur', 'Impossible d\'ouvrir l\'application SMS.');
+    });
+  };
+
+  const filteredRdvs = rdvs.filter((r) => {
+    if (!searchQuery.trim()) return true;
+    const q = searchQuery.toLowerCase().trim();
+    const patientName = `${r.patient_prenom || ''} ${r.patient_nom || ''}`.toLowerCase();
+    const dossierNum = (r.patient_numero_dossier || '').toLowerCase();
+    const statutStr = r.statut.toLowerCase();
+    const dateStr = formatDateFR(r.date_heure).toLowerCase();
+    return (
+      patientName.includes(q) ||
+      dossierNum.includes(q) ||
+      statutStr.includes(q) ||
+      dateStr.includes(q)
+    );
+  });
+
   const renderRdvItem = ({ item }: { item: RendezVous }) => {
     const dateObj = new Date(item.date_heure);
     const dateFormatted = formatDateFR(dateObj);
@@ -155,19 +285,63 @@ export default function RendezVousScreen() {
     return (
       <View style={styles.card}>
         <View style={styles.cardHeader}>
-          <Text style={styles.timeText}>{timeFormatted} • {dateFormatted}</Text>
+          <Text style={styles.timeText}>{`${timeFormatted} • ${dateFormatted}`}</Text>
           <View style={[styles.statusBadge, { borderColor: statusColor }]}>
             <Text style={[styles.statusText, { color: statusColor }]}>{item.statut}</Text>
           </View>
         </View>
 
-        <Text style={styles.patientName}>
-          {item.patient_prenom} {item.patient_nom?.toUpperCase()}
-        </Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+          <View style={{ flex: 1, marginRight: 8 }}>
+            <Text style={styles.patientName}>
+              {`${item.patient_prenom || ''} ${(item.patient_nom || '').toUpperCase()}`}
+            </Text>
+            {!!item.patient_numero_dossier && (
+              <Text style={{ color: '#28C2FF', fontSize: 12, fontWeight: 'bold', marginTop: 2, marginBottom: 4 }}>
+                {`ID : ${item.patient_numero_dossier}`}
+              </Text>
+            )}
+          </View>
+          <TouchableOpacity
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 4,
+              backgroundColor: '#1E3E52',
+              paddingHorizontal: 10,
+              paddingVertical: 6,
+              borderRadius: 8,
+              borderWidth: 1,
+              borderColor: '#2F5C77',
+            }}
+            onPress={() => openEditModal(item)}
+          >
+            <Ionicons name="create-outline" size={16} color="#28C2FF" />
+            <Text style={{ color: '#28C2FF', fontSize: 12, fontWeight: 'bold' }}>Modifier</Text>
+          </TouchableOpacity>
+        </View>
 
-        <View style={styles.cardActions}>
+        <View style={styles.cardActionsContainer}>
+          <View style={styles.cardActionsRow}>
+            <TouchableOpacity
+              style={[styles.actionBtn, styles.whatsappBtn]}
+              onPress={() => handleSendWhatsApp(item)}
+            >
+              <Ionicons name="logo-whatsapp" size={16} color="#FFFFFF" />
+              <Text style={styles.whatsappText}>WhatsApp</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.actionBtn, styles.smsBtn]}
+              onPress={() => handleSendSMS(item)}
+            >
+              <Ionicons name="chatbubble-ellipses-outline" size={16} color="#28C2FF" />
+              <Text style={styles.smsText}>SMS</Text>
+            </TouchableOpacity>
+          </View>
+
           {item.statut !== 'REALISE' && item.statut !== 'ANNULE' && (
-            <>
+            <View style={styles.cardActionsRow}>
               <TouchableOpacity
                 style={[styles.actionBtn, styles.realiseBtn]}
                 onPress={() => handleUpdateStatus(item.id, 'REALISE')}
@@ -175,6 +349,7 @@ export default function RendezVousScreen() {
                 <Ionicons name="checkmark-circle-outline" size={16} color="#0F2C3D" />
                 <Text style={styles.realiseText}>Réalisé</Text>
               </TouchableOpacity>
+
               <TouchableOpacity
                 style={[styles.actionBtn, styles.annuleBtn]}
                 onPress={() => handleUpdateStatus(item.id, 'ANNULE')}
@@ -182,7 +357,7 @@ export default function RendezVousScreen() {
                 <Ionicons name="close-circle-outline" size={16} color="#FF6B6B" />
                 <Text style={styles.annuleText}>Annuler</Text>
               </TouchableOpacity>
-            </>
+            </View>
           )}
         </View>
       </View>
@@ -199,18 +374,37 @@ export default function RendezVousScreen() {
         </TouchableOpacity>
       </View>
 
+      {/* Appointment Search Bar */}
+      <View style={styles.searchBarContainer}>
+        <Ionicons name="search" size={18} color="#8AC8F9" style={{ marginRight: 8 }} />
+        <TextInput
+          style={styles.searchBarInput}
+          placeholder="Rechercher par nom, ID dossier (PAT-...), date, statut..."
+          placeholderTextColor="#6B8A9E"
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+        />
+        {searchQuery !== '' && (
+          <TouchableOpacity onPress={() => setSearchQuery('')}>
+            <Ionicons name="close-circle" size={18} color="#8AC8F9" />
+          </TouchableOpacity>
+        )}
+      </View>
+
       {loading ? (
         <View style={styles.centerContainer}>
           <ActivityIndicator size="large" color="#28C2FF" />
         </View>
-      ) : rdvs.length === 0 ? (
+      ) : filteredRdvs.length === 0 ? (
         <View style={styles.centerContainer}>
           <Ionicons name="calendar-outline" size={64} color="#2F5C77" />
-          <Text style={styles.emptyText}>Aucun rendez-vous planifié</Text>
+          <Text style={styles.emptyText}>
+            {searchQuery.trim() ? 'Aucun rendez-vous ne correspond à la recherche' : 'Aucun rendez-vous planifié'}
+          </Text>
         </View>
       ) : (
         <FlatList
-          data={rdvs}
+          data={filteredRdvs}
           keyExtractor={(item) => item.id}
           renderItem={renderRdvItem}
           contentContainerStyle={styles.listContainer}
@@ -338,6 +532,97 @@ export default function RendezVousScreen() {
           </View>
         </View>
       </Modal>
+      {/* Edit Appointment Modal */}
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={editModalVisible}
+        onRequestClose={() => setEditModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Modifier le Rendez-vous</Text>
+
+            {selectedRdv && (
+              <View style={{ backgroundColor: '#0F2C3D', padding: 12, borderRadius: 8, marginBottom: 16, borderWidth: 1, borderColor: '#2F5C77' }}>
+                <Text style={{ color: '#FFFFFF', fontWeight: 'bold', fontSize: 15 }}>
+                  Patient : {selectedRdv.patient_prenom} {selectedRdv.patient_nom?.toUpperCase()}
+                </Text>
+                {selectedRdv.patient_numero_dossier && (
+                  <Text style={{ color: '#28C2FF', fontSize: 13, fontWeight: 'bold', marginTop: 4 }}>
+                    ID Dossier : {selectedRdv.patient_numero_dossier}
+                  </Text>
+                )}
+              </View>
+            )}
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.modalLabel}>Date du rendez-vous (AAAA-MM-JJ) *</Text>
+              <TextInput
+                style={styles.modalInputText}
+                placeholder="AAAA-MM-JJ"
+                placeholderTextColor="#9ca3af"
+                value={editDateStr}
+                onChangeText={setEditDateStr}
+                keyboardType="numeric"
+                maxLength={10}
+              />
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.modalLabel}>Heure du rendez-vous (HH:MM) *</Text>
+              <TextInput
+                style={styles.modalInputText}
+                placeholder="HH:MM"
+                placeholderTextColor="#9ca3af"
+                value={editTimeStr}
+                onChangeText={setEditTimeStr}
+                keyboardType="numeric"
+                maxLength={5}
+              />
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.modalLabel}>Statut du rendez-vous *</Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                {(['PROGRAMME', 'CONFIRME', 'REALISE', 'ANNULE'] as RendezVous['statut'][]).map((st) => (
+                  <TouchableOpacity
+                    key={st}
+                    style={[
+                      styles.statusBtn,
+                      editStatus === st && styles.statusBtnActive,
+                    ]}
+                    onPress={() => setEditStatus(st)}
+                  >
+                    <Text style={[styles.statusBtnText, editStatus === st && styles.statusBtnTextActive]}>
+                      {st}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={styles.modalCancel}
+                onPress={() => setEditModalVisible(false)}
+                disabled={editSaving}
+              >
+                <Text style={styles.modalCancelText}>Annuler</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalSubmit, { backgroundColor: '#28C2FF' }]}
+                onPress={handleSaveEditRdv}
+                disabled={editSaving}
+              >
+                <Text style={[styles.modalSubmitText, { color: '#0F2C3D' }]}>
+                  {editSaving ? 'Enregistrement...' : 'Sauvegarder'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -352,6 +637,23 @@ const styles = StyleSheet.create({
       },
       default: {},
     }),
+  },
+  searchBarContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#1E3E52',
+    marginHorizontal: 20,
+    marginBottom: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#2F5C77',
+  },
+  searchBarInput: {
+    flex: 1,
+    color: '#FFFFFF',
+    fontSize: 14,
   },
   centerContainer: {
     flex: 1,
@@ -430,16 +732,21 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     marginBottom: 12,
   },
-  cardActions: {
+  cardActionsContainer: {
+    gap: 8,
+  },
+  cardActionsRow: {
     flexDirection: 'row',
     gap: 10,
   },
   actionBtn: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    paddingVertical: 6,
-    paddingHorizontal: 12,
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
     borderRadius: 8,
   },
   realiseBtn: {
@@ -447,6 +754,24 @@ const styles = StyleSheet.create({
   },
   realiseText: {
     color: '#0F2C3D',
+    fontWeight: 'bold',
+    fontSize: 12,
+  },
+  whatsappBtn: {
+    backgroundColor: '#25D366',
+  },
+  whatsappText: {
+    color: '#FFFFFF',
+    fontWeight: 'bold',
+    fontSize: 12,
+  },
+  smsBtn: {
+    backgroundColor: '#1E3E52',
+    borderWidth: 1,
+    borderColor: '#28C2FF',
+  },
+  smsText: {
+    color: '#28C2FF',
     fontWeight: 'bold',
     fontSize: 12,
   },

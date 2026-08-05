@@ -24,7 +24,54 @@ export default function CreateConsultationScreen() {
   const { patientId } = useLocalSearchParams<{ patientId: string }>();
   const { user } = useSecurity();
 
-  console.log("MedRecord Debug: CreateConsultationScreen render", { patientId, user });
+  const [patient, setPatient] = useState<Patient | null>(null);
+  const [loadingPatient, setLoadingPatient] = useState(true);
+  const [loading, setLoading] = useState(false);
+
+  // Vitals State
+  const [temperature, setTemperature] = useState('');
+  const [tension, setTension] = useState('');
+  const [pulsations, setPulsations] = useState('');
+  const [saturation, setSaturation] = useState('');
+  const [glycemie, setGlycemie] = useState('');
+  const [poids, setPoids] = useState('');
+  const [taille, setTaille] = useState('');
+  const [imc, setImc] = useState('');
+
+  // Observation State
+  const [motif, setMotif] = useState('');
+  const [histoire, setHistoire] = useState('');
+  const [examenClinique, examenCliniqueSet] = useState('');
+  const [diagnostic, setDiagnostic] = useState('');
+  const [traitement, setTraitement] = useState('');
+  const [conseils, setConseils] = useState('');
+  const [dateControle, setDateControle] = useState('');
+
+  useEffect(() => {
+    if (patientId) {
+      loadPatient();
+    }
+  }, [patientId]);
+
+  useEffect(() => {
+    const w = parseFloat(poids) || null;
+    const h = parseFloat(taille) || null;
+    const calculatedImc = calculateIMC(w, h);
+    setImc(calculatedImc ? calculatedImc.toString() : '');
+  }, [poids, taille]);
+
+  const loadPatient = async () => {
+    setLoadingPatient(true);
+    try {
+      const p = await getPatientById(patientId);
+      setPatient(p);
+    } catch (err) {
+      console.error(err);
+      Alert.alert('Erreur', 'Impossible de charger le dossier patient.');
+    } finally {
+      setLoadingPatient(false);
+    }
+  };
 
   const showAlert = (title: string, message: string, buttons?: { text: string; onPress?: () => void }[]) => {
     if (Platform.OS === 'web') {
@@ -37,78 +84,12 @@ export default function CreateConsultationScreen() {
     }
   };
 
-  const [patient, setPatient] = useState<Patient | null>(null);
-  const [loadingPatient, setLoadingPatient] = useState(true);
-
-  // Vitals State
-  const [temperature, setTemperature] = useState('');
-  const [tension, setTension] = useState('');
-  const [pulsations, setPulsations] = useState('');
-  const [saturation, setSaturation] = useState('');
-  const [glycemie, setGlycemie] = useState('');
-  const [poids, setPoids] = useState('');
-  const [taille, setTaille] = useState('');
-  const [imc, setImc] = useState<number | null>(null);
-
-  // Clinical Details State
-  const [motif, setMotif] = useState('');
-  const [histoire, setHistoire] = useState('');
-  const [examenClinique, setExamenClinique] = useState('');
-  const [diagnostic, setDiagnostic] = useState('');
-  const [traitement, setTraitement] = useState('');
-  const [conseils, setConseils] = useState('');
-  const [dateControle, setDateControle] = useState(''); // Format: YYYY-MM-DD
-  const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    if (patientId) {
-      loadPatient();
-    }
-  }, [patientId]);
-
-  // Calculate IMC in real-time when weight or height changes
-  useEffect(() => {
-    const w = parseFloat(poids);
-    const h = parseFloat(taille);
-    if (!isNaN(w) && !isNaN(h) && h > 0) {
-      const calculated = calculateIMC(w, h);
-      setImc(calculated);
-    } else {
-      setImc(null);
-    }
-  }, [poids, taille]);
-
-  const loadPatient = async () => {
-    setLoadingPatient(true);
-    try {
-      const p = await getPatientById(patientId);
-      if (!p) {
-        showAlert('Erreur', 'Patient non trouvé');
-        router.back();
-        return;
-      }
-      setPatient(p);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoadingPatient(false);
-    }
-  };
-
-
-
   const handleSubmit = async () => {
     if (!motif.trim() || !diagnostic.trim()) {
-      showAlert('Champs requis', 'Veuillez renseigner au moins le motif et le diagnostic.');
+      showAlert('Champs requis', 'Veuillez saisir le motif et le diagnostic de la consultation.');
       return;
     }
 
-    if (!user) {
-      showAlert('Erreur', 'Session utilisateur non active.');
-      return;
-    }
-
-    // Validate control date if set
     if (dateControle.trim()) {
       const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
       if (!dateRegex.test(dateControle)) {
@@ -117,9 +98,13 @@ export default function CreateConsultationScreen() {
       }
     }
 
+    if (!user) {
+      showAlert('Erreur', 'Session utilisateur inactive.');
+      return;
+    }
+
     setLoading(true);
     try {
-      // Build vitals structure
       const hasVitals = temperature || tension || pulsations || saturation || glycemie || poids || taille;
       const constantesDetails = hasVitals
         ? {
@@ -154,7 +139,6 @@ export default function CreateConsultationScreen() {
         {
           text: 'OK',
           onPress: () => {
-            // Redirect back to patient details
             router.replace(`/patients/${patientId}`);
           },
         },
@@ -182,10 +166,10 @@ export default function CreateConsultationScreen() {
         style={styles.container}
       >
         <View style={styles.header}>
-          <Link href={`/patients/${patientId}`} style={styles.backButton}>
-            <View pointerEvents="none">
+          <Link href={`/patients/${patientId}`} asChild>
+            <TouchableOpacity style={styles.backButton}>
               <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
-            </View>
+            </TouchableOpacity>
           </Link>
           <Text style={styles.title}>Nouvelle Visite</Text>
           <View style={styles.placeholder} />
@@ -344,7 +328,7 @@ export default function CreateConsultationScreen() {
               multiline
               numberOfLines={4}
               value={examenClinique}
-              onChangeText={setExamenClinique}
+              onChangeText={examenCliniqueSet}
             />
           </View>
 
@@ -597,27 +581,6 @@ const styles = StyleSheet.create({
     color: '#8AC8F9',
     fontSize: 12,
     fontWeight: '600',
-  },
-  micButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: '#0F2C3D',
-    borderWidth: 1,
-    borderColor: '#2F5C77',
-    borderRadius: 10,
-    paddingVertical: 4,
-    paddingHorizontal: 8,
-    marginBottom: 4,
-  },
-  micButtonActive: {
-    borderColor: '#FF6B6B',
-    backgroundColor: '#1C161D',
-  },
-  micText: {
-    color: '#8AC8F9',
-    fontSize: 11,
-    fontWeight: 'bold',
   },
   calcCard: {
     backgroundColor: '#1A3344',

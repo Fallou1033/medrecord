@@ -35,13 +35,13 @@ export default function AppTabs() {
           </TabTrigger>
 
           {/* Hidden triggers to register top-level stacks in expo-router/ui */}
-          <TabTrigger name="consultations" href="/consultations" asChild>
+          <TabTrigger name="consultations" href={"/consultations" as any} asChild>
             <Pressable style={{ display: 'none' }} />
           </TabTrigger>
-          <TabTrigger name="ordonnances" href="/ordonnances" asChild>
+          <TabTrigger name="ordonnances" href={"/ordonnances" as any} asChild>
             <Pressable style={{ display: 'none' }} />
           </TabTrigger>
-          <TabTrigger name="certificats" href="/certificats" asChild>
+          <TabTrigger name="certificats" href={"/certificats" as any} asChild>
             <Pressable style={{ display: 'none' }} />
           </TabTrigger>
         </CustomTabList>

@@ -11,11 +11,13 @@ import {
   TextInput,
   SafeAreaView,
   Platform,
+  StatusBar,
 } from 'react-native';
 import { useLocalSearchParams, useRouter, Link } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import {
   getPatientById,
+  updatePatient,
   getAntecedentsByPatient,
   addAntecedent,
   getConsultationsByPatient,
@@ -70,6 +72,73 @@ export default function PatientDetailsScreen() {
   const [vaccineDate, setVaccineDate] = useState(new Date().toISOString().split('T')[0]);
   const [vaccineRecallDate, setVaccineRecallDate] = useState('');
   const [vaccineLoading, setVaccineLoading] = useState(false);
+  // Modal State for editing Patient Folder
+  const [editModalVisible, setEditModalVisible] = useState(false);
+  const [editNom, setEditNom] = useState('');
+  const [editPrenom, setEditPrenom] = useState('');
+  const [editSexe, setEditSexe] = useState<'M' | 'F'>('M');
+  const [editDateNaissance, setEditDateNaissance] = useState('');
+  const [editTelephone, setEditTelephone] = useState('');
+  const [editAdresse, setEditAdresse] = useState('');
+  const [editProfession, setEditProfession] = useState('');
+  const [editPersonnePrevenir, setEditPersonnePrevenir] = useState('');
+  const [editGroupeSanguin, setEditGroupeSanguin] = useState<string | null>(null);
+  const [editLoading, setEditLoading] = useState(false);
+
+  const openEditModal = () => {
+    if (!patient) return;
+    setEditNom(patient.nom);
+    setEditPrenom(patient.prenom);
+    setEditSexe(patient.sexe);
+    setEditDateNaissance(patient.date_naissance);
+    setEditTelephone(patient.telephone || '');
+    setEditAdresse(patient.adresse || '');
+    setEditProfession(patient.profession || '');
+    setEditPersonnePrevenir(patient.personne_prevenir || '');
+    setEditGroupeSanguin(patient.groupe_sanguin || null);
+    setEditModalVisible(true);
+  };
+
+  const handleSavePatientEdit = async () => {
+    if (!user || !patient) return;
+    if (!editNom.trim() || !editPrenom.trim() || !editDateNaissance.trim()) {
+      showAlert('Champs requis', 'Nom, Prénom et Date de naissance sont requis.');
+      return;
+    }
+
+    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+    if (!dateRegex.test(editDateNaissance.trim())) {
+      showAlert('Format invalide', 'La date de naissance doit être au format AAAA-MM-JJ.');
+      return;
+    }
+
+    setEditLoading(true);
+    try {
+      await updatePatient(
+        patient.id,
+        {
+          nom: editNom.trim(),
+          prenom: editPrenom.trim(),
+          sexe: editSexe,
+          date_naissance: editDateNaissance.trim(),
+          telephone: editTelephone.trim() || null,
+          adresse: editAdresse.trim() || null,
+          profession: editProfession.trim() || null,
+          personne_prevenir: editPersonnePrevenir.trim() || null,
+          groupe_sanguin: editGroupeSanguin,
+        },
+        user.id
+      );
+      setEditModalVisible(false);
+      showAlert('Succès', 'Le dossier du patient a été mis à jour.');
+      loadAllData();
+    } catch (err) {
+      console.error(err);
+      showAlert('Erreur', 'Impossible de modifier le dossier du patient.');
+    } finally {
+      setEditLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (id) {
@@ -229,10 +298,10 @@ export default function PatientDetailsScreen() {
           
           // Try to load constants for this last visit
           const db = await getDatabase();
-          const constRow = await db.getFirstAsync<any>(
+          const constRow = (await db.getFirstAsync(
             'SELECT * FROM constantes WHERE consultation_id = ?;',
             [lastV.id]
-          );
+          )) as any;
           
           let constText = 'non renseignées';
           if (constRow) {
@@ -244,10 +313,9 @@ export default function PatientDetailsScreen() {
             if (parts.length > 0) constText = parts.join(', ');
           }
           
-          const { decryptData } = require('../../security/encryption');
-          const decMotif = (await decryptData(lastV.motif)) || '';
-          const decDiag = (await decryptData(lastV.diagnostic)) || '';
-          const decTrait = (await decryptData(lastV.traitement)) || '';
+          const decMotif = lastV.motif || 'Consultation médicale';
+          const decDiag = lastV.diagnostic || 'Non renseigné';
+          const decTrait = lastV.traitement || 'Aucun';
           
           latestVisitText = `Visite du ${formatDateFR(lastV.date)} pour "${decMotif}". Constantes : ${constText}. Diagnostic : "${decDiag}". Traitement prescrit : "${decTrait}".`;
         }
@@ -370,10 +438,10 @@ export default function PatientDetailsScreen() {
       {/* Patient Header Summary */}
       <View style={styles.header}>
         <View style={styles.headerTop}>
-          <Link href="/patients" style={styles.backButton}>
-            <View pointerEvents="none">
+          <Link href="/patients" asChild>
+            <TouchableOpacity style={styles.backButton}>
               <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
-            </View>
+            </TouchableOpacity>
           </Link>
           <Text style={styles.headerTitle}>{patient.numero_dossier}</Text>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
@@ -390,6 +458,10 @@ export default function PatientDetailsScreen() {
                 size={22}
                 color={isFavorite ? '#FFD700' : '#FFFFFF'}
               />
+            </TouchableOpacity>
+            <TouchableOpacity onPress={openEditModal} style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#1E3E52', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: '#2F5C77' }}>
+              <Ionicons name="create-outline" size={16} color="#28C2FF" />
+              <Text style={{ color: '#28C2FF', fontSize: 12, fontWeight: 'bold' }}>Modifier</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -481,15 +553,12 @@ export default function PatientDetailsScreen() {
             </View>
 
             <View style={styles.tabHeader}>
-              <Text style={styles.sectionTitle}>Fiche Administrative</Text>
-              <Link
-                href={`/certificats/create?patientId=${id}`}
-                style={styles.actionButton}
-              >
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <Ionicons name="document-text" size={18} color="#0F2C3D" />
-                  <Text style={styles.actionButtonText}>Nouveau Certificat</Text>
-                </View>
+              <Text style={[styles.sectionTitle, { flex: 1, marginRight: 8 }]} numberOfLines={1}>Fiche Administrative</Text>
+              <Link href={`/patients/certificat_create?patientId=${id}`} asChild>
+                <TouchableOpacity style={styles.actionButton}>
+                  <Ionicons name="document-text" size={16} color="#0F2C3D" />
+                  <Text style={styles.actionButtonText}>+ Certificat</Text>
+                </TouchableOpacity>
               </Link>
             </View>
             <View style={styles.infoCard}>
@@ -541,15 +610,12 @@ export default function PatientDetailsScreen() {
         {activeTab === 'consultations' && (
           <View style={styles.infoContainer}>
             <View style={styles.tabHeader}>
-              <Text style={styles.sectionTitle}>Historique des Consultations</Text>
-              <Link
-                href={`/consultations/create?patientId=${id}`}
-                style={styles.actionButton}
-              >
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <Ionicons name="add-circle" size={20} color="#0F2C3D" />
-                  <Text style={styles.actionButtonText}>Nouvelle Visite</Text>
-                </View>
+              <Text style={[styles.sectionTitle, { flex: 1, marginRight: 8 }]} numberOfLines={1}>Consultations</Text>
+              <Link href={`/patients/consultation_create?patientId=${id}`} asChild>
+                <TouchableOpacity style={styles.actionButton}>
+                  <Ionicons name="add-circle" size={16} color="#0F2C3D" />
+                  <Text style={styles.actionButtonText}>+ Visite</Text>
+                </TouchableOpacity>
               </Link>
             </View>
 
@@ -561,21 +627,23 @@ export default function PatientDetailsScreen() {
             ) : (
               <View style={styles.consList}>
                 {consultations.map((item) => (
-                  <Link key={item.id} href={`/consultations/${item.id}`} style={styles.consItem}>
-                    <View style={{ width: '100%' }}>
-                      <View style={styles.consHeader}>
-                        <Text style={styles.consDate}>{formatDateFR(item.date)}</Text>
-                        <Ionicons name="chevron-forward" size={16} color="#8AC8F9" />
-                      </View>
-                      <Text style={styles.consMotif} numberOfLines={1}>
-                        Motif : {item.motif}
-                      </Text>
-                      {item.diagnostic && (
-                        <Text style={styles.consDiag} numberOfLines={1}>
-                          Diagnostic : {item.diagnostic}
+                  <Link key={item.id} href={`/patients/consultation_details?id=${item.id}`} asChild>
+                    <TouchableOpacity style={styles.consItem}>
+                      <View style={{ width: '100%' }}>
+                        <View style={styles.consHeader}>
+                          <Text style={styles.consDate}>{formatDateFR(item.date)}</Text>
+                          <Ionicons name="chevron-forward" size={16} color="#8AC8F9" />
+                        </View>
+                        <Text style={styles.consMotif} numberOfLines={1}>
+                          Motif : {item.motif}
                         </Text>
-                      )}
-                    </View>
+                        {item.diagnostic && (
+                          <Text style={styles.consDiag} numberOfLines={1}>
+                            Diagnostic : {item.diagnostic}
+                          </Text>
+                        )}
+                      </View>
+                    </TouchableOpacity>
                   </Link>
                 ))}
               </View>
@@ -761,6 +829,163 @@ export default function PatientDetailsScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* Edit Patient Modal */}
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={editModalVisible}
+        onRequestClose={() => setEditModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { maxHeight: '85%' }]}>
+            <Text style={styles.modalTitle}>Modifier le Dossier Patient</Text>
+
+            <ScrollView contentContainerStyle={{ gap: 12, paddingBottom: 16 }}>
+              <View style={styles.inputGroup}>
+                <Text style={styles.modalLabel}>Prénom *</Text>
+                <TextInput
+                  style={styles.modalInputText}
+                  placeholder="Prénom"
+                  placeholderTextColor="#9ca3af"
+                  value={editPrenom}
+                  onChangeText={setEditPrenom}
+                />
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.modalLabel}>Nom de famille *</Text>
+                <TextInput
+                  style={styles.modalInputText}
+                  placeholder="Nom"
+                  placeholderTextColor="#9ca3af"
+                  value={editNom}
+                  onChangeText={setEditNom}
+                />
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.modalLabel}>Sexe *</Text>
+                <View style={styles.typeSelector}>
+                  <TouchableOpacity
+                    style={[styles.typeBtn, editSexe === 'M' && styles.typeBtnActive]}
+                    onPress={() => setEditSexe('M')}
+                  >
+                    <Text style={[styles.typeBtnText, editSexe === 'M' && styles.typeBtnTextActive]}>Homme (M)</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.typeBtn, editSexe === 'F' && styles.typeBtnActive]}
+                    onPress={() => setEditSexe('F')}
+                  >
+                    <Text style={[styles.typeBtnText, editSexe === 'F' && styles.typeBtnTextActive]}>Femme (F)</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.modalLabel}>Date de Naissance (AAAA-MM-JJ) *</Text>
+                <TextInput
+                  style={styles.modalInputText}
+                  placeholder="ex: 1990-05-15"
+                  placeholderTextColor="#9ca3af"
+                  value={editDateNaissance}
+                  onChangeText={setEditDateNaissance}
+                  keyboardType="numeric"
+                  maxLength={10}
+                />
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.modalLabel}>Numéro de Téléphone</Text>
+                <TextInput
+                  style={styles.modalInputText}
+                  placeholder="ex: +221 77 123 45 67"
+                  placeholderTextColor="#9ca3af"
+                  value={editTelephone}
+                  onChangeText={setEditTelephone}
+                  keyboardType="phone-pad"
+                />
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.modalLabel}>Adresse de Résidence</Text>
+                <TextInput
+                  style={styles.modalInputText}
+                  placeholder="ex: Dakar, Sacré-Cœur"
+                  placeholderTextColor="#9ca3af"
+                  value={editAdresse}
+                  onChangeText={setEditAdresse}
+                />
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.modalLabel}>Profession</Text>
+                <TextInput
+                  style={styles.modalInputText}
+                  placeholder="ex: Enseignant, Commerçant..."
+                  placeholderTextColor="#9ca3af"
+                  value={editProfession}
+                  onChangeText={setEditProfession}
+                />
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.modalLabel}>Personne à Prévenir</Text>
+                <TextInput
+                  style={styles.modalInputText}
+                  placeholder="ex: Épouse - 77 000 00 00"
+                  placeholderTextColor="#9ca3af"
+                  value={editPersonnePrevenir}
+                  onChangeText={setEditPersonnePrevenir}
+                />
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.modalLabel}>Groupe Sanguin</Text>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+                  {['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'].map((grp) => (
+                    <TouchableOpacity
+                      key={grp}
+                      style={{
+                        paddingHorizontal: 12,
+                        paddingVertical: 6,
+                        borderRadius: 6,
+                        backgroundColor: editGroupeSanguin === grp ? '#FF6B6B' : '#0F2C3D',
+                        borderWidth: 1,
+                        borderColor: editGroupeSanguin === grp ? '#FF6B6B' : '#2F5C77',
+                      }}
+                      onPress={() => setEditGroupeSanguin(editGroupeSanguin === grp ? null : grp)}
+                    >
+                      <Text style={{ color: editGroupeSanguin === grp ? '#FFFFFF' : '#8AC8F9', fontWeight: 'bold', fontSize: 12 }}>
+                        {grp}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+            </ScrollView>
+
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={styles.modalCancel}
+                onPress={() => setEditModalVisible(false)}
+                disabled={editLoading}
+              >
+                <Text style={styles.modalCancelText}>Annuler</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalSubmit, { backgroundColor: '#28C2FF' }]}
+                onPress={handleSavePatientEdit}
+                disabled={editLoading}
+              >
+                <Text style={[styles.modalSubmitText, { color: '#0F2C3D' }]}>
+                  {editLoading ? 'Enregistrement...' : 'Sauvegarder les modifications'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -792,7 +1017,7 @@ const styles = StyleSheet.create({
   },
   header: {
     backgroundColor: '#1E3E52',
-    paddingTop: Platform.OS === 'web' ? 80 : 16,
+    paddingTop: Platform.OS === 'web' ? 80 : (Platform.OS === 'android' ? (StatusBar.currentHeight || 24) + 8 : 16),
     borderBottomWidth: 1,
     borderBottomColor: '#2F5C77',
   },

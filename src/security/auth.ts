@@ -16,6 +16,7 @@ export interface UserProfile {
   email: string;
   nom: string;
   prenom: string;
+  telephone?: string | null;
   role: 'MEDECIN' | 'SECRETAIRE' | 'ADMINISTRATEUR';
   biometrie_active: boolean;
 }
@@ -67,7 +68,7 @@ export async function isPinSetup(): Promise<boolean> {
 /**
  * Sets up a new security PIN code and registers the default doctor profile in SQLite.
  */
-export async function setupPIN(pin: string, nom: string, prenom: string, email: string): Promise<UserProfile> {
+export async function setupPIN(pin: string, nom: string, prenom: string, email: string, telephone?: string | null): Promise<UserProfile> {
   try {
     // 1. Hash the PIN using SHA-256
     const pinHash = await Crypto.digestStringAsync(
@@ -82,32 +83,66 @@ export async function setupPIN(pin: string, nom: string, prenom: string, email: 
     const db = await getDatabase();
     
     // Check if default user already exists
-    let user = await db.getFirstAsync<any>('SELECT * FROM utilisateurs LIMIT 1;');
+    let user = (await db.getFirstAsync('SELECT * FROM utilisateurs LIMIT 1;')) as any;
     let userId = user?.id;
 
     if (!user) {
       userId = generateUUID();
       await db.runAsync(
-        `INSERT INTO utilisateurs (id, email, nom, prenom, role, pin_hash, biometrie_active) 
-         VALUES (?, ?, ?, ?, ?, ?, 0);`,
-        [userId, email, nom, prenom, 'MEDECIN', pinHash]
+        `INSERT INTO utilisateurs (id, email, nom, prenom, telephone, role, pin_hash, biometrie_active) 
+         VALUES (?, ?, ?, ?, ?, ?, ?, 0);`,
+        [userId, email, nom, prenom, telephone || null, 'MEDECIN', pinHash]
       );
     } else {
       // Update existing user's PIN
       await db.runAsync(
-        `UPDATE utilisateurs SET pin_hash = ?, email = ?, nom = ?, prenom = ? WHERE id = ?;`,
-        [pinHash, email, nom, prenom, userId]
+        `UPDATE utilisateurs SET pin_hash = ?, email = ?, nom = ?, prenom = ?, telephone = ? WHERE id = ?;`,
+        [pinHash, email, nom, prenom, telephone || null, userId]
       );
     }
 
     // 4. Save active user ID locally
     await secureStoreSetItem(ACTIVE_USER_ID_KEY, userId);
 
+    // 5. Sync to Supabase in background if client is configured
+    try {
+      const { supabase } = require('../services/supabase');
+      if (supabase) {
+        // Upsert to both possible user tables in Supabase (utilisateurs/profiles)
+        supabase.from('utilisateurs').upsert({
+          id: userId,
+          email,
+          nom,
+          prenom,
+          telephone: telephone || null,
+          role: 'MEDECIN',
+          updated_at: new Date().toISOString()
+        }).then(({ error }: any) => {
+          if (error) console.warn('Supabase sync warning (utilisateurs):', error);
+        });
+
+        supabase.from('profiles').upsert({
+          id: userId,
+          email,
+          nom,
+          prenom,
+          telephone: telephone || null,
+          role: 'MEDECIN',
+          updated_at: new Date().toISOString()
+        }).then(({ error }: any) => {
+          if (error) console.warn('Supabase sync warning (profiles):', error);
+        });
+      }
+    } catch (supabaseErr) {
+      console.warn('MedRecord: Failed to background-sync profile to Supabase:', supabaseErr);
+    }
+
     return {
       id: userId,
       email,
       nom,
       prenom,
+      telephone,
       role: 'MEDECIN',
       biometrie_active: false
     };
@@ -214,14 +249,14 @@ export async function getActiveUserProfile(): Promise<UserProfile | null> {
     const userId = await secureStoreGetItem(ACTIVE_USER_ID_KEY);
     const db = await getDatabase();
     
-    let user = userId ? await db.getFirstAsync<any>(
-      'SELECT id, email, nom, prenom, role, biometrie_active FROM utilisateurs WHERE id = ?;',
+    let user = userId ? (await db.getFirstAsync(
+      'SELECT id, email, nom, prenom, telephone, role, biometrie_active FROM utilisateurs WHERE id = ?;',
       [userId]
-    ) : null;
+    )) as any : null;
 
     if (!user) {
       // Si la session est orpheline (ex: crash précédent), on récupère le premier utilisateur existant
-      user = await db.getFirstAsync<any>('SELECT * FROM utilisateurs LIMIT 1;');
+      user = (await db.getFirstAsync('SELECT * FROM utilisateurs LIMIT 1;')) as any;
       if (user) {
         await secureStoreSetItem(ACTIVE_USER_ID_KEY, user.id);
       }
@@ -233,12 +268,13 @@ export async function getActiveUserProfile(): Promise<UserProfile | null> {
       const defaultEmail = 'bamba.diop@medrecord.sn';
       const defaultNom = 'Diop';
       const defaultPrenom = 'Mohamadou Bamba';
+      const defaultTelephone = '+221 77 123 4567';
       const hash = await secureStoreGetItem(PIN_HASH_KEY);
       
       await db.runAsync(
-        `INSERT INTO utilisateurs (id, email, nom, prenom, role, pin_hash, biometrie_active) 
-         VALUES (?, ?, ?, ?, ?, ?, 0);`,
-        [defaultId, defaultEmail, defaultNom, defaultPrenom, 'MEDECIN', hash]
+        `INSERT INTO utilisateurs (id, email, nom, prenom, telephone, role, pin_hash, biometrie_active) 
+         VALUES (?, ?, ?, ?, ?, ?, ?, 0);`,
+        [defaultId, defaultEmail, defaultNom, defaultPrenom, defaultTelephone, 'MEDECIN', hash]
       );
       
       await secureStoreSetItem(ACTIVE_USER_ID_KEY, defaultId);
@@ -248,6 +284,7 @@ export async function getActiveUserProfile(): Promise<UserProfile | null> {
         email: defaultEmail,
         nom: defaultNom,
         prenom: defaultPrenom,
+        telephone: defaultTelephone,
         role: 'MEDECIN',
         biometrie_active: false
       };
@@ -258,6 +295,7 @@ export async function getActiveUserProfile(): Promise<UserProfile | null> {
       email: user.email,
       nom: user.nom,
       prenom: user.prenom,
+      telephone: user.telephone,
       role: user.role,
       biometrie_active: user.biometrie_active === 1,
     };

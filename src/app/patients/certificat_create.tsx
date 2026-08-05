@@ -46,7 +46,7 @@ export default function CreateCertificatScreen() {
     APTITUDE:
       "Je soussigné, Dr Mohamadou Bamba Diop, certifie après examen clinique ce jour n'avoir pas constaté de contre-indication médicale à la pratique de : ",
     INAPTITUDE:
-      "Je soussigné, Dr Mohamadou Bamba Diop, certifie après examen clinique ce jour que le patient susnommé présente une inaptitude médicale temporaire à : ",
+      "Je soussigné, Dr Mohamadou Bamba Diop, certifie après examen clinique ce jour que the patient susnommé présente une inaptitude médicale temporaire à : ",
     ARRET_TRAVAIL:
       "Je soussigné, Dr Mohamadou Bamba Diop, certifie que l'état de santé du patient susnommé nécessite un arrêt de travail d'une durée de ___ jours, allant du ___ au ___ inclus.",
   };

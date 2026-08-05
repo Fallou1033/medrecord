@@ -114,6 +114,8 @@ export interface RendezVous {
   // Joins
   patient_nom?: string;
   patient_prenom?: string;
+  patient_telephone?: string | null;
+  patient_numero_dossier?: string;
 }
 
 // ============================================================================
@@ -172,7 +174,7 @@ export async function createPatient(
 
 export async function getPatients(): Promise<Patient[]> {
   const db = await getDatabase();
-  const rows = await db.getAllAsync<any>('SELECT * FROM patients ORDER BY created_at DESC;');
+  const rows = (await db.getAllAsync('SELECT * FROM patients ORDER BY created_at DESC;')) as any[];
   const decryptedPatients: Patient[] = [];
 
   for (const row of rows) {
@@ -200,7 +202,7 @@ export async function getPatients(): Promise<Patient[]> {
 
 export async function getPatientById(id: string): Promise<Patient | null> {
   const db = await getDatabase();
-  const row = await db.getFirstAsync<any>('SELECT * FROM patients WHERE id = ?;', [id]);
+  const row = (await db.getFirstAsync('SELECT * FROM patients WHERE id = ?;', [id])) as any;
   if (!row) return null;
 
   return {
@@ -317,10 +319,10 @@ export async function addAntecedent(
 
 export async function getAntecedentsByPatient(patientId: string): Promise<Antecedent[]> {
   const db = await getDatabase();
-  const rows = await db.getAllAsync<any>(
+  const rows = (await db.getAllAsync(
     'SELECT * FROM antecedents WHERE patient_id = ? ORDER BY created_at DESC;',
     [patientId]
-  );
+  )) as any[];
   const decryptedList: Antecedent[] = [];
 
   for (const row of rows) {
@@ -426,18 +428,18 @@ export async function createConsultation(
 
 export async function getConsultationsByPatient(patientId: string): Promise<Consultation[]> {
   const db = await getDatabase();
-  const rows = await db.getAllAsync<any>(
+  const rows = (await db.getAllAsync(
     'SELECT * FROM consultations WHERE patient_id = ? ORDER BY date DESC;',
     [patientId]
-  );
+  )) as any[];
   const result: Consultation[] = [];
 
   for (const row of rows) {
     // Get corresponding constants
-    const constRow = await db.getFirstAsync<any>(
+    const constRow = (await db.getFirstAsync(
       'SELECT * FROM constantes WHERE consultation_id = ?;',
       [row.id]
-    );
+    )) as any;
 
     const constantes: Constante | null = constRow
       ? {
@@ -512,10 +514,10 @@ export async function addOrdonnance(
 
 export async function getOrdonnanceByConsultation(consultationId: string): Promise<Ordonnance | null> {
   const db = await getDatabase();
-  const row = await db.getFirstAsync<any>(
+  const row = (await db.getFirstAsync(
     'SELECT * FROM ordonnances WHERE consultation_id = ?;',
     [consultationId]
-  );
+  )) as any;
   if (!row) return null;
 
   return {
@@ -571,10 +573,10 @@ export async function addCertificat(
 
 export async function getCertificatsByPatient(patientId: string): Promise<Certificat[]> {
   const db = await getDatabase();
-  const rows = await db.getAllAsync<any>(
+  const rows = (await db.getAllAsync(
     'SELECT * FROM certificats WHERE patient_id = ? ORDER BY created_at DESC;',
     [patientId]
-  );
+  )) as any[];
   const result: Certificat[] = [];
 
   for (const row of rows) {
@@ -625,10 +627,10 @@ export async function addVaccination(
 
 export async function getVaccinationsByPatient(patientId: string): Promise<Vaccination[]> {
   const db = await getDatabase();
-  const rows = await db.getAllAsync<any>(
+  const rows = (await db.getAllAsync(
     'SELECT * FROM vaccinations WHERE patient_id = ? ORDER BY date_administration DESC;',
     [patientId]
-  );
+  )) as any[];
 
   return rows.map((row) => ({
     id: row.id,
@@ -672,20 +674,21 @@ export async function addRendezVous(
 
 export async function getRendezVous(medecinId: string): Promise<RendezVous[]> {
   const db = await getDatabase();
-  // We join with patients to display their names in the calendar/list
-  const rows = await db.getAllAsync<any>(
-    `SELECT rv.*, p.nom as p_nom, p.prenom as p_prenom 
+  // We join with patients to display their names and file number in the list
+  const rows = (await db.getAllAsync(
+    `SELECT rv.*, p.nom as p_nom, p.prenom as p_prenom, p.telephone as p_telephone, p.numero_dossier as p_numero_dossier 
      FROM rendez_vous rv
      JOIN patients p ON rv.patient_id = p.id
      WHERE rv.medecin_id = ?
      ORDER BY rv.date_heure ASC;`,
     [medecinId]
-  );
+  )) as any[];
 
   const decryptedRdv: RendezVous[] = [];
   for (const row of rows) {
     const patientNom = (await decryptData(row.p_nom)) || '';
     const patientPrenom = (await decryptData(row.p_prenom)) || '';
+    const patientTelephone = await decryptData(row.p_telephone);
 
     decryptedRdv.push({
       id: row.id,
@@ -698,6 +701,8 @@ export async function getRendezVous(medecinId: string): Promise<RendezVous[]> {
       is_synced: row.is_synced === 1,
       patient_nom: patientNom,
       patient_prenom: patientPrenom,
+      patient_telephone: patientTelephone || null,
+      patient_numero_dossier: row.p_numero_dossier || '',
     });
   }
 
@@ -711,6 +716,38 @@ export async function updateRendezVousStatut(id: string, statut: RendezVous['sta
     [statut, id]
   );
   await writeAuditLog(userId, 'UPDATE', 'rendez_vous', id, `Mise à jour du statut du rendez-vous en ${statut}`);
+}
+
+export async function updateRendezVous(
+  id: string,
+  updates: { date_heure?: string; statut?: RendezVous['statut'] },
+  userId: string
+): Promise<void> {
+  const db = await getDatabase();
+  const fields: string[] = [];
+  const params: any[] = [];
+
+  if (updates.date_heure !== undefined) {
+    fields.push('date_heure = ?');
+    params.push(updates.date_heure);
+  }
+  if (updates.statut !== undefined) {
+    fields.push('statut = ?');
+    params.push(updates.statut);
+  }
+
+  if (fields.length === 0) return;
+
+  fields.push('is_synced = 0');
+  fields.push("updated_at = datetime('now')");
+  params.push(id);
+
+  await db.runAsync(
+    `UPDATE rendez_vous SET ${fields.join(', ')} WHERE id = ?;`,
+    params
+  );
+
+  await writeAuditLog(userId, 'UPDATE', 'rendez_vous', id, `Modification du rendez-vous`);
 }
 
 // ============================================================================
@@ -753,10 +790,10 @@ export interface Examen {
 
 export async function getExamensByConsultation(consultationId: string): Promise<Examen[]> {
   const db = await getDatabase();
-  const rows = await db.getAllAsync<any>(
+  const rows = (await db.getAllAsync(
     'SELECT * FROM examens WHERE consultation_id = ? ORDER BY created_at DESC;',
     [consultationId]
-  );
+  )) as any[];
 
   return rows.map((row) => ({
     id: row.id,

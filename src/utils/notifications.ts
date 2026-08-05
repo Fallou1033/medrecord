@@ -8,7 +8,7 @@ if (Platform.OS !== 'web') {
       shouldShowAlert: true,
       shouldPlaySound: true,
       shouldSetBadge: false,
-    }),
+    } as any),
   });
 }
 
@@ -56,7 +56,7 @@ export async function scheduleVaccinationReminder(
       body: `Rappel de vaccin "${vaccineName}" à administrer aujourd'hui au patient ${patientName}.`,
       sound: true,
     },
-    trigger: triggerDate,
+    trigger: triggerDate as any,
   });
 
   return identifier;
@@ -89,7 +89,7 @@ export async function scheduleAppointmentReminder(
       body: `Rendez-vous programmé avec le patient ${patientName} à ${triggerDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} (dans 2 heures).`,
       sound: true,
     },
-    trigger: new Date(reminderTime),
+    trigger: new Date(reminderTime) as any,
   });
 
   return identifier;

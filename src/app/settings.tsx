@@ -1,5 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { SymbolView } from 'expo-symbols';
+import { Ionicons } from '@expo/vector-icons';
+import {
+  getConnectedUser,
+  loginToGoogleDrive,
+  logoutFromGoogleDrive,
+  getLatestBackupTimestamp,
+  backupDatabaseToDrive,
+  restoreDatabaseFromDrive,
+  GoogleDriveUser,
+  saveGoogleTokenAndFetchProfile,
+} from '../services/googleDriveService';
 import {
   Platform,
   ScrollView,
@@ -36,9 +47,120 @@ export default function SettingsScreen() {
   const [nom, setNom] = useState(user?.nom || '');
   const [prenom, setPrenom] = useState(user?.prenom || '');
   const [email, setEmail] = useState(user?.email || '');
+  const [telephone, setTelephone] = useState(user?.telephone || '');
   const [newPin, setNewPin] = useState('');
   const [currentPin, setCurrentPin] = useState('');
   const [saving, setSaving] = useState(false);
+  const [avatar, setAvatar] = useState('');
+
+  const [googleUser, setGoogleUser] = useState<GoogleDriveUser | null>(null);
+  const [lastBackup, setLastBackup] = useState<string | null>(null);
+  const [backingUp, setBackingUp] = useState(false);
+  const [restoring, setRestoring] = useState(false);
+  const [customToken, setCustomToken] = useState('');
+
+  useEffect(() => {
+    loadGoogleDriveStatus();
+  }, []);
+
+  const loadGoogleDriveStatus = async () => {
+    const user = await getConnectedUser();
+    setGoogleUser(user);
+    const time = await getLatestBackupTimestamp();
+    setLastBackup(time);
+
+    // Load doctor avatar photo
+    if (Platform.OS === 'web') {
+      const savedAvatar = localStorage.getItem('doctor_avatar');
+      if (savedAvatar) setAvatar(savedAvatar);
+    } else {
+      SecureStore.getItemAsync('doctor_avatar')
+        .then((savedAvatar) => {
+          if (savedAvatar) setAvatar(savedAvatar);
+        })
+        .catch(() => {});
+    }
+  };
+
+  const handleSaveToken = async () => {
+    if (!customToken.trim()) {
+      alert("Erreur\n\nVeuillez coller un jeton d'accès Google valide.");
+      return;
+    }
+    setSaving(true);
+    try {
+      const user = await saveGoogleTokenAndFetchProfile(customToken.trim());
+      setGoogleUser(user);
+      const time = await getLatestBackupTimestamp();
+      setLastBackup(time);
+      setCustomToken('');
+      alert("Succès\n\nConnexion réelle Google Drive établie !");
+    } catch (e: any) {
+      alert("Erreur d'authentification\n\nJeton invalide ou expiré.\nDétails : " + e.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleGoogleLogin = async () => {
+    try {
+      const docName = `Dr ${prenom.trim()} ${nom.trim()}`;
+      const docEmail = email.trim();
+      const user = await loginToGoogleDrive(docName, docEmail, avatar);
+      setGoogleUser(user);
+      const time = await getLatestBackupTimestamp();
+      setLastBackup(time);
+      alert("Succès\n\nConnexion à Google Drive établie !");
+    } catch (e) {
+      console.error(e);
+      alert("Erreur\n\nImpossible de se connecter à Google Drive.");
+    }
+  };
+
+  const handleGoogleLogout = async () => {
+    try {
+      await logoutFromGoogleDrive();
+      setGoogleUser(null);
+      setLastBackup(null);
+      alert("Succès\n\nDéconnexion de Google Drive réussie.");
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleBackup = async () => {
+    setBackingUp(true);
+    try {
+      await backupDatabaseToDrive();
+      const time = await getLatestBackupTimestamp();
+      setLastBackup(time);
+      alert("Succès\n\nSauvegarde des données médicales effectuée avec succès !");
+    } catch (e: any) {
+      console.error(e);
+      alert("Erreur de sauvegarde\n\n" + e.message);
+    } finally {
+      setBackingUp(false);
+    }
+  };
+
+  const handleRestore = async () => {
+    const confirmRestore = confirm 
+      ? confirm("Attention : Restauration des données\n\nCette action va écraser l'intégralité de vos données cliniques actuelles sur cet appareil par celles de votre Google Drive. Voulez-vous continuer ?")
+      : true;
+
+    if (!confirmRestore) return;
+
+    setRestoring(true);
+    try {
+      await restoreDatabaseFromDrive();
+      alert("Succès\n\nDonnées restaurées avec succès !");
+    } catch (e: any) {
+      console.error(e);
+      alert("Erreur de restauration\n\n" + e.message);
+    } finally {
+      setRestoring(false);
+    }
+  };
 
   // Synchronise les états locaux avec l'utilisateur global s'il change
   useEffect(() => {
@@ -46,6 +168,7 @@ export default function SettingsScreen() {
       setNom(user.nom);
       setPrenom(user.prenom);
       setEmail(user.email);
+      setTelephone(user.telephone || '');
     }
   }, [user]);
 
@@ -78,9 +201,24 @@ export default function SettingsScreen() {
     }
   };
 
+  const pickAvatar = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.5,
+      base64: true,
+    });
+
+    if (!result.canceled && result.assets && result.assets[0].base64) {
+      const base64Image = `data:image/png;base64,${result.assets[0].base64}`;
+      setAvatar(base64Image);
+    }
+  };
+
   const handleSaveProfile = async () => {
-    if (!prenom.trim() || !nom.trim() || !email.trim()) {
-      alert("Champs obligatoires\n\nVeuillez renseigner le prénom, le nom et l'adresse email.");
+    if (!prenom.trim() || !nom.trim() || !email.trim() || !telephone.trim()) {
+      alert("Champs obligatoires\n\nVeuillez renseigner le prénom, le nom, l'adresse email et le numéro de téléphone.");
       return;
     }
 
@@ -109,13 +247,15 @@ export default function SettingsScreen() {
       }
 
       // 3. Mettre à jour dans la base locale et le secure store
-      await setupSecurity(finalPin, nom.trim(), prenom.trim(), email.trim());
+      await setupSecurity(finalPin, nom.trim(), prenom.trim(), email.trim(), telephone.trim());
 
-      // 4. Enregistrer la signature
+      // 4. Enregistrer la signature & la photo de profil
       if (Platform.OS === 'web') {
         localStorage.setItem('doctor_signature', signature);
+        localStorage.setItem('doctor_avatar', avatar);
       } else {
         await SecureStore.setItemAsync('doctor_signature', signature);
+        await SecureStore.setItemAsync('doctor_avatar', avatar);
       }
 
       alert("Succès\n\nVotre profil de médecin et vos identifiants de sécurité ont été mis à jour !");
@@ -161,7 +301,7 @@ export default function SettingsScreen() {
           <Collapsible title="Identité du Docteur & Profil">
             <View style={styles.formContainer}>
               <View style={styles.inputGroup}>
-                <ThemedText style={styles.label}>Prénom</ThemedText>
+                <ThemedText style={styles.label}>Prénom *</ThemedText>
                 <TextInput
                   style={styles.input}
                   placeholder="Prénom"
@@ -172,7 +312,7 @@ export default function SettingsScreen() {
               </View>
 
               <View style={styles.inputGroup}>
-                <ThemedText style={styles.label}>Nom de famille</ThemedText>
+                <ThemedText style={styles.label}>Nom de famille *</ThemedText>
                 <TextInput
                   style={styles.input}
                   placeholder="Nom"
@@ -183,7 +323,7 @@ export default function SettingsScreen() {
               </View>
 
               <View style={styles.inputGroup}>
-                <ThemedText style={styles.label}>Adresse Email</ThemedText>
+                <ThemedText style={styles.label}>Adresse Email *</ThemedText>
                 <TextInput
                   style={styles.input}
                   placeholder="Email"
@@ -195,17 +335,61 @@ export default function SettingsScreen() {
               </View>
 
               <View style={styles.inputGroup}>
-                <ThemedText style={styles.label}>Nouveau Code PIN (4 chiffres - optionnel)</ThemedText>
+                <ThemedText style={styles.label}>Numéro de téléphone *</ThemedText>
                 <TextInput
                   style={styles.input}
-                  placeholder="Laisser vide pour ne pas modifier"
+                  placeholder="Ex: +221 77 123 45 67"
                   placeholderTextColor="#9ca3af"
-                  value={newPin}
-                  onChangeText={setNewPin}
-                  keyboardType="numeric"
-                  maxLength={4}
-                  secureTextEntry
+                  value={telephone}
+                  onChangeText={setTelephone}
+                  keyboardType="phone-pad"
                 />
+              </View>
+
+              <View style={{ flexDirection: 'row', gap: 12 }}>
+                <View style={[styles.inputGroup, { flex: 1 }]}>
+                  <ThemedText style={styles.label}>Nouveau PIN (optionnel)</ThemedText>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Nouveau code PIN"
+                    placeholderTextColor="#9ca3af"
+                    value={newPin}
+                    onChangeText={setNewPin}
+                    keyboardType="numeric"
+                    maxLength={4}
+                    secureTextEntry
+                  />
+                </View>
+
+                <View style={[styles.inputGroup, { flex: 1 }]}>
+                  <ThemedText style={styles.label}>PIN actuel (obligatoire) *</ThemedText>
+                  <TextInput
+                    style={styles.inputCurrentPin}
+                    placeholder="Saisir PIN actuel"
+                    placeholderTextColor="#9ca3af"
+                    value={currentPin}
+                    onChangeText={setCurrentPin}
+                    keyboardType="numeric"
+                    maxLength={4}
+                    secureTextEntry
+                  />
+                </View>
+              </View>
+
+              <View style={styles.inputGroup}>
+                <ThemedText style={styles.label}>Photo de Profil du Médecin</ThemedText>
+                {avatar ? (
+                  <View style={styles.signaturePreviewContainer}>
+                    <Image source={{ uri: avatar }} style={[styles.signatureImage, { width: 80, height: 80, borderRadius: 40 }]} />
+                    <TouchableOpacity style={styles.sigClearBtn} onPress={() => setAvatar('')}>
+                      <ThemedText style={styles.sigClearBtnText}>Supprimer</ThemedText>
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  <TouchableOpacity style={styles.sigUploadBtn} onPress={pickAvatar}>
+                    <ThemedText style={styles.sigUploadBtnText}>Téléverser une photo de profil</ThemedText>
+                  </TouchableOpacity>
+                )}
               </View>
 
               <View style={styles.inputGroup}>
@@ -222,20 +406,6 @@ export default function SettingsScreen() {
                     <ThemedText style={styles.sigUploadBtnText}>Téléverser une image de signature</ThemedText>
                   </TouchableOpacity>
                 )}
-              </View>
-
-              <View style={styles.inputGroup}>
-                <ThemedText style={styles.label}>Confirmer avec le PIN actuel *</ThemedText>
-                <TextInput
-                  style={styles.inputCurrentPin}
-                  placeholder="Saisissez votre PIN actuel pour enregistrer"
-                  placeholderTextColor="#9ca3af"
-                  value={currentPin}
-                  onChangeText={setCurrentPin}
-                  keyboardType="numeric"
-                  maxLength={4}
-                  secureTextEntry
-                />
               </View>
 
               <TouchableOpacity
@@ -255,6 +425,93 @@ export default function SettingsScreen() {
             <ThemedText type="small">
               Le verrouillage automatique est activé et se déclenche après 2 minutes d'inactivité pour garantir le respect du secret médical. Les clés de cryptage AES-256 locales protègent vos données cliniques.
             </ThemedText>
+          </Collapsible>
+
+          <Collapsible title="Sauvegarde & Restauration Google Drive">
+            <View style={styles.backupContainer}>
+              {googleUser ? (
+                <View style={styles.googleProfile}>
+                  <View style={styles.googleUserRow}>
+                    <Image
+                      source={avatar ? { uri: avatar } : require('../../assets/images/favicon.png')}
+                      style={styles.googleAvatar}
+                    />
+                    <View style={styles.googleMeta}>
+                      <ThemedText style={styles.googleName}>Dr {prenom.trim()} {nom.trim()}</ThemedText>
+                      <ThemedText style={styles.googleEmail}>{email.trim()}</ThemedText>
+                    </View>
+                  </View>
+
+                  <ThemedText style={styles.backupStatus}>
+                    Dernière sauvegarde : {lastBackup ? new Date(lastBackup).toLocaleString('fr-FR') : 'Aucune'}
+                  </ThemedText>
+
+                  <View style={styles.backupActions}>
+                    <TouchableOpacity
+                      style={[styles.actionBtn, styles.backupBtn]}
+                      onPress={handleBackup}
+                      disabled={backingUp}>
+                      {backingUp ? (
+                        <ActivityIndicator size="small" color="#0F2C3D" />
+                      ) : (
+                        <ThemedText style={styles.actionBtnText}>Sauvegarder Maintenant</ThemedText>
+                      )}
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={[styles.actionBtn, styles.restoreBtn]}
+                      onPress={handleRestore}
+                      disabled={restoring}>
+                      {restoring ? (
+                        <ActivityIndicator size="small" color="#FFFFFF" />
+                      ) : (
+                        <ThemedText style={[styles.actionBtnText, { color: '#FFFFFF' }]}>Restaurer la base</ThemedText>
+                      )}
+                    </TouchableOpacity>
+                  </View>
+
+                  <TouchableOpacity style={styles.googleLogoutBtn} onPress={handleGoogleLogout}>
+                    <ThemedText style={styles.googleLogoutBtnText}>Déconnecter Google Drive</ThemedText>
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <View style={styles.googleEmpty}>
+                  <ThemedText style={styles.googleEmptyText}>
+                    Pour activer la sauvegarde **réelle** sur votre Google Drive (falludiop10008@gmail.com), collez un jeton d'accès OAuth2 ci-dessous :
+                  </ThemedText>
+
+                  <View style={{ width: '100%', marginVertical: 10 }}>
+                    <TextInput
+                      style={styles.input}
+                      placeholder="Coller le Jeton Google (ya29...)"
+                      placeholderTextColor="#9ca3af"
+                      value={customToken}
+                      onChangeText={setCustomToken}
+                      secureTextEntry
+                    />
+                  </View>
+
+                  <TouchableOpacity
+                    style={[styles.googleLoginBtn, { marginVertical: 6 }]}
+                    onPress={handleSaveToken}
+                    disabled={saving}
+                  >
+                    <ThemedText style={styles.googleLoginBtnText}>
+                      {saving ? 'Validation...' : 'Valider & Connecter'}
+                    </ThemedText>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    onPress={handleGoogleLogin}
+                    style={{ marginTop: 10 }}
+                  >
+                    <ThemedText style={{ color: '#28C2FF', textDecorationLine: 'underline', fontSize: 13, textAlign: 'center' }}>
+                      Ou utiliser le mode simulation clinique
+                    </ThemedText>
+                  </TouchableOpacity>
+                </View>
+              )}
+            </View>
           </Collapsible>
 
           <Collapsible title="Apparence & Thème">
@@ -450,5 +707,111 @@ const styles = StyleSheet.create({
     color: '#28C2FF',
     fontWeight: 'bold',
     fontSize: 13,
+  },
+  backupContainer: {
+    paddingVertical: 12,
+    gap: 12,
+  },
+  googleProfile: {
+    gap: 16,
+  },
+  googleUserRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: '#0F2C3D',
+    borderWidth: 1,
+    borderColor: '#2F5C77',
+    borderRadius: 10,
+    padding: 12,
+  },
+  googleAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+  },
+  googleMeta: {
+    flex: 1,
+  },
+  googleName: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: 'bold',
+  },
+  googleEmail: {
+    color: '#8AC8F9',
+    fontSize: 12,
+  },
+  backupStatus: {
+    color: '#8AC8F9',
+    fontSize: 13,
+    fontWeight: '600',
+    backgroundColor: '#0F2C3D',
+    padding: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#2F5C77',
+    textAlign: 'center',
+  },
+  backupActions: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  actionBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  backupBtn: {
+    backgroundColor: '#28C2FF',
+  },
+  restoreBtn: {
+    backgroundColor: '#E67E22',
+  },
+  actionBtnText: {
+    color: '#0F2C3D',
+    fontWeight: 'bold',
+    fontSize: 13,
+  },
+  googleLogoutBtn: {
+    borderWidth: 1,
+    borderColor: '#FF6B6B',
+    borderRadius: 10,
+    paddingVertical: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 6,
+  },
+  googleLogoutBtnText: {
+    color: '#FF6B6B',
+    fontWeight: 'bold',
+    fontSize: 13,
+  },
+  googleEmpty: {
+    alignItems: 'center',
+    gap: 14,
+    paddingVertical: 10,
+  },
+  googleEmptyText: {
+    color: '#D1E6F3',
+    fontSize: 13,
+    textAlign: 'center',
+    lineHeight: 18,
+  },
+  googleLoginBtn: {
+    backgroundColor: '#28C2FF',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: '100%',
+  },
+  googleLoginBtnText: {
+    color: '#0F2C3D',
+    fontWeight: 'bold',
+    fontSize: 14,
   },
 });

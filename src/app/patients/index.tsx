@@ -14,7 +14,7 @@ import {
 import { useRouter, useFocusEffect, Link } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { getPatients, Patient } from '../../database/SQLiteDatabaseManager';
-import { calculateAge } from '../../utils/helpers';
+import { calculateAge, formatDateFR } from '../../utils/helpers';
 import { writeAuditLog } from '../../database/db';
 import { useSecurity } from '../../security/SecurityContext';
 
@@ -63,11 +63,15 @@ export default function PatientsListScreen() {
       const fullName = `${p.prenom} ${p.nom}`.toLowerCase();
       const folderNum = p.numero_dossier.toLowerCase();
       const phone = (p.telephone || '').toLowerCase();
+      const dobRaw = (p.date_naissance || '').toLowerCase();
+      const dobFormatted = formatDateFR(p.date_naissance).toLowerCase();
       
       return (
         fullName.includes(query) ||
         folderNum.includes(query) ||
-        phone.includes(query)
+        phone.includes(query) ||
+        dobRaw.includes(query) ||
+        dobFormatted.includes(query)
       );
     });
     setFilteredPatients(filtered);
@@ -139,7 +143,7 @@ export default function PatientsListScreen() {
           onChangeText={setSearch}
         />
         {search.length > 0 && (
-          <TouchableOpacity onPress={() => setSearch('')}>
+          <TouchableOpacity onPress={() => setSearch('')} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
             <Ionicons name="close-circle" size={18} color="#9ca3af" />
           </TouchableOpacity>
         )}
@@ -183,7 +187,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingTop: 20,
+    paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 24) + 12 : 20,
     paddingBottom: 12,
   },
   title: {
@@ -196,9 +200,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    paddingVertical: 8,
+    paddingVertical: 12,
     paddingHorizontal: 16,
-    borderRadius: 20,
+    borderRadius: 8,
   },
   addButtonText: {
     color: '#0F2C3D',

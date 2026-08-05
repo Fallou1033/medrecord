@@ -14,36 +14,48 @@ import { useSecurity } from '../security/SecurityContext';
 
 export default function SetupSecurityScreen() {
   const { setupSecurity } = useSecurity();
-  const [nom, setNom] = useState('Diop');
-  const [prenom, setPrenom] = useState('Mohamadou Bamba');
-  const [email, setEmail] = useState('bamba.diop@medrecord.sn');
+  const [nom, setNom] = useState('');
+  const [prenom, setPrenom] = useState('');
+  const [email, setEmail] = useState('');
   const [pin, setPin] = useState('');
   const [confirmPin, setConfirmPin] = useState('');
+  const [errorMsg, setErrorMsg] = useState('');
   const [loading, setLoading] = useState(false);
 
+  const showAlert = (title: string, message: string) => {
+    setErrorMsg(message);
+    if (Platform.OS === 'web') {
+      alert(`${title}\n\n${message}`);
+    } else {
+      Alert.alert(title, message);
+    }
+  };
+
   const handleSetup = async () => {
-    if (!nom || !prenom || !email || !pin || !confirmPin) {
-      Alert.alert('Erreur', 'Veuillez remplir tous les champs.');
+    setErrorMsg('');
+    if (!nom.trim() || !prenom.trim() || !email.trim() || !pin || !confirmPin) {
+      showAlert('Champs requis', 'Veuillez remplir tous les champs obligatoires.');
       return;
     }
 
     if (pin.length !== 4 || isNaN(Number(pin))) {
-      Alert.alert('Erreur', 'Le code PIN doit être composé de 4 chiffres.');
+      showAlert('Code PIN invalide', 'Le code PIN doit être composé exactement de 4 chiffres.');
       return;
     }
 
     if (pin !== confirmPin) {
-      Alert.alert('Erreur', 'Les codes PIN ne correspondent pas.');
+      showAlert('Erreur de confirmation', 'Les deux codes PIN saisis ne correspondent pas.');
       return;
     }
 
     setLoading(true);
     try {
       // Prepend Dr if not present
-      const formattedNom = nom.startsWith('Dr ') ? nom : `Dr ${nom}`;
-      await setupSecurity(pin, formattedNom, prenom, email);
+      const formattedNom = nom.trim().startsWith('Dr ') ? nom.trim() : `Dr ${nom.trim()}`;
+      await setupSecurity(pin, formattedNom, prenom.trim(), email.trim());
     } catch (error) {
-      Alert.alert('Erreur', "Impossible d'enregistrer le code PIN.");
+      console.error(error);
+      showAlert('Erreur', "Impossible d'enregistrer le profil et le code PIN.");
     } finally {
       setLoading(false);
     }
@@ -60,6 +72,14 @@ export default function SetupSecurityScreen() {
           <Text style={styles.subtitle}>
             Bienvenue sur MedRecord. Veuillez configurer votre profil médecin et votre code PIN d'accès.
           </Text>
+
+          {errorMsg !== '' && (
+            <View style={{ backgroundColor: '#FF6B6B22', borderWidth: 1, borderColor: '#FF6B6B', borderRadius: 10, padding: 12, marginBottom: 16 }}>
+              <Text style={{ color: '#FF6B6B', fontSize: 13, fontWeight: 'bold', textAlign: 'center' }}>
+                ⚠️ {errorMsg}
+              </Text>
+            </View>
+          )}
 
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Prénom</Text>

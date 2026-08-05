@@ -87,10 +87,10 @@ export default function CreateOrdonnanceScreen() {
       } else {
         // Pre-fill with the treatment from the consultation
         const db = await getDatabase();
-        const row = (await db.getFirstAsync(
+        const row = await db.getFirstAsync(
           'SELECT traitement FROM consultations WHERE id = ?;',
           [consultationId]
-        )) as any;
+        ) as any;
         if (row && row.traitement) {
           const decryptedTreatment = await decryptData(row.traitement);
           setContenu(decryptedTreatment || '');
@@ -99,10 +99,10 @@ export default function CreateOrdonnanceScreen() {
 
       // 3. Pre-fill weight if constants exist for this consultation
       const db = await getDatabase();
-      const weightRow = (await db.getFirstAsync(
+      const weightRow = await db.getFirstAsync(
         'SELECT poids FROM constantes WHERE consultation_id = ?;',
         [consultationId]
-      )) as any;
+      ) as any;
       if (weightRow && weightRow.poids) {
         setPoids(weightRow.poids.toString());
       }
@@ -225,11 +225,22 @@ export default function CreateOrdonnanceScreen() {
         dialogTitle: `Ordonnance_${patient.nom.toUpperCase()}_${dateStr}`,
         UTI: 'com.adobe.pdf',
       });
-      
-      showAlert('Succès', 'Ordonnance générée et partagée avec succès.');
+
+      showAlert('Succès', 'Ordonnance générée et partagée avec succès.', [
+        {
+          text: 'OK',
+          onPress: () => {
+            // Go back to the consultation details
+            router.replace({
+              pathname: '/patients/consultation_details' as any,
+              params: { id: consultationId },
+            });
+          },
+        },
+      ]);
     } catch (err) {
       console.error(err);
-      showAlert('Erreur', 'Impossible de générer le PDF.');
+      showAlert('Erreur', 'Impossible de générer l\'ordonnance PDF.');
     } finally {
       setGenerating(false);
     }
@@ -246,12 +257,18 @@ export default function CreateOrdonnanceScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <Link href={`/patients/${patientId}`} style={styles.backButton}>
-          <View pointerEvents="none">
+        <Link
+          href={{
+            pathname: '/patients/consultation_details' as any,
+            params: { id: consultationId },
+          }}
+          asChild
+        >
+          <TouchableOpacity style={styles.backButton}>
             <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
-          </View>
+          </TouchableOpacity>
         </Link>
-        <Text style={styles.title}>Rédiger l'Ordonnance</Text>
+        <Text style={styles.title}>Rédiger une Ordonnance</Text>
         <View style={styles.placeholder} />
       </View>
 
@@ -265,42 +282,22 @@ export default function CreateOrdonnanceScreen() {
 
       <ScrollView contentContainerStyle={styles.contentContainer}>
         <View style={styles.prescriptionCard}>
-          <Text style={styles.label}>Contenu de la prescription</Text>
-          <TextInput
-            style={styles.textArea}
-            placeholder="Rédigez les médicaments, posologies, durées de traitement ici..."
-            placeholderTextColor="#9ca3af"
-            multiline
-            numberOfLines={15}
-            value={contenu}
-            onChangeText={setContenu}
-          />
-        </View>
-
-        {/* Pediatric Dose Calculator Card */}
-        <View style={styles.calcCard}>
-          <View style={styles.calcHeader}>
-            <Ionicons name="calculator-outline" size={18} color="#8AC8F9" />
-            <Text style={styles.calcTitle}>Calculateur Dose Pédiatrique (Aide à la Prescription)</Text>
-          </View>
-          <Text style={styles.calcDescription}>
-            Saisissez le poids de l'enfant pour obtenir instantanément la posologie du paracétamol (15 mg/kg par prise, max 4 prises/24h, soit 60 mg/kg/j).
-          </Text>
-          <View style={styles.calcRow}>
-            <View style={[styles.inputGroup, { flex: 1, marginBottom: 0 }]}>
-              <Text style={styles.calcLabel}>Poids (kg)</Text>
-              <TextInput
-                style={[styles.input, styles.calcInput]}
-                placeholder="Ex: 12"
-                placeholderTextColor="#9ca3af"
-                keyboardType="numeric"
-                value={poids}
-                onChangeText={setPoids}
-              />
+          <Text style={styles.label}>Contenu de l'ordonnance *</Text>
+          
+          {poids ? (
+            <View style={styles.infoBadge}>
+              <Ionicons name="information-circle-outline" size={14} color="#E67E22" />
+              <Text style={styles.infoBadgeText}>Poids patient enregistré : {poids} kg</Text>
             </View>
-            <View style={[styles.calcResultGroup, { flex: 1.5 }]}>
-              <Text style={styles.calcResultLabel}>Dose recommandée par prise</Text>
-              <Text style={styles.calcResultVal}>
+          ) : null}
+
+          {poids && parseFloat(poids) > 0 ? (
+            <View style={styles.calcCard}>
+              <View style={styles.calcHeader}>
+                <Ionicons name="calculator-outline" size={16} color="#8AC8F9" />
+                <Text style={styles.calcTitle}>Dose Paracétamol Enfant (15mg/kg)</Text>
+              </View>
+              <Text style={styles.calcVal}>
                 {(() => {
                   const w = parseFloat(poids);
                   if (isNaN(w) || w <= 0) return '-- mg';
@@ -310,7 +307,17 @@ export default function CreateOrdonnanceScreen() {
                 })()}
               </Text>
             </View>
-          </View>
+          ) : null}
+
+          <TextInput
+            style={styles.textArea}
+            placeholder="Saisissez les médicaments et posologies..."
+            placeholderTextColor="#9ca3af"
+            multiline
+            numberOfLines={14}
+            value={contenu}
+            onChangeText={setContenu}
+          />
         </View>
 
         <TouchableOpacity
@@ -403,8 +410,49 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
     color: '#8AC8F9',
-    marginBottom: 10,
     textTransform: 'uppercase',
+    marginBottom: 10,
+  },
+  infoBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#0F2C3D',
+    padding: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#2F5C77',
+    marginBottom: 12,
+  },
+  infoBadgeText: {
+    color: '#E67E22',
+    fontSize: 13,
+    fontWeight: 'bold',
+  },
+  calcCard: {
+    backgroundColor: '#0F2C3D',
+    borderWidth: 1,
+    borderColor: '#2F5C77',
+    borderRadius: 8,
+    padding: 10,
+    marginBottom: 12,
+  },
+  calcHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  calcTitle: {
+    color: '#8AC8F9',
+    fontSize: 11,
+    fontWeight: 'bold',
+    textTransform: 'uppercase',
+  },
+  calcVal: {
+    color: '#2ECC71',
+    fontSize: 13,
+    fontWeight: 'bold',
+    marginTop: 4,
   },
   textArea: {
     backgroundColor: '#0F2C3D',
@@ -416,6 +464,7 @@ const styles = StyleSheet.create({
     borderColor: '#2F5C77',
     textAlignVertical: 'top',
     minHeight: 250,
+    marginTop: 8,
   },
   generateButton: {
     backgroundColor: '#28C2FF',
@@ -433,79 +482,5 @@ const styles = StyleSheet.create({
   },
   disabledButton: {
     opacity: 0.6,
-  },
-  calcCard: {
-    backgroundColor: '#1A3344',
-    borderWidth: 1,
-    borderColor: '#2F5C77',
-    borderRadius: 15,
-    padding: 16,
-    gap: 10,
-  },
-  calcHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  calcTitle: {
-    color: '#8AC8F9',
-    fontSize: 14,
-    fontWeight: 'bold',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  calcDescription: {
-    color: '#D1E6F3',
-    fontSize: 12,
-    lineHeight: 16,
-  },
-  calcRow: {
-    flexDirection: 'row',
-    gap: 12,
-    alignItems: 'flex-end',
-  },
-  inputGroup: {
-    flexDirection: 'column',
-  },
-  input: {
-    backgroundColor: '#0F2C3D',
-    color: '#FFFFFF',
-    borderRadius: 10,
-    padding: 12,
-    fontSize: 16,
-    borderWidth: 1,
-    borderColor: '#2F5C77',
-  },
-  calcLabel: {
-    color: '#8AC8F9',
-    fontSize: 12,
-    fontWeight: '600',
-    marginBottom: 6,
-  },
-  calcInput: {
-    height: 40,
-    paddingVertical: 8,
-    fontSize: 14,
-  },
-  calcResultGroup: {
-    backgroundColor: '#0F2C3D',
-    borderWidth: 1,
-    borderColor: '#2F5C77',
-    borderRadius: 10,
-    padding: 10,
-    height: 60,
-    justifyContent: 'center',
-  },
-  calcResultLabel: {
-    color: '#8AC8F9',
-    fontSize: 10,
-    textTransform: 'uppercase',
-    fontWeight: 'bold',
-  },
-  calcResultVal: {
-    color: '#2ECC71',
-    fontSize: 13,
-    fontWeight: 'bold',
-    marginTop: 4,
   },
 });

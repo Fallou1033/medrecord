@@ -243,6 +243,7 @@ export async function initDatabase(): Promise<void> {
       email TEXT UNIQUE NOT NULL,
       nom TEXT NOT NULL,
       prenom TEXT NOT NULL,
+      telephone TEXT,
       role TEXT NOT NULL CHECK (role IN ('MEDECIN', 'SECRETAIRE', 'ADMINISTRATEUR')),
       pin_hash TEXT,
       biometrie_active INTEGER DEFAULT 0,
@@ -397,6 +398,14 @@ export async function initDatabase(): Promise<void> {
       date TEXT DEFAULT CURRENT_TIMESTAMP NOT NULL
     );
   `);
+  
+  // Migration: Add telephone column to utilisateurs if not present
+  try {
+    await db.execAsync('ALTER TABLE utilisateurs ADD COLUMN telephone TEXT;');
+    console.log('MedRecord: Migrated utilisateurs table to add telephone column.');
+  } catch (err) {
+    // Column already exists, safe to ignore
+  }
 
   console.log('MedRecord: SQLite database initialized successfully.');
 }
@@ -422,7 +431,7 @@ export async function generatePatientFolderNumber(): Promise<string> {
   const db = await getDatabase();
   const currentYear = new Date().getFullYear();
 
-  const row = await db.getFirstAsync<{ count: number }>('SELECT COUNT(*) as count FROM patients;');
+  const row = (await db.getFirstAsync('SELECT COUNT(*) as count FROM patients;')) as { count: number } | null;
   const nextSeq = (row?.count || 0) + 1;
   const paddedSeq = String(nextSeq).padStart(5, '0');
 
