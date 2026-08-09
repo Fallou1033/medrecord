@@ -112,6 +112,10 @@ function fixHtmlFile(filePath) {
       /* Prevent truncating dialog actions */
       ::-webkit-datetime-edit-fields-wrapper { color: #FFFFFF !important; }
       ::-webkit-calendar-picker-indicator { cursor: pointer; filter: invert(1); }
+      @page {
+        size: A4 portrait;
+        margin: 12mm;
+      }
     </style>
     `;
     html = html.replace('<head>', `<head>${cacheMeta}`);
