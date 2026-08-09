@@ -117,39 +117,52 @@ function fixHtmlFile(filePath) {
         margin: 10mm;
       }
       @media print {
-        /* Hide all web app UI navigation, headers, buttons, inputs, textareas */
-        nav, header, footer, button, input, textarea, .no-print,
-        [class*="header"], [class*="navbar"], [class*="actionsContainer"], [class*="calcCard"], [class*="patientBanner"], [class*="prescriptionCard"], [class*="backButton"] {
-          display: none !important;
+        html, body, #root, #root * {
+          visibility: hidden !important;
         }
-
-        html, body, #root, main {
+        body {
           background: #ffffff !important;
           color: #000000 !important;
           margin: 0 !important;
           padding: 0 !important;
         }
-
         .ordonnance-print-view, .ordonnance-print-view * {
-          display: block !important;
           visibility: visible !important;
         }
-
         .ordonnance-print-view {
           position: absolute !important;
           left: 0 !important;
           top: 0 !important;
           width: 100% !important;
+          margin: 0 !important;
           padding: 15mm 20mm !important;
-          box-sizing: border-box !important;
           background: #ffffff !important;
           color: #000000 !important;
-          font-family: Arial, sans-serif !important;
+          box-sizing: border-box !important;
+          font-family: Arial, Helvetica, sans-serif !important;
+          z-index: 999999 !important;
+        }
+        .ordonnance-print-view table {
+          display: table !important;
+          width: 100% !important;
+        }
+        .ordonnance-print-view tr {
+          display: table-row !important;
+        }
+        .ordonnance-print-view td {
+          display: table-cell !important;
+        }
+        .ordonnance-print-view div {
+          display: block !important;
+        }
+        .ordonnance-print-view img {
+          display: inline-block !important;
         }
       }
       @media screen {
         .ordonnance-print-view {
           display: none !important;
+          visibility: hidden !important;
         }
       }
     </style>
