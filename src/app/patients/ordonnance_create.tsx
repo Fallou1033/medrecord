@@ -389,6 +389,25 @@ export default function CreateOrdonnanceScreen() {
   const executeWebIframePrint = (htmlContent: string) => {
     return new Promise<void>((resolve) => {
       try {
+        const isMobile = typeof navigator !== 'undefined' && (/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth < 768);
+
+        if (isMobile) {
+          // On Mobile browsers (Chrome Android / Safari iOS), inject HTML into an isolated popup window to guarantee clean printing
+          const printWin = window.open('', '_blank');
+          if (printWin) {
+            printWin.document.open();
+            printWin.document.write(htmlContent);
+            printWin.document.close();
+            printWin.focus();
+            setTimeout(() => {
+              printWin.print();
+              resolve();
+            }, 500);
+            return;
+          }
+        }
+
+        // Desktop / Fallback iframe printing
         const printFrame = document.createElement('iframe');
         printFrame.style.position = 'fixed';
         printFrame.style.right = '0';
@@ -414,7 +433,7 @@ export default function CreateOrdonnanceScreen() {
               }
               resolve();
             }, 1000);
-          }, 300);
+          }, 400);
         } else {
           resolve();
         }
