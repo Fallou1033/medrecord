@@ -114,7 +114,43 @@ function fixHtmlFile(filePath) {
       ::-webkit-calendar-picker-indicator { cursor: pointer; filter: invert(1); }
       @page {
         size: A4 portrait;
-        margin: 12mm;
+        margin: 10mm;
+      }
+      @media print {
+        /* Hide all web app UI navigation, headers, buttons, inputs, textareas */
+        nav, header, footer, button, input, textarea, .no-print,
+        [class*="header"], [class*="navbar"], [class*="actionsContainer"], [class*="calcCard"], [class*="patientBanner"], [class*="prescriptionCard"], [class*="backButton"] {
+          display: none !important;
+        }
+
+        html, body, #root, main {
+          background: #ffffff !important;
+          color: #000000 !important;
+          margin: 0 !important;
+          padding: 0 !important;
+        }
+
+        .ordonnance-print-view, .ordonnance-print-view * {
+          display: block !important;
+          visibility: visible !important;
+        }
+
+        .ordonnance-print-view {
+          position: absolute !important;
+          left: 0 !important;
+          top: 0 !important;
+          width: 100% !important;
+          padding: 15mm 20mm !important;
+          box-sizing: border-box !important;
+          background: #ffffff !important;
+          color: #000000 !important;
+          font-family: Arial, sans-serif !important;
+        }
+      }
+      @media screen {
+        .ordonnance-print-view {
+          display: none !important;
+        }
       }
     </style>
     `;

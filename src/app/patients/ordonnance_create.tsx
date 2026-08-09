@@ -382,34 +382,11 @@ export default function CreateOrdonnanceScreen() {
     try {
       const docId = await handleSaveOrdonnance();
       if (!docId) return;
-      const htmlContent = generateOrdonnanceHTML(docId);
 
       if (Platform.OS === 'web') {
-        const printFrame = document.createElement('iframe');
-        printFrame.style.position = 'fixed';
-        printFrame.style.right = '0';
-        printFrame.style.bottom = '0';
-        printFrame.style.width = '0';
-        printFrame.style.height = '0';
-        printFrame.style.border = '0';
-        document.body.appendChild(printFrame);
-
-        const frameDoc = printFrame.contentWindow?.document;
-        if (frameDoc) {
-          frameDoc.open();
-          frameDoc.write(htmlContent);
-          frameDoc.close();
-          setTimeout(() => {
-            printFrame.contentWindow?.focus();
-            printFrame.contentWindow?.print();
-            setTimeout(() => {
-              if (document.body.contains(printFrame)) {
-                document.body.removeChild(printFrame);
-              }
-            }, 1000);
-          }, 400);
-        }
+        window.print();
       } else {
+        const htmlContent = generateOrdonnanceHTML(docId);
         await Print.printAsync({ html: htmlContent });
       }
     } catch (err) {
@@ -547,6 +524,16 @@ export default function CreateOrdonnanceScreen() {
           </TouchableOpacity>
         </View>
       </ScrollView>
+
+      {/* Dedicated Clean A4 Print View for Web Browsers */}
+      {Platform.OS === 'web' && (
+        <div
+          className="ordonnance-print-view"
+          dangerouslySetInnerHTML={{
+            __html: generateOrdonnanceHTML(existingOrdonnance?.id || 'DOCUMENT_OFFICIEL'),
+          }}
+        />
+      )}
     </SafeAreaView>
   );
 }
