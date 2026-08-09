@@ -27,6 +27,13 @@ import {
 } from '../database/SQLiteDatabaseManager';
 import { useSecurity } from '../security/SecurityContext';
 import { formatDateFR } from '../utils/helpers';
+import DatePickerDOB from '../components/DatePickerDOB';
+
+const TIME_SLOTS = [
+  '08:00', '08:30', '09:00', '09:30', '10:00', '10:30',
+  '11:00', '11:30', '14:00', '14:30', '15:00', '15:30',
+  '16:00', '16:30', '17:00', '17:30'
+];
 
 export default function RendezVousScreen() {
   const { user } = useSecurity();
@@ -462,31 +469,66 @@ export default function RendezVousScreen() {
             )}
 
             {/* Step 2: Date & Time */}
-            <View style={styles.row}>
-              <View style={[styles.inputGroup, { flex: 1 }]}>
-                <Text style={styles.modalLabel}>Date (AAAA-MM-JJ)</Text>
-                <TextInput
-                  style={styles.modalInputText}
-                  placeholder="AAAA-MM-JJ"
-                  placeholderTextColor="#9ca3af"
-                  value={dateStr}
-                  onChangeText={setDateStr}
-                  keyboardType="numeric"
-                  maxLength={10}
-                />
-              </View>
-              <View style={[styles.inputGroup, { flex: 1 }]}>
-                <Text style={styles.modalLabel}>Heure (HH:MM)</Text>
-                <TextInput
-                  style={styles.modalInputText}
-                  placeholder="HH:MM"
-                  placeholderTextColor="#9ca3af"
+            <View style={styles.inputGroup}>
+              <DatePickerDOB
+                label="Date du rendez-vous *"
+                value={dateStr}
+                onChange={setDateStr}
+              />
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.modalLabel}>Heure du rendez-vous *</Text>
+              
+              {/* Quick Time Slots */}
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.timeSlotsContainer}>
+                {TIME_SLOTS.map((slot) => (
+                  <TouchableOpacity
+                    key={slot}
+                    style={[styles.timeChip, timeStr === slot && styles.timeChipActive]}
+                    onPress={() => setTimeStr(slot)}
+                  >
+                    <Text style={[styles.timeChipText, timeStr === slot && styles.timeChipTextActive]}>
+                      {slot}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+
+              {Platform.OS === 'web' ? (
+                <input
+                  type="time"
                   value={timeStr}
-                  onChangeText={setTimeStr}
-                  keyboardType="numeric"
-                  maxLength={5}
+                  onChange={(e) => setTimeStr(e.target.value)}
+                  style={{
+                    backgroundColor: '#1E3E52',
+                    color: '#FFFFFF',
+                    borderRadius: '10px',
+                    padding: '12px',
+                    fontSize: '16px',
+                    border: '1px solid #2F5C77',
+                    width: '100%',
+                    boxSizing: 'border-box',
+                    colorScheme: 'dark',
+                    fontFamily: 'inherit',
+                    outline: 'none',
+                    cursor: 'pointer',
+                  }}
                 />
-              </View>
+              ) : (
+                <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#1E3E52', borderRadius: 10, borderWidth: 1, borderColor: '#2F5C77', paddingRight: 12 }}>
+                  <TextInput
+                    style={[styles.modalInputText, { flex: 1, borderWidth: 0 }]}
+                    placeholder="ex: 09:00"
+                    placeholderTextColor="#9ca3af"
+                    value={timeStr}
+                    onChangeText={setTimeStr}
+                    keyboardType="numeric"
+                    maxLength={5}
+                  />
+                  <Ionicons name="time-outline" size={22} color="#28C2FF" />
+                </View>
+              )}
             </View>
 
             {/* Step 3: Status */}
@@ -557,29 +599,65 @@ export default function RendezVousScreen() {
             )}
 
             <View style={styles.inputGroup}>
-              <Text style={styles.modalLabel}>Date du rendez-vous (AAAA-MM-JJ) *</Text>
-              <TextInput
-                style={styles.modalInputText}
-                placeholder="AAAA-MM-JJ"
-                placeholderTextColor="#9ca3af"
+              <DatePickerDOB
+                label="Date du rendez-vous *"
                 value={editDateStr}
-                onChangeText={setEditDateStr}
-                keyboardType="numeric"
-                maxLength={10}
+                onChange={setEditDateStr}
               />
             </View>
 
             <View style={styles.inputGroup}>
-              <Text style={styles.modalLabel}>Heure du rendez-vous (HH:MM) *</Text>
-              <TextInput
-                style={styles.modalInputText}
-                placeholder="HH:MM"
-                placeholderTextColor="#9ca3af"
-                value={editTimeStr}
-                onChangeText={setEditTimeStr}
-                keyboardType="numeric"
-                maxLength={5}
-              />
+              <Text style={styles.modalLabel}>Heure du rendez-vous *</Text>
+              
+              {/* Quick Time Slots */}
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.timeSlotsContainer}>
+                {TIME_SLOTS.map((slot) => (
+                  <TouchableOpacity
+                    key={slot}
+                    style={[styles.timeChip, editTimeStr === slot && styles.timeChipActive]}
+                    onPress={() => setEditTimeStr(slot)}
+                  >
+                    <Text style={[styles.timeChipText, editTimeStr === slot && styles.timeChipTextActive]}>
+                      {slot}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+
+              {Platform.OS === 'web' ? (
+                <input
+                  type="time"
+                  value={editTimeStr}
+                  onChange={(e) => setEditTimeStr(e.target.value)}
+                  style={{
+                    backgroundColor: '#1E3E52',
+                    color: '#FFFFFF',
+                    borderRadius: '10px',
+                    padding: '12px',
+                    fontSize: '16px',
+                    border: '1px solid #2F5C77',
+                    width: '100%',
+                    boxSizing: 'border-box',
+                    colorScheme: 'dark',
+                    fontFamily: 'inherit',
+                    outline: 'none',
+                    cursor: 'pointer',
+                  }}
+                />
+              ) : (
+                <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#1E3E52', borderRadius: 10, borderWidth: 1, borderColor: '#2F5C77', paddingRight: 12 }}>
+                  <TextInput
+                    style={[styles.modalInputText, { flex: 1, borderWidth: 0 }]}
+                    placeholder="ex: 09:00"
+                    placeholderTextColor="#9ca3af"
+                    value={editTimeStr}
+                    onChangeText={setEditTimeStr}
+                    keyboardType="numeric"
+                    maxLength={5}
+                  />
+                  <Ionicons name="time-outline" size={22} color="#28C2FF" />
+                </View>
+              )}
             </View>
 
             <View style={styles.inputGroup}>
@@ -870,6 +948,32 @@ const styles = StyleSheet.create({
   },
   inputGroup: {
     marginBottom: 16,
+  },
+  timeSlotsContainer: {
+    flexDirection: 'row',
+    marginBottom: 10,
+  },
+  timeChip: {
+    backgroundColor: '#0F2C3D',
+    borderWidth: 1,
+    borderColor: '#2F5C77',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 16,
+    marginRight: 8,
+  },
+  timeChipActive: {
+    backgroundColor: '#28C2FF',
+    borderColor: '#28C2FF',
+  },
+  timeChipText: {
+    color: '#8AC8F9',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  timeChipTextActive: {
+    color: '#0F2C3D',
+    fontWeight: 'bold',
   },
   statusContainer: {
     flexDirection: 'row',
