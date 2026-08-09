@@ -134,8 +134,8 @@ function fixHtmlFile(filePath) {
 
   // Force cache-busting on js and css files
   const timestamp = Date.now();
-  html = html.replace(/\.js"/g, `.js?v=${timestamp}"`);
-  html = html.replace(/\.css"/g, `.css?v=${timestamp}"`);
+  html = html.replace(/\.js(\?v=\d+)?(["\s>])/g, `.js?v=${timestamp}$2`);
+  html = html.replace(/\.css(\?v=\d+)?(["\s>])/g, `.css?v=${timestamp}$2`);
 
   fs.writeFileSync(filePath, html, 'utf8');
 }

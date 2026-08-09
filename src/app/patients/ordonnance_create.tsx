@@ -136,40 +136,59 @@ export default function CreateOrdonnanceScreen() {
   <style>
     @page {
       size: A4 portrait;
-      margin: 8mm 12mm 8mm 12mm;
+      margin: 8mm 10mm;
     }
-    html, body {
-      background: #ffffff !important;
-      color: #000000 !important;
-      font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
-      margin: 0;
-      padding: 0;
-      -webkit-print-color-adjust: exact;
-      print-color-adjust: exact;
+    @media print {
+      nav, header, footer, .navbar, button, .btn, .no-print, input, textarea {
+        display: none !important;
+      }
+      body, html {
+        background: #ffffff !important;
+        color: #000000 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        font-family: Arial, Helvetica, sans-serif !important;
+      }
+      .ordonnance-container {
+        width: 100% !important;
+        max-height: 100vh !important;
+        box-sizing: border-box;
+        page-break-inside: avoid !important;
+      }
     }
     * {
       box-sizing: border-box;
     }
-    .prescription-container {
+    body {
+      font-family: Arial, Helvetica, sans-serif;
+      background-color: #ffffff;
+      color: #111111;
+      margin: 0;
+      padding: 8px;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+    .ordonnance-container {
       width: 100%;
       max-width: 800px;
       margin: 0 auto;
-      padding: 10px;
+      padding: 8px;
       background: #ffffff;
+      page-break-inside: avoid !important;
     }
     .header-table {
       width: 100%;
       border-collapse: collapse;
       border-bottom: 2px solid #0F2C3D;
-      padding-bottom: 8px;
-      margin-bottom: 12px;
+      padding-bottom: 6px;
+      margin-bottom: 8px;
     }
     .doc-info {
       text-align: left;
       vertical-align: top;
     }
     .doc-name {
-      font-size: 18px;
+      font-size: 17px;
       font-weight: bold;
       color: #0F2C3D;
       margin: 0;
@@ -198,14 +217,14 @@ export default function CreateOrdonnanceScreen() {
       border: 1px solid #D0D7DE;
       border-left: 5px solid #0F2C3D;
       border-radius: 5px;
-      padding: 10px 14px;
-      margin-bottom: 14px;
+      padding: 8px 12px;
+      margin-bottom: 8px;
     }
     .patient-name {
       font-size: 14px;
       font-weight: bold;
       color: #0F2C3D;
-      margin: 0 0 4px 0;
+      margin: 0 0 3px 0;
     }
     .patient-details {
       font-size: 12px;
@@ -214,10 +233,10 @@ export default function CreateOrdonnanceScreen() {
     }
     .title-banner {
       text-align: center;
-      margin: 12px 0 10px 0;
+      margin: 10px 0 8px 0;
     }
     .title-text {
-      font-size: 20px;
+      font-size: 18px;
       font-weight: 800;
       letter-spacing: 3px;
       color: #0F2C3D;
@@ -227,17 +246,17 @@ export default function CreateOrdonnanceScreen() {
       padding-bottom: 2px;
     }
     .rx-body {
-      font-size: 14px;
+      font-size: 13px;
       line-height: 1.6;
-      min-height: 160px;
+      min-height: 140px;
       white-space: pre-wrap;
       color: #000000;
-      padding: 5px 0;
-      margin-bottom: 15px;
+      padding: 4px 0;
+      margin-bottom: 10px;
     }
     .footer-table {
       width: 100%;
-      margin-top: 15px;
+      margin-top: 10px;
       border-collapse: collapse;
     }
     .signature-box {
@@ -246,15 +265,15 @@ export default function CreateOrdonnanceScreen() {
       width: 50%;
     }
     .signature-title {
-      font-size: 12px;
+      font-size: 11px;
       font-weight: bold;
       color: #0F2C3D;
       margin-bottom: 4px;
     }
     .signature-img {
-      max-height: 55px;
+      max-height: 50px;
       width: auto;
-      margin: 4px 0;
+      margin: 2px 0;
     }
     .signature-doc {
       font-size: 12px;
@@ -262,8 +281,8 @@ export default function CreateOrdonnanceScreen() {
       color: #222222;
     }
     .bottom-bar {
-      margin-top: 15px;
-      padding-top: 8px;
+      margin-top: 10px;
+      padding-top: 6px;
       border-top: 1px solid #E1E4E8;
       display: flex;
       justify-content: space-between;
@@ -272,8 +291,8 @@ export default function CreateOrdonnanceScreen() {
       color: #666666;
     }
     .qr-img {
-      width: 50px;
-      height: 50px;
+      width: 45px;
+      height: 45px;
       border: 1px solid #DDDDDD;
       padding: 2px;
       background: #FFFFFF;
@@ -281,7 +300,7 @@ export default function CreateOrdonnanceScreen() {
   </style>
 </head>
 <body>
-  <div class="prescription-container">
+  <div class="ordonnance-container">
     <table class="header-table">
       <tr>
         <td class="doc-info">
@@ -323,7 +342,7 @@ export default function CreateOrdonnanceScreen() {
         </td>
         <td class="signature-box">
           <div class="signature-title">Signature & Cachet du Médecin</div>
-          ${signature ? `<img src="${signature}" class="signature-img" alt="Signature" />` : '<div style="height: 45px;"></div>'}
+          ${signature ? `<img src="${signature}" class="signature-img" alt="Signature" />` : '<div style="height: 40px;"></div>'}
           <div class="signature-doc">${docName}</div>
         </td>
       </tr>
