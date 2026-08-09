@@ -35,6 +35,22 @@ const TIME_SLOTS = [
   '16:00', '16:30', '17:00', '17:30'
 ];
 
+const ALL_HOURS = [
+  '07:00', '07:15', '07:30', '07:45',
+  '08:00', '08:15', '08:30', '08:45',
+  '09:00', '09:15', '09:30', '09:45',
+  '10:00', '10:15', '10:30', '10:45',
+  '11:00', '11:15', '11:30', '11:45',
+  '12:00', '12:15', '12:30', '12:45',
+  '13:00', '13:15', '13:30', '13:45',
+  '14:00', '14:15', '14:30', '14:45',
+  '15:00', '15:15', '15:30', '15:45',
+  '16:00', '16:15', '16:30', '16:45',
+  '17:00', '17:15', '17:30', '17:45',
+  '18:00', '18:15', '18:30', '18:45',
+  '19:00', '19:30', '20:00'
+];
+
 export default function RendezVousScreen() {
   const { user } = useSecurity();
   const router = useRouter();
@@ -496,25 +512,31 @@ export default function RendezVousScreen() {
               </ScrollView>
 
               {Platform.OS === 'web' ? (
-                <input
-                  type="time"
+                <select
                   value={timeStr}
                   onChange={(e) => setTimeStr(e.target.value)}
                   style={{
                     backgroundColor: '#1E3E52',
                     color: '#FFFFFF',
                     borderRadius: '10px',
-                    padding: '12px',
+                    padding: '12px 14px',
                     fontSize: '16px',
                     border: '1px solid #2F5C77',
                     width: '100%',
                     boxSizing: 'border-box',
                     colorScheme: 'dark',
-                    fontFamily: 'inherit',
                     outline: 'none',
                     cursor: 'pointer',
+                    fontWeight: 'bold',
                   }}
-                />
+                >
+                  <option value="">Sélectionner une heure</option>
+                  {ALL_HOURS.map((t) => (
+                    <option key={t} value={t}>
+                      {t}
+                    </option>
+                  ))}
+                </select>
               ) : (
                 <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#1E3E52', borderRadius: 10, borderWidth: 1, borderColor: '#2F5C77', paddingRight: 12 }}>
                   <TextInput
@@ -625,25 +647,31 @@ export default function RendezVousScreen() {
               </ScrollView>
 
               {Platform.OS === 'web' ? (
-                <input
-                  type="time"
+                <select
                   value={editTimeStr}
                   onChange={(e) => setEditTimeStr(e.target.value)}
                   style={{
                     backgroundColor: '#1E3E52',
                     color: '#FFFFFF',
                     borderRadius: '10px',
-                    padding: '12px',
+                    padding: '12px 14px',
                     fontSize: '16px',
                     border: '1px solid #2F5C77',
                     width: '100%',
                     boxSizing: 'border-box',
                     colorScheme: 'dark',
-                    fontFamily: 'inherit',
                     outline: 'none',
                     cursor: 'pointer',
+                    fontWeight: 'bold',
                   }}
-                />
+                >
+                  <option value="">Sélectionner une heure</option>
+                  {ALL_HOURS.map((t) => (
+                    <option key={t} value={t}>
+                      {t}
+                    </option>
+                  ))}
+                </select>
               ) : (
                 <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#1E3E52', borderRadius: 10, borderWidth: 1, borderColor: '#2F5C77', paddingRight: 12 }}>
                   <TextInput
