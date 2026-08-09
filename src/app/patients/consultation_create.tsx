@@ -18,6 +18,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { createConsultation, getPatientById, Patient } from '../../database/SQLiteDatabaseManager';
 import { calculateIMC } from '../../utils/helpers';
 import { useSecurity } from '../../security/SecurityContext';
+import DatePickerDOB from '../../components/DatePickerDOB';
 
 export default function CreateConsultationScreen() {
   const router = useRouter();
@@ -38,6 +39,9 @@ export default function CreateConsultationScreen() {
   const [taille, setTaille] = useState('');
   const [imc, setImc] = useState('');
 
+  // Default control date = Today + 7 days
+  const defaultControlDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+
   // Observation State
   const [motif, setMotif] = useState('');
   const [histoire, setHistoire] = useState('');
@@ -45,7 +49,7 @@ export default function CreateConsultationScreen() {
   const [diagnostic, setDiagnostic] = useState('');
   const [traitement, setTraitement] = useState('');
   const [conseils, setConseils] = useState('');
-  const [dateControle, setDateControle] = useState('');
+  const [dateControle, setDateControle] = useState(defaultControlDate);
 
   useEffect(() => {
     if (patientId) {
@@ -92,12 +96,15 @@ export default function CreateConsultationScreen() {
       return;
     }
 
-    if (dateControle.trim()) {
-      const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
-      if (!dateRegex.test(dateControle)) {
-        showAlert('Date invalide', 'La date de contrôle doit être au format AAAA-MM-JJ.');
-        return;
-      }
+    if (!dateControle || !dateControle.trim()) {
+      showAlert('Champ requis', 'Veuillez sélectionner la date de contrôle.');
+      return;
+    }
+
+    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+    if (!dateRegex.test(dateControle.trim())) {
+      showAlert('Date invalide', 'La date de contrôle doit être au format AAAA-MM-JJ.');
+      return;
     }
 
     if (!user) {
@@ -392,42 +399,11 @@ export default function CreateConsultationScreen() {
           </View>
 
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Date de contrôle (facultatif)</Text>
-            {Platform.OS === 'web' ? (
-              <input
-                type="date"
-                value={dateControle}
-                onChange={(e) => setDateControle(e.target.value)}
-                min={new Date().toISOString().split('T')[0]}
-                style={{
-                  backgroundColor: '#1E3E52',
-                  color: '#FFFFFF',
-                  borderRadius: '10px',
-                  padding: '12px',
-                  fontSize: '16px',
-                  border: '1px solid #2F5C77',
-                  width: '100%',
-                  boxSizing: 'border-box',
-                  colorScheme: 'dark',
-                  fontFamily: 'inherit',
-                  outline: 'none',
-                  cursor: 'pointer',
-                }}
-              />
-            ) : (
-              <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#1E3E52', borderRadius: 10, borderWidth: 1, borderColor: '#2F5C77', paddingRight: 12 }}>
-                <TextInput
-                  style={[styles.input, { flex: 1, borderWidth: 0 }]}
-                  placeholder="ex: 2026-08-20 (facultatif)"
-                  placeholderTextColor="#9ca3af"
-                  value={dateControle}
-                  onChangeText={setDateControle}
-                  keyboardType="numeric"
-                  maxLength={10}
-                />
-                <Ionicons name="calendar-outline" size={22} color="#28C2FF" />
-              </View>
-            )}
+            <DatePickerDOB
+              label="Date de contrôle *"
+              value={dateControle}
+              onChange={setDateControle}
+            />
           </View>
 
           {/* Pediatric Dose Calculator */}

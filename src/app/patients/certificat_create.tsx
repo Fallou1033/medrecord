@@ -19,6 +19,7 @@ import * as Sharing from 'expo-sharing';
 import { addCertificat, getPatientById, Patient } from '../../database/SQLiteDatabaseManager';
 import { calculateAge, formatDateFR } from '../../utils/helpers';
 import { useSecurity } from '../../security/SecurityContext';
+import DatePickerDOB from '../../components/DatePickerDOB';
 
 type CertType = 'MEDICAL' | 'ACCIDENT_TRAVAIL' | 'APTITUDE' | 'INAPTITUDE' | 'ARRET_TRAVAIL';
 
@@ -271,33 +272,19 @@ export default function CreateCertificatScreen() {
             ))}
           </View>
 
-          <View style={styles.row}>
-            <View style={[styles.inputGroup, { flex: 1 }]}>
-              <Text style={styles.label}>Date de début (AAAA-MM-JJ) *</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="AAAA-MM-JJ"
-                placeholderTextColor="#9ca3af"
-                value={dateDebut}
-                onChangeText={setDateDebut}
-                keyboardType="numeric"
-                maxLength={10}
-              />
-            </View>
+          <View style={{ gap: 14 }}>
+            <DatePickerDOB
+              label="Date de début *"
+              value={dateDebut}
+              onChange={setDateDebut}
+            />
 
             {type === 'ARRET_TRAVAIL' && (
-              <View style={[styles.inputGroup, { flex: 1 }]}>
-                <Text style={styles.label}>Date de fin (AAAA-MM-JJ)</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="AAAA-MM-JJ"
-                  placeholderTextColor="#9ca3af"
-                  value={dateFin}
-                  onChangeText={setDateFin}
-                  keyboardType="numeric"
-                  maxLength={10}
-                />
-              </View>
+              <DatePickerDOB
+                label="Date de fin"
+                value={dateFin}
+                onChange={setDateFin}
+              />
             )}
           </View>
 

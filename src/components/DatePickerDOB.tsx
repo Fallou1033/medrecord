@@ -23,10 +23,11 @@ const MONTHS = [
   { value: '12', label: '12 - Décembre' },
 ];
 
-// Generate years 2026 down to 1920
+// Generate years from currentYear + 10 down to 1920 (supports past birth dates and future control dates)
 const currentYear = new Date().getFullYear();
+const maxYear = currentYear + 10;
 const YEARS: string[] = [];
-for (let y = currentYear; y >= 1920; y--) {
+for (let y = maxYear; y >= 1920; y--) {
   YEARS.push(String(y));
 }
 
