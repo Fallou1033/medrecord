@@ -111,10 +111,14 @@ function fixHtmlFile(filePath) {
       }
       /* Prevent truncating dialog actions */
       ::-webkit-datetime-edit-fields-wrapper { color: #FFFFFF !important; }
-      ::-webkit-calendar-picker-indicator { cursor: pointer; filter: invert(1); }
       @page {
         size: A4 portrait;
-        margin: 8mm 12mm 8mm 12mm;
+        margin: 8mm 10mm;
+      }
+      @media print {
+        nav, header, footer, .navbar, button, .btn, .no-print, input, textarea, div[role="navigation"], [class*="Header"], [class*="Navbar"] {
+          display: none !important;
+        }
       }
     </style>
     `;

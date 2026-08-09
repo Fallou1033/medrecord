@@ -455,14 +455,37 @@ export default function CreateCertificatScreen() {
         await Print.printAsync({ html: htmlContent });
       }
     } catch (err) {
-      console.error(err);
-      if (Platform.OS === 'web') {
-        window.print();
-      } else {
-        Alert.alert('Erreur', 'Impossible de générer le certificat PDF.');
-      }
+      console.error('Certificat PDF generation error:', err);
+      Alert.alert('Erreur', 'Impossible de lancer l\'impression.');
     } finally {
       setGenerating(false);
+    }
+  };
+
+  const handleShareWhatsApp = async () => {
+    if (!patient) return;
+    if (!description.trim()) {
+      Alert.alert('Certificat vide', 'Veuillez rédiger le contenu du certificat avant de le partager.');
+      return;
+    }
+
+    const cleanPhone = (patient.telephone || '').replace(/[^\d+]/g, '');
+    const rawDocName = user ? `${user.prenom || ''} ${user.nom || ''}`.trim() : 'Mohamadou Bamba Diop';
+    const cleanDocName = formatDoctorName(rawDocName);
+
+    const message = `Bonjour ${patient.prenom} ${patient.nom.toUpperCase()},\n\nVoici votre certificat médical délivré par le ${cleanDocName} :\n\n"${description.trim()}"\n\nBien cordialement,\nMedRecord — Cabinet Médical Privé`;
+
+    const encodedMsg = encodeURIComponent(message);
+    const targetPhone = cleanPhone.startsWith('+') ? cleanPhone.replace('+', '') : (cleanPhone.length === 9 ? `221${cleanPhone}` : cleanPhone);
+    const whatsappUrl = targetPhone ? `https://api.whatsapp.com/send?phone=${targetPhone}&text=${encodedMsg}` : `https://api.whatsapp.com/send?text=${encodedMsg}`;
+
+    if (Platform.OS === 'web') {
+      window.open(whatsappUrl, '_blank');
+    } else {
+      const Linking = require('react-native').Linking;
+      Linking.openURL(whatsappUrl).catch(() => {
+        Alert.alert('Erreur WhatsApp', 'Impossible d\'ouvrir l\'application WhatsApp.');
+      });
     }
   };
 
@@ -539,20 +562,30 @@ export default function CreateCertificatScreen() {
           />
         </View>
 
-        <TouchableOpacity
-          style={[styles.generateButton, generating && styles.disabledButton]}
-          onPress={handleGeneratePDF}
-          disabled={generating}
-        >
-          {generating ? (
-            <ActivityIndicator color="#0F2C3D" />
-          ) : (
-            <>
-              <Ionicons name="print-outline" size={22} color="#0F2C3D" />
-              <Text style={styles.generateButtonText}>Générer & Partager le Certificat PDF</Text>
-            </>
-          )}
-        </TouchableOpacity>
+        <View style={styles.actionsContainer}>
+          <TouchableOpacity
+            style={[styles.actionBtn, styles.singlePrintBtn, generating && styles.disabledButton]}
+            onPress={handleGeneratePDF}
+            disabled={generating}
+          >
+            {generating ? (
+              <ActivityIndicator color="#0F2C3D" />
+            ) : (
+              <>
+                <Ionicons name="print-outline" size={20} color="#0F2C3D" />
+                <Text style={styles.singlePrintBtnText}>🖨️ Imprimer / PDF</Text>
+              </>
+            )}
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.actionBtn, styles.whatsappBtn]}
+            onPress={handleShareWhatsApp}
+          >
+            <Ionicons name="logo-whatsapp" size={20} color="#FFFFFF" />
+            <Text style={styles.whatsappBtnText}>📲 Partager WhatsApp</Text>
+          </TouchableOpacity>
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -685,18 +718,35 @@ const styles = StyleSheet.create({
     textAlignVertical: 'top',
     minHeight: 200,
   },
-  generateButton: {
-    backgroundColor: '#28C2FF',
+  actionsContainer: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 10,
+  },
+  actionBtn: {
+    flex: 1,
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    gap: 10,
-    padding: 16,
-    borderRadius: 10,
+    gap: 8,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: 12,
   },
-  generateButtonText: {
+  singlePrintBtn: {
+    backgroundColor: '#28C2FF',
+  },
+  singlePrintBtnText: {
     color: '#0F2C3D',
-    fontSize: 16,
+    fontSize: 15,
+    fontWeight: 'bold',
+  },
+  whatsappBtn: {
+    backgroundColor: '#25D366',
+  },
+  whatsappBtnText: {
+    color: '#FFFFFF',
+    fontSize: 15,
     fontWeight: 'bold',
   },
   disabledButton: {
