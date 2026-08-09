@@ -114,56 +114,7 @@ function fixHtmlFile(filePath) {
       ::-webkit-calendar-picker-indicator { cursor: pointer; filter: invert(1); }
       @page {
         size: A4 portrait;
-        margin: 10mm;
-      }
-      @media print {
-        html, body, #root, #root * {
-          visibility: hidden !important;
-        }
-        body {
-          background: #ffffff !important;
-          color: #000000 !important;
-          margin: 0 !important;
-          padding: 0 !important;
-        }
-        .ordonnance-print-view, .ordonnance-print-view * {
-          visibility: visible !important;
-        }
-        .ordonnance-print-view {
-          position: absolute !important;
-          left: 0 !important;
-          top: 0 !important;
-          width: 100% !important;
-          margin: 0 !important;
-          padding: 15mm 20mm !important;
-          background: #ffffff !important;
-          color: #000000 !important;
-          box-sizing: border-box !important;
-          font-family: Arial, Helvetica, sans-serif !important;
-          z-index: 999999 !important;
-        }
-        .ordonnance-print-view table {
-          display: table !important;
-          width: 100% !important;
-        }
-        .ordonnance-print-view tr {
-          display: table-row !important;
-        }
-        .ordonnance-print-view td {
-          display: table-cell !important;
-        }
-        .ordonnance-print-view div {
-          display: block !important;
-        }
-        .ordonnance-print-view img {
-          display: inline-block !important;
-        }
-      }
-      @media screen {
-        .ordonnance-print-view {
-          display: none !important;
-          visibility: hidden !important;
-        }
+        margin: 8mm 12mm 8mm 12mm;
       }
     </style>
     `;

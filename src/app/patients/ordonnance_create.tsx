@@ -128,221 +128,219 @@ export default function CreateOrdonnanceScreen() {
     const docEmail = user?.email || 'bamba.diop@medrecord.sn';
     const docPhone = user?.telephone || '+221 77 123 4567';
 
-    return `
-      <!DOCTYPE html>
-      <html lang="fr">
-      <head>
-        <meta charset="utf-8">
-        <title>Ordonnance Medicale - ${patient.prenom} ${patient.nom.toUpperCase()}</title>
-        <style>
-          @page {
-            size: A4 portrait;
-            margin: 12mm 15mm 15mm 15mm;
-          }
-          @media print {
-            html, body {
-              background: #ffffff !important;
-              color: #000000 !important;
-              font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
-              -webkit-print-color-adjust: exact;
-              print-color-adjust: exact;
-            }
-          }
-          * {
-            box-sizing: border-box;
-          }
-          body {
-            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
-            background-color: #ffffff;
-            color: #111111;
-            margin: 0;
-            padding: 20px;
-            font-size: 14px;
-            line-height: 1.6;
-          }
-          .header-table {
-            width: 100%;
-            border-collapse: collapse;
-            border-bottom: 2px solid #0F2C3D;
-            padding-bottom: 12px;
-            margin-bottom: 20px;
-          }
-          .doc-info {
-            text-align: left;
-            vertical-align: top;
-          }
-          .doc-name {
-            font-size: 20px;
-            font-weight: bold;
-            color: #0F2C3D;
-            margin: 0;
-            text-transform: uppercase;
-          }
-          .doc-sub {
-            font-size: 13px;
-            color: #333333;
-            margin: 3px 0;
-            font-weight: 600;
-          }
-          .doc-contact {
-            font-size: 12px;
-            color: #555555;
-            margin: 2px 0;
-          }
-          .date-box {
-            text-align: right;
-            vertical-align: top;
-            font-size: 13px;
-            font-weight: 600;
-            color: #333333;
-          }
-          .patient-card {
-            background-color: #F4F7F9;
-            border: 1px solid #D0D7DE;
-            border-left: 5px solid #0F2C3D;
-            border-radius: 6px;
-            padding: 12px 16px;
-            margin-bottom: 25px;
-          }
-          .patient-name {
-            font-size: 15px;
-            font-weight: bold;
-            color: #0F2C3D;
-            margin: 0 0 6px 0;
-          }
-          .patient-details {
-            font-size: 13px;
-            color: #333333;
-            margin: 0;
-          }
-          .title-banner {
-            text-align: center;
-            margin: 25px 0;
-          }
-          .title-text {
-            font-size: 22px;
-            font-weight: 800;
-            letter-spacing: 3px;
-            color: #0F2C3D;
-            text-transform: uppercase;
-            border-bottom: 2px solid #0F2C3D;
-            display: inline-block;
-            padding-bottom: 4px;
-          }
-          .rx-body {
-            font-size: 15px;
-            line-height: 1.9;
-            min-height: 320px;
-            white-space: pre-wrap;
-            color: #000000;
-            padding: 10px 5px;
-            margin-bottom: 30px;
-          }
-          .footer-table {
-            width: 100%;
-            margin-top: 30px;
-            border-collapse: collapse;
-          }
-          .signature-box {
-            text-align: right;
-            vertical-align: top;
-            width: 50%;
-          }
-          .signature-title {
-            font-size: 13px;
-            font-weight: bold;
-            color: #0F2C3D;
-            margin-bottom: 8px;
-          }
-          .signature-img {
-            max-height: 75px;
-            width: auto;
-            margin: 6px 0;
-          }
-          .signature-doc {
-            font-size: 13px;
-            font-weight: bold;
-            color: #222222;
-          }
-          .bottom-bar {
-            margin-top: 40px;
-            padding-top: 10px;
-            border-top: 1px solid #E1E4E8;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            font-size: 10px;
-            color: #666666;
-          }
-          .qr-img {
-            width: 65px;
-            height: 65px;
-            border: 1px solid #DDDDDD;
-            padding: 3px;
-            background: #FFFFFF;
-          }
-        </style>
-      </head>
-      <body>
-        <table class="header-table">
-          <tr>
-            <td class="doc-info">
-              <div class="doc-name">${docName}</div>
-              <div class="doc-sub">${docSpeciality} • ${docCabinet}</div>
-              <div class="doc-contact">${docAddress} • Tél: ${docPhone}</div>
-              <div class="doc-contact">Email: ${docEmail}</div>
-            </td>
-            <td class="date-box">
-              Fait à Dakar, le ${dateStr}<br/>
-              <span style="font-size: 11px; color: #666; font-weight: normal;">Dossier N°: ${patient.numero_dossier}</span>
-            </td>
-          </tr>
-        </table>
+    return `<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <title>Ordonnance Medicale - ${patient.prenom} ${patient.nom.toUpperCase()}</title>
+  <style>
+    @page {
+      size: A4 portrait;
+      margin: 8mm 12mm 8mm 12mm;
+    }
+    html, body {
+      background: #ffffff !important;
+      color: #000000 !important;
+      font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+      margin: 0;
+      padding: 0;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    * {
+      box-sizing: border-box;
+    }
+    .prescription-container {
+      width: 100%;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 10px;
+      background: #ffffff;
+    }
+    .header-table {
+      width: 100%;
+      border-collapse: collapse;
+      border-bottom: 2px solid #0F2C3D;
+      padding-bottom: 8px;
+      margin-bottom: 12px;
+    }
+    .doc-info {
+      text-align: left;
+      vertical-align: top;
+    }
+    .doc-name {
+      font-size: 18px;
+      font-weight: bold;
+      color: #0F2C3D;
+      margin: 0;
+      text-transform: uppercase;
+    }
+    .doc-sub {
+      font-size: 12px;
+      color: #333333;
+      margin: 2px 0;
+      font-weight: 600;
+    }
+    .doc-contact {
+      font-size: 11px;
+      color: #555555;
+      margin: 1px 0;
+    }
+    .date-box {
+      text-align: right;
+      vertical-align: top;
+      font-size: 12px;
+      font-weight: 600;
+      color: #333333;
+    }
+    .patient-card {
+      background-color: #F4F7F9;
+      border: 1px solid #D0D7DE;
+      border-left: 5px solid #0F2C3D;
+      border-radius: 5px;
+      padding: 10px 14px;
+      margin-bottom: 14px;
+    }
+    .patient-name {
+      font-size: 14px;
+      font-weight: bold;
+      color: #0F2C3D;
+      margin: 0 0 4px 0;
+    }
+    .patient-details {
+      font-size: 12px;
+      color: #333333;
+      margin: 0;
+    }
+    .title-banner {
+      text-align: center;
+      margin: 12px 0 10px 0;
+    }
+    .title-text {
+      font-size: 20px;
+      font-weight: 800;
+      letter-spacing: 3px;
+      color: #0F2C3D;
+      text-transform: uppercase;
+      border-bottom: 2px solid #0F2C3D;
+      display: inline-block;
+      padding-bottom: 2px;
+    }
+    .rx-body {
+      font-size: 14px;
+      line-height: 1.6;
+      min-height: 160px;
+      white-space: pre-wrap;
+      color: #000000;
+      padding: 5px 0;
+      margin-bottom: 15px;
+    }
+    .footer-table {
+      width: 100%;
+      margin-top: 15px;
+      border-collapse: collapse;
+    }
+    .signature-box {
+      text-align: right;
+      vertical-align: top;
+      width: 50%;
+    }
+    .signature-title {
+      font-size: 12px;
+      font-weight: bold;
+      color: #0F2C3D;
+      margin-bottom: 4px;
+    }
+    .signature-img {
+      max-height: 55px;
+      width: auto;
+      margin: 4px 0;
+    }
+    .signature-doc {
+      font-size: 12px;
+      font-weight: bold;
+      color: #222222;
+    }
+    .bottom-bar {
+      margin-top: 15px;
+      padding-top: 8px;
+      border-top: 1px solid #E1E4E8;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 10px;
+      color: #666666;
+    }
+    .qr-img {
+      width: 50px;
+      height: 50px;
+      border: 1px solid #DDDDDD;
+      padding: 2px;
+      background: #FFFFFF;
+    }
+  </style>
+</head>
+<body>
+  <div class="prescription-container">
+    <table class="header-table">
+      <tr>
+        <td class="doc-info">
+          <div class="doc-name">${docName}</div>
+          <div class="doc-sub">${docSpeciality} • ${docCabinet}</div>
+          <div class="doc-contact">${docAddress} • Tél: ${docPhone}</div>
+          <div class="doc-contact">Email: ${docEmail}</div>
+        </td>
+        <td class="date-box">
+          Fait à Dakar, le ${dateStr}<br/>
+          <span style="font-size: 11px; color: #666; font-weight: normal;">Dossier N°: ${patient.numero_dossier}</span>
+        </td>
+      </tr>
+    </table>
 
-        <div class="patient-card">
-          <div class="patient-name">ORDONNANCE POUR : ${patient.prenom} ${patient.nom.toUpperCase()}</div>
-          <div class="patient-details">
-            ${patient.date_naissance ? `<strong>Né(e) le :</strong> ${formatDateFR(patient.date_naissance)}` : ''}
-            ${age ? ` (${age} ans)` : ''}
-            &nbsp;&nbsp;|&nbsp;&nbsp;
-            <strong>Sexe :</strong> ${patient.sexe === 'M' ? 'Masculin' : 'Féminin'}
-            ${poids ? `&nbsp;&nbsp;|&nbsp;&nbsp;<strong>Poids :</strong> ${poids} kg` : ''}
+    <div class="patient-card">
+      <div class="patient-name">ORDONNANCE POUR : ${patient.prenom} ${patient.nom.toUpperCase()}</div>
+      <div class="patient-details">
+        ${patient.date_naissance ? `<strong>Né(e) le :</strong> ${formatDateFR(patient.date_naissance)}` : ''}
+        ${age ? ` (${age} ans)` : ''}
+        &nbsp;&nbsp;|&nbsp;&nbsp;
+        <strong>Sexe :</strong> ${patient.sexe === 'M' ? 'Masculin' : 'Féminin'}
+        ${poids ? `&nbsp;&nbsp;|&nbsp;&nbsp;<strong>Poids :</strong> ${poids} kg` : ''}
+      </div>
+    </div>
+
+    <div class="title-banner">
+      <span class="title-text">ORDONNANCE</span>
+    </div>
+
+    <div class="rx-body">${contenu.replace(/\n/g, '<br/>')}</div>
+
+    <table class="footer-table">
+      <tr>
+        <td style="vertical-align: bottom; width: 50%;">
+          <div style="font-size: 10px; color: #666;">
+            <em>« Ordonnance médicale valide selon la législation en vigueur. »</em>
           </div>
-        </div>
+        </td>
+        <td class="signature-box">
+          <div class="signature-title">Signature & Cachet du Médecin</div>
+          ${signature ? `<img src="${signature}" class="signature-img" alt="Signature" />` : '<div style="height: 45px;"></div>'}
+          <div class="signature-doc">${docName}</div>
+        </td>
+      </tr>
+    </table>
 
-        <div class="title-banner">
-          <span class="title-text">ORDONNANCE</span>
-        </div>
-
-        <div class="rx-body">${contenu.replace(/\n/g, '<br/>')}</div>
-
-        <table class="footer-table">
-          <tr>
-            <td style="vertical-align: bottom; width: 50%;">
-              <div style="font-size: 11px; color: #666;">
-                <em>« Ordonnance médicale valide selon la législation en vigueur. »</em>
-              </div>
-            </td>
-            <td class="signature-box">
-              <div class="signature-title">Signature & Cachet du Médecin</div>
-              ${signature ? `<img src="${signature}" class="signature-img" alt="Signature" />` : '<div style="height: 60px;"></div>'}
-              <div class="signature-doc">${docName}</div>
-            </td>
-          </tr>
-        </table>
-
-        <div class="bottom-bar">
-          <div>
-            <p style="margin: 0; font-weight: bold; color: #0F2C3D;">MedRecord — Système de Dossier Médical Numérique</p>
-            <p style="margin: 2px 0 0 0; color: #888888;">ID Document unique : ${documentId}</p>
-          </div>
-          <div style="text-align: right;">
-            <img src="${qrCodeUrl}" class="qr-img" alt="QR Code" />
-          </div>
-        </div>
-      </body>
-      </html>
-    `;
+    <div class="bottom-bar">
+      <div>
+        <p style="margin: 0; font-weight: bold; color: #0F2C3D;">MedRecord — Système de Dossier Médical Numérique</p>
+        <p style="margin: 2px 0 0 0; color: #888888;">ID Document unique : ${documentId}</p>
+      </div>
+      <div style="text-align: right;">
+        <img src="${qrCodeUrl}" class="qr-img" alt="QR Code" />
+      </div>
+    </div>
+  </div>
+</body>
+</html>`;
   };
 
   const handleSaveOrdonnance = async (): Promise<string | null> => {
@@ -382,11 +380,37 @@ export default function CreateOrdonnanceScreen() {
     try {
       const docId = await handleSaveOrdonnance();
       if (!docId) return;
+      const htmlContent = generateOrdonnanceHTML(docId);
 
       if (Platform.OS === 'web') {
-        window.print();
+        // Create an isolated hidden iframe specifically for printing the single A4 document
+        const printFrame = document.createElement('iframe');
+        printFrame.style.position = 'fixed';
+        printFrame.style.right = '0';
+        printFrame.style.bottom = '0';
+        printFrame.style.width = '0';
+        printFrame.style.height = '0';
+        printFrame.style.border = '0';
+        printFrame.style.visibility = 'hidden';
+        document.body.appendChild(printFrame);
+
+        const frameDoc = printFrame.contentWindow?.document;
+        if (frameDoc) {
+          frameDoc.open();
+          frameDoc.write(htmlContent);
+          frameDoc.close();
+
+          setTimeout(() => {
+            printFrame.contentWindow?.focus();
+            printFrame.contentWindow?.print();
+            setTimeout(() => {
+              if (document.body.contains(printFrame)) {
+                document.body.removeChild(printFrame);
+              }
+            }, 1000);
+          }, 300);
+        }
       } else {
-        const htmlContent = generateOrdonnanceHTML(docId);
         await Print.printAsync({ html: htmlContent });
       }
     } catch (err) {
@@ -524,151 +548,6 @@ export default function CreateOrdonnanceScreen() {
           </TouchableOpacity>
         </View>
       </ScrollView>
-
-      {/* Dedicated Clean A4 Print View for Web Browsers */}
-      {Platform.OS === 'web' && (
-        <>
-          <style>{`
-            @media print {
-              html, body, #root, #root * {
-                visibility: hidden !important;
-              }
-              body {
-                background: #ffffff !important;
-                color: #000000 !important;
-                margin: 0 !important;
-                padding: 0 !important;
-              }
-              .ordonnance-print-view, .ordonnance-print-view * {
-                visibility: visible !important;
-              }
-              .ordonnance-print-view {
-                position: absolute !important;
-                left: 0 !important;
-                top: 0 !important;
-                width: 100% !important;
-                margin: 0 !important;
-                padding: 15mm 20mm !important;
-                background: #ffffff !important;
-                color: #000000 !important;
-                box-sizing: border-box !important;
-                font-family: Arial, Helvetica, sans-serif !important;
-                z-index: 999999 !important;
-              }
-              .ordonnance-print-view table {
-                display: table !important;
-                width: 100% !important;
-              }
-              .ordonnance-print-view tr {
-                display: table-row !important;
-              }
-              .ordonnance-print-view td {
-                display: table-cell !important;
-              }
-              .ordonnance-print-view div {
-                display: block !important;
-              }
-              .ordonnance-print-view img {
-                display: inline-block !important;
-              }
-            }
-            @media screen {
-              .ordonnance-print-view {
-                display: none !important;
-                visibility: hidden !important;
-              }
-            }
-          `}</style>
-          <div className="ordonnance-print-view">
-            <table style={{ width: '100%', borderCollapse: 'collapse', borderBottom: '2px solid #0F2C3D', paddingBottom: '12px', marginBottom: '20px' }}>
-              <tbody>
-                <tr>
-                  <td style={{ textAlign: 'left', verticalAlign: 'top' }}>
-                    <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#0F2C3D', textTransform: 'uppercase' }}>
-                      {user ? `Dr ${user.prenom} ${user.nom}` : 'Dr Mohamadou Bamba Diop'}
-                    </div>
-                    <div style={{ fontSize: '13px', color: '#333333', marginTop: '3px', fontWeight: '600' }}>
-                      {user?.specialite || 'Médecin Généraliste'} • {user?.cabinet || 'Cabinet Médical Privé'}
-                    </div>
-                    <div style={{ fontSize: '12px', color: '#555555', marginTop: '2px' }}>
-                      {user?.adresse || 'Dakar, Sénégal'} • Tél: {user?.telephone || '+221 77 123 4567'}
-                    </div>
-                    <div style={{ fontSize: '12px', color: '#555555', marginTop: '2px' }}>
-                      Email: {user?.email || 'bamba.diop@medrecord.sn'}
-                    </div>
-                  </td>
-                  <td style={{ textAlign: 'right', verticalAlign: 'top', fontSize: '13px', fontWeight: '600', color: '#333333' }}>
-                    Fait à Dakar, le {formatDateFR(new Date())}<br />
-                    <span style={{ fontSize: '11px', color: '#666666', fontWeight: 'normal' }}>
-                      Dossier N°: {patient?.numero_dossier}
-                    </span>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-
-            {patient && (
-              <div style={{ backgroundColor: '#F4F7F9', border: '1px solid #D0D7DE', borderLeft: '5px solid #0F2C3D', borderRadius: '6px', padding: '12px 16px', marginBottom: '25px' }}>
-                <div style={{ fontSize: '15px', fontWeight: 'bold', color: '#0F2C3D', marginBottom: '6px' }}>
-                  ORDONNANCE POUR : {patient.prenom} {patient.nom.toUpperCase()}
-                </div>
-                <div style={{ fontSize: '13px', color: '#333333' }}>
-                  {patient.date_naissance ? <span><strong>Né(e) le :</strong> {formatDateFR(patient.date_naissance)}</span> : null}
-                  {patient.date_naissance ? ` (${calculateAge(patient.date_naissance)} ans)` : ''}
-                  &nbsp;&nbsp;|&nbsp;&nbsp;
-                  <strong>Sexe :</strong> {patient.sexe === 'M' ? 'Masculin' : 'Féminin'}
-                  {poids ? <span>&nbsp;&nbsp;|&nbsp;&nbsp;<strong>Poids :</strong> {poids} kg</span> : null}
-                </div>
-              </div>
-            )}
-
-            <div style={{ textAlign: 'center', margin: '25px 0' }}>
-              <span style={{ fontSize: '22px', fontWeight: '800', letterSpacing: '3px', color: '#0F2C3D', textTransform: 'uppercase', borderBottom: '2px solid #0F2C3D', display: 'inline-block', paddingBottom: '4px' }}>
-                ORDONNANCE
-              </span>
-            </div>
-
-            <div style={{ fontSize: '15px', lineHeight: '1.9', minHeight: '320px', whiteSpace: 'pre-wrap', color: '#000000', padding: '10px 5px', marginBottom: '30px' }}>
-              {contenu}
-            </div>
-
-            <table style={{ width: '100%', marginTop: '30px', borderCollapse: 'collapse' }}>
-              <tbody>
-                <tr>
-                  <td style={{ verticalAlign: 'bottom', width: '50%' }}>
-                    <div style={{ fontSize: '11px', color: '#666666' }}>
-                      <em>« Ordonnance médicale valide selon la législation en vigueur. »</em>
-                    </div>
-                  </td>
-                  <td style={{ textAlign: 'right', verticalAlign: 'top', width: '50%' }}>
-                    <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#0F2C3D', marginBottom: '8px' }}>
-                      Signature & Cachet du Médecin
-                    </div>
-                    {signature ? (
-                      <img src={signature} alt="Signature" style={{ maxHeight: '75px', width: 'auto', margin: '6px 0' }} />
-                    ) : (
-                      <div style={{ height: '60px' }} />
-                    )}
-                    <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#222222' }}>
-                      {user ? `Dr ${user.prenom} ${user.nom}` : 'Dr Mohamadou Bamba Diop'}
-                    </div>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-
-            <div style={{ marginTop: '40px', paddingTop: '10px', borderTop: '1px solid #E1E4E8', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '10px', color: '#666666' }}>
-              <div>
-                <p style={{ margin: 0, fontWeight: 'bold', color: '#0F2C3D' }}>MedRecord — Système de Dossier Médical Numérique</p>
-                <p style={{ margin: '2px 0 0 0', color: '#888888' }}>ID Document unique : {existingOrdonnance?.id || 'DOCUMENT_OFFICIEL'}</p>
-              </div>
-              <div style={{ textAlign: 'right' }}>
-                <img src={`https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent(`https://verify.medrecord.sn/verify?id=${existingOrdonnance?.id || 'DOC'}&type=ordonnance`)}`} alt="QR Code" style={{ width: '65px', height: '65px', border: '1px solid #DDDDDD', padding: '3px', background: '#FFFFFF' }} />
-              </div>
-            </div>
-          </div>
-        </>
-      )}
     </SafeAreaView>
   );
 }
