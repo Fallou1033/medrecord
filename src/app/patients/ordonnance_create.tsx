@@ -11,6 +11,7 @@ import {
   ActivityIndicator,
   Platform,
   StatusBar,
+  Linking,
 } from 'react-native';
 import { useLocalSearchParams, useRouter, Link } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -490,6 +491,53 @@ export default function CreateOrdonnanceScreen() {
     }
   };
 
+  const handleShareWhatsApp = async () => {
+    if (!patient) return;
+    if (!contenu.trim()) {
+      showAlert('Ordonnance vide', 'Veuillez rédiger le contenu de l\'ordonnance avant de la partager.');
+      return;
+    }
+
+    const phoneRaw = patient.telephone ? patient.telephone.trim() : '';
+    if (!phoneRaw) {
+      showAlert('Aucun numéro', 'Aucun numéro de téléphone n\'est renseigné pour ce patient.');
+      return;
+    }
+
+    let cleanPhone = phoneRaw.replace(/[^0-9+]/g, '');
+    if (cleanPhone.startsWith('+')) {
+      cleanPhone = cleanPhone.substring(1);
+    }
+    if (cleanPhone.startsWith('00')) {
+      cleanPhone = cleanPhone.substring(2);
+    }
+    if (cleanPhone.length === 9 && /^(77|78|76|70|75|33)/.test(cleanPhone)) {
+      cleanPhone = '221' + cleanPhone;
+    }
+
+    const docName = user?.name || 'Dr Fallou Diop';
+    const dateStr = formatDateFR(new Date());
+    const message = `Bonjour ${patient.prenom} ${patient.nom.toUpperCase()},\n\nVoici votre ordonnance médicale du ${docName} du ${dateStr} :\n\n📋 *ORDONNANCE MEDICALE*\n${contenu.trim()}\n\n---\n*MedRecord* - Dossier Médical Numérique`;
+
+    const whatsappUrl = `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodeURIComponent(message)}`;
+
+    if (Platform.OS === 'web') {
+      window.open(whatsappUrl, '_blank');
+    } else {
+      try {
+        const supported = await Linking.canOpenURL(whatsappUrl);
+        if (supported) {
+          await Linking.openURL(whatsappUrl);
+        } else {
+          await Linking.openURL(`https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`);
+        }
+      } catch (e) {
+        console.error('WhatsApp Error:', e);
+        showAlert('Erreur WhatsApp', 'Impossible d\'ouvrir l\'application WhatsApp.');
+      }
+    }
+  };
+
   if (loading) {
     return (
       <View style={styles.centerContainer}>
@@ -571,13 +619,21 @@ export default function CreateOrdonnanceScreen() {
             disabled={generating}
           >
             {generating ? (
-              <ActivityIndicator color="#FFFFFF" />
+              <ActivityIndicator color="#0F2C3D" />
             ) : (
               <>
-                <Ionicons name="print-outline" size={22} color="#FFFFFF" />
-                <Text style={styles.singlePrintBtnText}>Imprimer / Sauvegarder en PDF</Text>
+                <Ionicons name="print-outline" size={20} color="#0F2C3D" />
+                <Text style={styles.singlePrintBtnText}>Imprimer / PDF</Text>
               </>
             )}
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.actionBtn, styles.whatsappBtn]}
+            onPress={handleShareWhatsApp}
+          >
+            <Ionicons name="logo-whatsapp" size={20} color="#FFFFFF" />
+            <Text style={styles.whatsappBtnText}>Partager WhatsApp</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -728,7 +784,7 @@ const styles = StyleSheet.create({
   },
   singlePrintBtn: {
     backgroundColor: '#28C2FF',
-    width: '100%',
+    flex: 1,
     shadowColor: '#28C2FF',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
@@ -737,21 +793,19 @@ const styles = StyleSheet.create({
   },
   singlePrintBtnText: {
     color: '#0F2C3D',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  printBtn: {
-    backgroundColor: '#28C2FF',
-  },
-  printBtnText: {
-    color: '#0F2C3D',
     fontSize: 15,
     fontWeight: 'bold',
   },
-  exportBtn: {
-    backgroundColor: '#2F5C77',
+  whatsappBtn: {
+    backgroundColor: '#25D366',
+    flex: 1,
+    shadowColor: '#25D366',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
   },
-  exportBtnText: {
+  whatsappBtnText: {
     color: '#FFFFFF',
     fontSize: 15,
     fontWeight: 'bold',
