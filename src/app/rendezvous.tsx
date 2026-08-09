@@ -496,8 +496,8 @@ export default function RendezVousScreen() {
             <View style={styles.inputGroup}>
               <Text style={styles.modalLabel}>Heure du rendez-vous *</Text>
               
-              {/* Quick Time Slots */}
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.timeSlotsContainer}>
+              {/* 1-Click Quick Time Slot Grid */}
+              <View style={styles.timeSlotsGrid}>
                 {TIME_SLOTS.map((slot) => (
                   <TouchableOpacity
                     key={slot}
@@ -509,7 +509,7 @@ export default function RendezVousScreen() {
                     </Text>
                   </TouchableOpacity>
                 ))}
-              </ScrollView>
+              </View>
 
               {Platform.OS === 'web' ? (
                 <select
@@ -521,16 +521,17 @@ export default function RendezVousScreen() {
                     borderRadius: '10px',
                     padding: '12px 14px',
                     fontSize: '16px',
-                    border: '1px solid #2F5C77',
+                    border: '1px solid #28C2FF',
                     width: '100%',
                     boxSizing: 'border-box',
                     colorScheme: 'dark',
                     outline: 'none',
                     cursor: 'pointer',
                     fontWeight: 'bold',
+                    marginTop: '8px',
                   }}
                 >
-                  <option value="">Sélectionner une heure</option>
+                  <option value="">-- Autre heure (07:00 à 20:00) --</option>
                   {ALL_HOURS.map((t) => (
                     <option key={t} value={t}>
                       {t}
@@ -538,7 +539,7 @@ export default function RendezVousScreen() {
                   ))}
                 </select>
               ) : (
-                <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#1E3E52', borderRadius: 10, borderWidth: 1, borderColor: '#2F5C77', paddingRight: 12 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#1E3E52', borderRadius: 10, borderWidth: 1, borderColor: '#2F5C77', paddingRight: 12, marginTop: 8 }}>
                   <TextInput
                     style={[styles.modalInputText, { flex: 1, borderWidth: 0 }]}
                     placeholder="ex: 09:00"
@@ -631,8 +632,8 @@ export default function RendezVousScreen() {
             <View style={styles.inputGroup}>
               <Text style={styles.modalLabel}>Heure du rendez-vous *</Text>
               
-              {/* Quick Time Slots */}
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.timeSlotsContainer}>
+              {/* 1-Click Quick Time Slot Grid */}
+              <View style={styles.timeSlotsGrid}>
                 {TIME_SLOTS.map((slot) => (
                   <TouchableOpacity
                     key={slot}
@@ -644,7 +645,7 @@ export default function RendezVousScreen() {
                     </Text>
                   </TouchableOpacity>
                 ))}
-              </ScrollView>
+              </View>
 
               {Platform.OS === 'web' ? (
                 <select
@@ -656,16 +657,17 @@ export default function RendezVousScreen() {
                     borderRadius: '10px',
                     padding: '12px 14px',
                     fontSize: '16px',
-                    border: '1px solid #2F5C77',
+                    border: '1px solid #28C2FF',
                     width: '100%',
                     boxSizing: 'border-box',
                     colorScheme: 'dark',
                     outline: 'none',
                     cursor: 'pointer',
                     fontWeight: 'bold',
+                    marginTop: '8px',
                   }}
                 >
-                  <option value="">Sélectionner une heure</option>
+                  <option value="">-- Autre heure (07:00 à 20:00) --</option>
                   {ALL_HOURS.map((t) => (
                     <option key={t} value={t}>
                       {t}
@@ -673,7 +675,7 @@ export default function RendezVousScreen() {
                   ))}
                 </select>
               ) : (
-                <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#1E3E52', borderRadius: 10, borderWidth: 1, borderColor: '#2F5C77', paddingRight: 12 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#1E3E52', borderRadius: 10, borderWidth: 1, borderColor: '#2F5C77', paddingRight: 12, marginTop: 8 }}>
                   <TextInput
                     style={[styles.modalInputText, { flex: 1, borderWidth: 0 }]}
                     placeholder="ex: 09:00"
@@ -977,18 +979,19 @@ const styles = StyleSheet.create({
   inputGroup: {
     marginBottom: 16,
   },
-  timeSlotsContainer: {
+  timeSlotsGrid: {
     flexDirection: 'row',
-    marginBottom: 10,
+    flexWrap: 'wrap',
+    gap: 6,
+    marginBottom: 8,
   },
   timeChip: {
     backgroundColor: '#0F2C3D',
     borderWidth: 1,
     borderColor: '#2F5C77',
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 16,
-    marginRight: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 12,
   },
   timeChipActive: {
     backgroundColor: '#28C2FF',

@@ -99,6 +99,20 @@ function fixHtmlFile(filePath) {
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="0" />
+    <style id="timepicker-fix">
+      select option {
+        background-color: #0F2C3D !important;
+        color: #FFFFFF !important;
+        padding: 10px !important;
+        font-size: 16px !important;
+      }
+      select {
+        color-scheme: dark;
+      }
+      /* Prevent truncating dialog actions */
+      ::-webkit-datetime-edit-fields-wrapper { color: #FFFFFF !important; }
+      ::-webkit-calendar-picker-indicator { cursor: pointer; filter: invert(1); }
+    </style>
     `;
     html = html.replace('<head>', `<head>${cacheMeta}`);
   }
