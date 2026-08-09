@@ -517,24 +517,41 @@ export default function CreateOrdonnanceScreen() {
 
     const docName = user?.name || 'Dr Fallou Diop';
     const dateStr = formatDateFR(new Date());
-    const message = `Bonjour ${patient.prenom} ${patient.nom.toUpperCase()},\n\nVoici votre ordonnance médicale du ${docName} du ${dateStr} :\n\n📋 *ORDONNANCE MEDICALE*\n${contenu.trim()}\n\n---\n*MedRecord* - Dossier Médical Numérique`;
 
-    const whatsappUrl = `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodeURIComponent(message)}`;
+    try {
+      const docId = await handleSaveOrdonnance();
+      const htmlContent = generateOrdonnanceHTML(docId || 'DOC-ORD');
 
-    if (Platform.OS === 'web') {
-      window.open(whatsappUrl, '_blank');
-    } else {
-      try {
-        const supported = await Linking.canOpenURL(whatsappUrl);
-        if (supported) {
-          await Linking.openURL(whatsappUrl);
-        } else {
-          await Linking.openURL(`https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`);
-        }
-      } catch (e) {
-        console.error('WhatsApp Error:', e);
-        showAlert('Erreur WhatsApp', 'Impossible d\'ouvrir l\'application WhatsApp.');
+      if (Platform.OS === 'web') {
+        // 1. Déclencher le téléchargement / impression de l'Ordonnance PDF
+        await executeWebIframePrint(htmlContent);
+
+        // 2. Ouvrir WhatsApp Web avec le texte structuré et lien de confirmation
+        const message = `Bonjour ${patient.prenom} ${patient.nom.toUpperCase()},\n\nVoici votre ordonnance médicale du ${docName} du ${dateStr} :\n\n📄 *ORDONNANCE MEDICALE (PDF)*\n${contenu.trim()}\n\n---\n*MedRecord* - Dossier Médical Numérique`;
+        const whatsappUrl = `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodeURIComponent(message)}`;
+        
+        window.open(whatsappUrl, '_blank');
+      } else {
+        // On Mobile Native: Générer et partager le fichier PDF binaire directement sur WhatsApp
+        setGenerating(true);
+        const { uri } = await Print.printToFileAsync({ html: htmlContent });
+        await Sharing.shareAsync(uri, {
+          mimeType: 'application/pdf',
+          dialogTitle: `Partager l'ordonnance PDF de ${patient.prenom} ${patient.nom}`,
+          UTI: 'com.adobe.pdf',
+        });
       }
+    } catch (err) {
+      console.error('WhatsApp PDF Share error:', err);
+      const message = `Bonjour ${patient.prenom} ${patient.nom.toUpperCase()},\n\nVoici votre ordonnance médicale du ${docName} du ${dateStr} :\n\n📋 *ORDONNANCE MEDICALE*\n${contenu.trim()}\n\n---\n*MedRecord* - Dossier Médical Numérique`;
+      const whatsappUrl = `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodeURIComponent(message)}`;
+      if (Platform.OS === 'web') {
+        window.open(whatsappUrl, '_blank');
+      } else {
+        await Linking.openURL(whatsappUrl);
+      }
+    } finally {
+      setGenerating(false);
     }
   };
 
