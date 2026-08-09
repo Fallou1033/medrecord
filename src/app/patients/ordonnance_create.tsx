@@ -119,14 +119,20 @@ export default function CreateOrdonnanceScreen() {
     if (!patient) return '';
     const age = calculateAge(patient.date_naissance);
     const dateStr = formatDateFR(new Date());
-    const verificationUrl = `https://verify.medrecord.sn/verify?id=${documentId}&type=ordonnance`;
-    const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent(verificationUrl)}`;
 
-    const docName = user ? `Dr ${user.prenom} ${user.nom}` : 'Dr Mohamadou Bamba Diop';
+    const formatDoctorName = (nameStr: string) => {
+      const clean = nameStr.replace(/\b(dr|docteur)\.?\b/gi, '').replace(/\s+/g, ' ').trim();
+      return clean ? `Dr ${clean}` : 'Dr Daouda Diallo';
+    };
+
+    const rawDocName = user ? `${user.prenom || ''} ${user.nom || ''}`.trim() : 'Daouda Diallo';
+    const docName = formatDoctorName(rawDocName);
+    const docNameUpper = docName.toUpperCase();
+
     const docSpeciality = user?.specialite || 'Médecin Généraliste';
     const docCabinet = user?.cabinet || 'Cabinet Médical Privé';
     const docAddress = user?.adresse || 'Dakar, Sénégal';
-    const docEmail = user?.email || 'bamba.diop@medrecord.sn';
+    const docEmail = user?.email || 'falludiop10008@gmail.com';
     const docPhone = user?.telephone || '+221 77 123 4567';
 
     return `<!DOCTYPE html>
@@ -282,21 +288,12 @@ export default function CreateOrdonnanceScreen() {
       color: #222222;
     }
     .bottom-bar {
-      margin-top: 10px;
+      margin-top: 12px;
       padding-top: 6px;
       border-top: 1px solid #E1E4E8;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
+      text-align: left;
       font-size: 10px;
       color: #666666;
-    }
-    .qr-img {
-      width: 45px;
-      height: 45px;
-      border: 1px solid #DDDDDD;
-      padding: 2px;
-      background: #FFFFFF;
     }
   </style>
 </head>
@@ -305,7 +302,7 @@ export default function CreateOrdonnanceScreen() {
     <table class="header-table">
       <tr>
         <td class="doc-info">
-          <div class="doc-name">${docName}</div>
+          <div class="doc-name">${docNameUpper}</div>
           <div class="doc-sub">${docSpeciality} • ${docCabinet}</div>
           <div class="doc-contact">${docAddress} • Tél: ${docPhone}</div>
           <div class="doc-contact">Email: ${docEmail}</div>
@@ -350,13 +347,7 @@ export default function CreateOrdonnanceScreen() {
     </table>
 
     <div class="bottom-bar">
-      <div>
-        <p style="margin: 0; font-weight: bold; color: #0F2C3D;">MedRecord — Système de Dossier Médical Numérique</p>
-        <p style="margin: 2px 0 0 0; color: #888888;">ID Document unique : ${documentId}</p>
-      </div>
-      <div style="text-align: right;">
-        <img src="${qrCodeUrl}" class="qr-img" alt="QR Code" />
-      </div>
+      <p style="margin: 0; font-weight: bold; color: #0F2C3D;">MedRecord — Système de Dossier Médical Numérique</p>
     </div>
   </div>
 </body>
