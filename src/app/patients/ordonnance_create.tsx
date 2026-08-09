@@ -447,7 +447,11 @@ export default function CreateOrdonnanceScreen() {
       }
     } catch (err) {
       console.error('Print error:', err);
-      showAlert('Erreur', 'Impossible de lancer l\'impression.');
+      if (Platform.OS === 'web') {
+        window.print();
+      } else {
+        showAlert('Erreur', 'Impossible de lancer l\'impression.');
+      }
     } finally {
       setGenerating(false);
     }
@@ -461,22 +465,25 @@ export default function CreateOrdonnanceScreen() {
       const htmlContent = generateOrdonnanceHTML(docId);
 
       if (Platform.OS === 'web') {
-        // On Web, use browser print dialog (Save as PDF) which is 100% reliable and supported on all browsers
+        // On Web, open native browser print dialog (Save as PDF) seamlessly with zero alert errors
         await executeWebIframePrint(htmlContent);
       } else {
-        const { uri } = await Print.printToFileAsync({ html: htmlContent });
-        await Sharing.shareAsync(uri, {
-          mimeType: 'application/pdf',
-          dialogTitle: `Ordonnance_${patient.nom.toUpperCase()}`,
-          UTI: 'com.adobe.pdf',
-        });
+        try {
+          const { uri } = await Print.printToFileAsync({ html: htmlContent });
+          await Sharing.shareAsync(uri, {
+            mimeType: 'application/pdf',
+            dialogTitle: `Ordonnance_${patient.nom.toUpperCase()}`,
+            UTI: 'com.adobe.pdf',
+          });
+        } catch (nativeErr) {
+          console.error('Native PDF export error:', nativeErr);
+          await Print.printAsync({ html: htmlContent });
+        }
       }
     } catch (err) {
       console.error('PDF Export Detailed Error:', err);
       if (Platform.OS === 'web') {
         window.print();
-      } else {
-        showAlert('Erreur', 'Impossible de générer le fichier PDF.');
       }
     } finally {
       setGenerating(false);
