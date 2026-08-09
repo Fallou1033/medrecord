@@ -522,17 +522,39 @@ export default function CreateOrdonnanceScreen() {
       const docId = await handleSaveOrdonnance();
       const htmlContent = generateOrdonnanceHTML(docId || 'DOC-ORD');
 
+      // Lien direct vers la page de l'ordonnance pour l'Option B
+      const baseUrl = Platform.OS === 'web' 
+        ? window.location.origin + window.location.pathname 
+        : 'https://fallou1033.github.io/medrecord/';
+      const directDocLink = `${baseUrl}#/patients/ordonnance_create?consultationId=${consultationId}&patientId=${patientId}`;
+
       if (Platform.OS === 'web') {
-        // 1. Déclencher le téléchargement / impression de l'Ordonnance PDF
+        // Option A: Tenter le partage du fichier réel via l'API Web Share (navigator.share) sur mobile web
+        const fileName = `Ordonnance_${patient.nom.toUpperCase()}_${patient.prenom}.html`;
+        const docFile = new File([htmlContent], fileName, { type: 'text/html' });
+
+        if (typeof navigator !== 'undefined' && navigator.canShare && navigator.canShare({ files: [docFile] })) {
+          try {
+            await navigator.share({
+              files: [docFile],
+              title: `Ordonnance Médicale - ${patient.prenom} ${patient.nom.toUpperCase()}`,
+              text: `Bonjour ${patient.prenom} ${patient.nom.toUpperCase()},\n\nVoici votre ordonnance médicale du ${docName} du ${dateStr}.\n\n📄 Document officiel à consulter et télécharger au format PDF A4.`,
+            });
+            return;
+          } catch (shareErr) {
+            console.log('Web Share annulé ou échoué, repli sur le lien WhatsApp Web:', shareErr);
+          }
+        }
+
+        // Option B (Desktop / WhatsApp Web): Déclencher la boîte de sauvegarde PDF + lien direct dans WhatsApp Web
         await executeWebIframePrint(htmlContent);
 
-        // 2. Ouvrir WhatsApp Web avec le texte structuré et lien de confirmation
-        const message = `Bonjour ${patient.prenom} ${patient.nom.toUpperCase()},\n\nVoici votre ordonnance médicale du ${docName} du ${dateStr} :\n\n📄 *ORDONNANCE MEDICALE (PDF)*\n${contenu.trim()}\n\n---\n*MedRecord* - Dossier Médical Numérique`;
+        const message = `Bonjour ${patient.prenom} ${patient.nom.toUpperCase()},\n\nVoici votre ordonnance médicale du ${docName} du ${dateStr} :\n\n📄 *CONSULTER & TELECHARGER L'ORDONNANCE PDF* :\n${directDocLink}\n\n📋 *DÉTAIL DU TRAITEMENT* :\n${contenu.trim()}\n\n---\n*MedRecord* - Dossier Médical Numérique`;
         const whatsappUrl = `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodeURIComponent(message)}`;
         
         window.open(whatsappUrl, '_blank');
       } else {
-        // On Mobile Native: Générer et partager le fichier PDF binaire directement sur WhatsApp
+        // On Mobile Native App (iOS / Android): Générer et partager le fichier PDF binaire directement sur WhatsApp
         setGenerating(true);
         const { uri } = await Print.printToFileAsync({ html: htmlContent });
         await Sharing.shareAsync(uri, {
@@ -543,7 +565,11 @@ export default function CreateOrdonnanceScreen() {
       }
     } catch (err) {
       console.error('WhatsApp PDF Share error:', err);
-      const message = `Bonjour ${patient.prenom} ${patient.nom.toUpperCase()},\n\nVoici votre ordonnance médicale du ${docName} du ${dateStr} :\n\n📋 *ORDONNANCE MEDICALE*\n${contenu.trim()}\n\n---\n*MedRecord* - Dossier Médical Numérique`;
+      const baseUrl = Platform.OS === 'web' 
+        ? window.location.origin + window.location.pathname 
+        : 'https://fallou1033.github.io/medrecord/';
+      const directDocLink = `${baseUrl}#/patients/ordonnance_create?consultationId=${consultationId}&patientId=${patientId}`;
+      const message = `Bonjour ${patient.prenom} ${patient.nom.toUpperCase()},\n\nVoici votre ordonnance médicale du ${docName} du ${dateStr} :\n\n📄 *LIEN ORDONNANCE PDF* :\n${directDocLink}\n\n📋 *TRAITEMENT* :\n${contenu.trim()}\n\n---\n*MedRecord* - Dossier Médical Numérique`;
       const whatsappUrl = `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodeURIComponent(message)}`;
       if (Platform.OS === 'web') {
         window.open(whatsappUrl, '_blank');
