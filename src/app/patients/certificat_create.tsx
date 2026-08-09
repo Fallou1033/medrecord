@@ -180,6 +180,9 @@ export default function CreateCertificatScreen() {
           <div class="title">CERTIFICAT MEDICAL ${typeLabels[type]}</div>
           <div class="content">
             ${description.replace(/\n/g, '<br/>')}
+            <p style="margin-top: 25px; font-weight: bold; font-style: italic; color: #1B4B66;">
+              « Ce présent certificat lui est délivré pour valoir et faire valoir ce que de droit. »
+            </p>
           </div>
           <div class="signature">
             <p>Signature & Cachet du Médecin</p>

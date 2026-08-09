@@ -11,16 +11,33 @@ import {
   Alert,
 } from 'react-native';
 import { useSecurity } from '../security/SecurityContext';
+import { checkEmailExists } from '../security/auth';
 
 export default function SetupSecurityScreen() {
   const { setupSecurity } = useSecurity();
   const [nom, setNom] = useState('');
   const [prenom, setPrenom] = useState('');
   const [email, setEmail] = useState('');
+  const [emailError, setEmailError] = useState('');
   const [pin, setPin] = useState('');
   const [confirmPin, setConfirmPin] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
   const [loading, setLoading] = useState(false);
+
+  const validateEmailUniqueness = async (emailToTest: string) => {
+    if (!emailToTest.trim()) {
+      setEmailError('');
+      return true;
+    }
+    const isTaken = await checkEmailExists(emailToTest.trim());
+    if (isTaken) {
+      setEmailError('Cette adresse email est déjà utilisée.');
+      return false;
+    } else {
+      setEmailError('');
+      return true;
+    }
+  };
 
   const showAlert = (title: string, message: string) => {
     setErrorMsg(message);
@@ -35,6 +52,12 @@ export default function SetupSecurityScreen() {
     setErrorMsg('');
     if (!nom.trim() || !prenom.trim() || !email.trim() || !pin || !confirmPin) {
       showAlert('Champs requis', 'Veuillez remplir tous les champs obligatoires.');
+      return;
+    }
+
+    const isEmailAvailable = await validateEmailUniqueness(email);
+    if (!isEmailAvailable) {
+      showAlert('Adresse email indisponible', 'Cette adresse email est déjà utilisée.');
       return;
     }
 
@@ -53,9 +76,9 @@ export default function SetupSecurityScreen() {
       // Prepend Dr if not present
       const formattedNom = nom.trim().startsWith('Dr ') ? nom.trim() : `Dr ${nom.trim()}`;
       await setupSecurity(pin, formattedNom, prenom.trim(), email.trim());
-    } catch (error) {
+    } catch (error: any) {
       console.error(error);
-      showAlert('Erreur', "Impossible d'enregistrer le profil et le code PIN.");
+      showAlert('Erreur', error.message || "Impossible d'enregistrer le profil et le code PIN.");
     } finally {
       setLoading(false);
     }
@@ -106,14 +129,23 @@ export default function SetupSecurityScreen() {
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Adresse Email</Text>
             <TextInput
-              style={styles.input}
+              style={[styles.input, emailError ? { borderColor: '#FF6B6B', borderWidth: 2 } : null]}
               placeholder="Email"
               value={email}
-              onChangeText={setEmail}
+              onChangeText={(val) => {
+                setEmail(val);
+                if (emailError) setEmailError('');
+              }}
+              onBlur={() => validateEmailUniqueness(email)}
               keyboardType="email-address"
               autoCapitalize="none"
               placeholderTextColor="#9ca3af"
             />
+            {!!emailError && (
+              <Text style={{ color: '#FF6B6B', fontSize: 12, marginTop: 4, fontWeight: 'bold' }}>
+                ⚠️ {emailError}
+              </Text>
+            )}
           </View>
 
           <View style={styles.inputGroup}>

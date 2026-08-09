@@ -54,8 +54,10 @@ export default function CreateConsultationScreen() {
   }, [patientId]);
 
   useEffect(() => {
-    const w = parseFloat(poids) || null;
-    const h = parseFloat(taille) || null;
+    const cleanW = poids.replace(',', '.');
+    const cleanH = taille.replace(',', '.');
+    const w = parseFloat(cleanW) || null;
+    const h = parseFloat(cleanH) || null;
     const calculatedImc = calculateIMC(w, h);
     setImc(calculatedImc ? calculatedImc.toString() : '');
   }, [poids, taille]);
@@ -105,16 +107,23 @@ export default function CreateConsultationScreen() {
 
     setLoading(true);
     try {
-      const hasVitals = temperature || tension || pulsations || saturation || glycemie || poids || taille;
+      const cleanTemp = temperature.replace(',', '.');
+      const cleanPulse = pulsations.replace(',', '.');
+      const cleanSat = saturation.replace(',', '.');
+      const cleanGly = glycemie.replace(',', '.');
+      const cleanW = poids.replace(',', '.');
+      const cleanH = taille.replace(',', '.');
+
+      const hasVitals = cleanTemp || tension || cleanPulse || cleanSat || cleanGly || cleanW || cleanH;
       const constantesDetails = hasVitals
         ? {
-            temperature: parseFloat(temperature) || null,
+            temperature: parseFloat(cleanTemp) || null,
             tension_arterielle: tension.trim() || null,
-            frequence_cardiaque: parseInt(pulsations, 10) || null,
-            saturation: parseInt(saturation, 10) || null,
-            glycemie: parseFloat(glycemie) || null,
-            poids: parseFloat(poids) || null,
-            taille: parseFloat(taille) || null,
+            frequence_cardiaque: parseInt(cleanPulse, 10) || null,
+            saturation: parseInt(cleanSat, 10) || null,
+            glycemie: parseFloat(cleanGly) || null,
+            poids: parseFloat(cleanW) || null,
+            taille: parseFloat(cleanH) || null,
           }
         : null;
 
@@ -194,9 +203,10 @@ export default function CreateConsultationScreen() {
                 style={styles.input}
                 placeholder="Ex: 37.2"
                 placeholderTextColor="#9ca3af"
-                keyboardType="numeric"
+                keyboardType="decimal-pad"
+                inputMode="decimal"
                 value={temperature}
-                onChangeText={setTemperature}
+                onChangeText={(val) => setTemperature(val.replace(',', '.'))}
               />
             </View>
             <View style={[styles.inputGroup, { flex: 1 }]}>
@@ -218,7 +228,8 @@ export default function CreateConsultationScreen() {
                 style={styles.input}
                 placeholder="Ex: 75"
                 placeholderTextColor="#9ca3af"
-                keyboardType="numeric"
+                keyboardType="number-pad"
+                inputMode="numeric"
                 value={pulsations}
                 onChangeText={setPulsations}
               />
@@ -229,7 +240,8 @@ export default function CreateConsultationScreen() {
                 style={styles.input}
                 placeholder="Ex: 98"
                 placeholderTextColor="#9ca3af"
-                keyboardType="numeric"
+                keyboardType="number-pad"
+                inputMode="numeric"
                 value={saturation}
                 onChangeText={setSaturation}
               />
@@ -243,9 +255,10 @@ export default function CreateConsultationScreen() {
                 style={styles.input}
                 placeholder="Ex: 78.5"
                 placeholderTextColor="#9ca3af"
-                keyboardType="numeric"
+                keyboardType="decimal-pad"
+                inputMode="decimal"
                 value={poids}
-                onChangeText={setPoids}
+                onChangeText={(val) => setPoids(val.replace(',', '.'))}
               />
             </View>
             <View style={[styles.inputGroup, { flex: 1 }]}>
@@ -254,9 +267,10 @@ export default function CreateConsultationScreen() {
                 style={styles.input}
                 placeholder="Ex: 180"
                 placeholderTextColor="#9ca3af"
-                keyboardType="numeric"
+                keyboardType="decimal-pad"
+                inputMode="decimal"
                 value={taille}
-                onChangeText={setTaille}
+                onChangeText={(val) => setTaille(val.replace(',', '.'))}
               />
             </View>
           </View>
@@ -268,9 +282,10 @@ export default function CreateConsultationScreen() {
                 style={styles.input}
                 placeholder="Ex: 0.95"
                 placeholderTextColor="#9ca3af"
-                keyboardType="numeric"
+                keyboardType="decimal-pad"
+                inputMode="decimal"
                 value={glycemie}
-                onChangeText={setGlycemie}
+                onChangeText={(val) => setGlycemie(val.replace(',', '.'))}
               />
             </View>
             
@@ -377,16 +392,42 @@ export default function CreateConsultationScreen() {
           </View>
 
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Date de contrôle (AAAA-MM-JJ)</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="AAAA-MM-JJ"
-              placeholderTextColor="#9ca3af"
-              value={dateControle}
-              onChangeText={setDateControle}
-              keyboardType="numeric"
-              maxLength={10}
-            />
+            <Text style={styles.label}>Date de contrôle (facultatif)</Text>
+            {Platform.OS === 'web' ? (
+              <input
+                type="date"
+                value={dateControle}
+                onChange={(e) => setDateControle(e.target.value)}
+                min={new Date().toISOString().split('T')[0]}
+                style={{
+                  backgroundColor: '#1E3E52',
+                  color: '#FFFFFF',
+                  borderRadius: '10px',
+                  padding: '12px',
+                  fontSize: '16px',
+                  border: '1px solid #2F5C77',
+                  width: '100%',
+                  boxSizing: 'border-box',
+                  colorScheme: 'dark',
+                  fontFamily: 'inherit',
+                  outline: 'none',
+                  cursor: 'pointer',
+                }}
+              />
+            ) : (
+              <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#1E3E52', borderRadius: 10, borderWidth: 1, borderColor: '#2F5C77', paddingRight: 12 }}>
+                <TextInput
+                  style={[styles.input, { flex: 1, borderWidth: 0 }]}
+                  placeholder="ex: 2026-08-20 (facultatif)"
+                  placeholderTextColor="#9ca3af"
+                  value={dateControle}
+                  onChangeText={setDateControle}
+                  keyboardType="numeric"
+                  maxLength={10}
+                />
+                <Ionicons name="calendar-outline" size={22} color="#28C2FF" />
+              </View>
+            )}
           </View>
 
           {/* Pediatric Dose Calculator */}

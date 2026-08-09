@@ -114,133 +114,139 @@ export default function CreateOrdonnanceScreen() {
     }
   };
 
-  const handleGeneratePDF = async () => {
-    if (!contenu.trim()) {
-      showAlert('Erreur', 'L\'ordonnance est vide.');
-      return;
-    }
+  const generateOrdonnanceHTML = (documentId: string) => {
+    if (!patient) return '';
+    const age = calculateAge(patient.date_naissance);
+    const dateStr = formatDateFR(new Date());
+    const verificationUrl = `https://verify.medrecord.sn/verify?id=${documentId}&type=ordonnance`;
+    const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent(verificationUrl)}`;
 
-    if (!patient || !user) return;
+    const docName = user ? `${user.prenom} ${user.nom}` : 'Dr Mohamadou Bamba Diop';
+    const docEmail = user ? user.email : 'bamba.diop@medrecord.sn';
+    const docPhone = user && user.telephone ? user.telephone : '+221 77 123 4567';
 
-    setGenerating(true);
-    try {
-      // 1. Create or save the ordonnance in DB
-      let documentId = '';
-      if (!existingOrdonnance) {
-        const newOrd = await addOrdonnance(
-          {
-            consultation_id: consultationId,
-            contenu: contenu.trim(),
-            date: new Date().toISOString().split('T')[0],
-            pdf_url: null, // Local temporary PDF initially
-          },
-          user.id
-        );
-        setExistingOrdonnance(newOrd);
-        documentId = newOrd.id;
-      } else {
-        // Update existing ordonnance content
-        const db = await getDatabase();
-        const enc = await encryptData(contenu.trim());
-        await db.runAsync(
-          'UPDATE ordonnances SET contenu = ?, is_synced = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ?;',
-          [enc, existingOrdonnance.id]
-        );
-        documentId = existingOrdonnance.id;
-      }
-
-      // 2. Generate PDF HTML String
-      const age = calculateAge(patient.date_naissance);
-      const dateStr = formatDateFR(new Date());
-      const verificationUrl = `https://verify.medrecord.sn/verify?id=${documentId}&type=ordonnance`;
-      const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent(verificationUrl)}`;
-
-      const docName = user ? `${user.prenom} ${user.nom}` : 'Dr Mohamadou Bamba Diop';
-      const docEmail = user ? user.email : 'bamba.diop@medrecord.sn';
-      const docPhone = user && user.telephone ? user.telephone : '+221 77 123 4567';
-
-      const htmlContent = `
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <meta charset="utf-8">
-          <style>
-            body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; padding: 40px; color: #222; }
-            .header { text-align: center; border-bottom: 2px solid #1B4B66; padding-bottom: 20px; margin-bottom: 30px; }
-            .header h1 { margin: 0; color: #1B4B66; font-size: 24px; text-transform: uppercase; letter-spacing: 1px; }
-            .header p { margin: 5px 0 0 0; color: #555; font-size: 14px; }
-            .meta { display: flex; justify-content: space-between; margin-bottom: 30px; font-size: 14px; border-bottom: 1px solid #eee; padding-bottom: 10px; }
-            .patient-info { margin-bottom: 35px; background-color: #f8f9fa; padding: 15px; border-radius: 8px; border-left: 4px solid #1B4B66; }
-            .patient-info p { margin: 5px 0; font-size: 15px; }
-            .title { text-align: center; font-size: 20px; font-weight: bold; margin-bottom: 30px; letter-spacing: 2px; color: #1B4B66; }
-            .content { font-size: 16px; line-height: 1.8; min-height: 250px; white-space: pre-wrap; margin-bottom: 40px; }
-            .signature { text-align: right; margin-top: 30px; font-size: 15px; }
-            .signature img { max-height: 70px; width: auto; margin-top: 5px; margin-bottom: 5px; }
-            .footer { text-align: center; font-size: 11px; color: #888; border-top: 1px solid #ddd; padding-top: 15px; margin-top: 50px; }
-          </style>
-        </head>
-        <body>
-          <div class="header">
-            <h1>${docName}</h1>
-            <p>Médecin Généraliste • Cabinet Médical Privé</p>
-            <p>Dakar, Sénégal • Tél: ${docPhone} • Email: ${docEmail}</p>
-          </div>
-          <div class="meta">
-            <div><strong>Date:</strong> ${dateStr}</div>
-            <div><strong>Dossier N°:</strong> ${patient.numero_dossier}</div>
-          </div>
-          <div class="patient-info">
-            <p><strong>Patient(e) :</strong> ${patient.prenom} ${patient.nom.toUpperCase()}</p>
-            <p><strong>Âge :</strong> ${age} ans &nbsp;&nbsp;&nbsp;&nbsp; <strong>Sexe :</strong> ${patient.sexe === 'M' ? 'Masculin' : 'Féminin'}</p>
-          </div>
-          <div class="title">ORDONNANCE</div>
-          <div class="content">${contenu.replace(/\n/g, '<br/>')}</div>
-          <div class="signature">
-            <p>Signature & Cachet du Médecin</p>
-            ${signature ? `<img src="${signature}" alt="Signature" />` : '<br/><br/>'}
-            <p><strong>${docName}</strong></p>
-          </div>
-          <div class="footer">
-            <div style="display: flex; justify-content: space-between; align-items: center; text-align: left;">
-              <div>
-                <p style="margin: 0;">MedRecord — Logiciel de Gestion de Dossier Médical Numérique • Document généré électroniquement</p>
-                <p style="font-size: 9px; color: #aaa; margin: 3px 0 0 0;">ID de vérification : ${documentId}</p>
-              </div>
-              <div style="text-align: right;">
-                <img src="${qrCodeUrl}" alt="QR Code d'authenticité" style="width: 70px; height: 70px; border: 1px solid #ddd; padding: 4px; background: #fff;" />
-                <p style="font-size: 8px; color: #aaa; margin: 2px 0 0 0; text-align: center;">Vérifier l'authenticité</p>
-              </div>
+    return `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <style>
+          body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; padding: 40px; color: #222; }
+          .header { text-align: center; border-bottom: 2px solid #1B4B66; padding-bottom: 20px; margin-bottom: 30px; }
+          .header h1 { margin: 0; color: #1B4B66; font-size: 24px; text-transform: uppercase; letter-spacing: 1px; }
+          .header p { margin: 5px 0 0 0; color: #555; font-size: 14px; }
+          .meta { display: flex; justify-content: space-between; margin-bottom: 30px; font-size: 14px; border-bottom: 1px solid #eee; padding-bottom: 10px; }
+          .patient-info { margin-bottom: 35px; background-color: #f8f9fa; padding: 15px; border-radius: 8px; border-left: 4px solid #1B4B66; }
+          .patient-info p { margin: 5px 0; font-size: 15px; }
+          .title { text-align: center; font-size: 20px; font-weight: bold; margin-bottom: 30px; letter-spacing: 2px; color: #1B4B66; }
+          .content { font-size: 16px; line-height: 1.8; min-height: 250px; white-space: pre-wrap; margin-bottom: 40px; }
+          .signature { text-align: right; margin-top: 30px; font-size: 15px; }
+          .signature img { max-height: 70px; width: auto; margin-top: 5px; margin-bottom: 5px; }
+          .footer { text-align: center; font-size: 11px; color: #888; border-top: 1px solid #ddd; padding-top: 15px; margin-top: 50px; }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <h1>${docName}</h1>
+          <p>Médecin Généraliste • Cabinet Médical Privé</p>
+          <p>Dakar, Sénégal • Tél: ${docPhone} • Email: ${docEmail}</p>
+        </div>
+        <div class="meta">
+          <div><strong>Date:</strong> ${dateStr}</div>
+          <div><strong>Dossier N°:</strong> ${patient.numero_dossier}</div>
+        </div>
+        <div class="patient-info">
+          <p><strong>Patient(e) :</strong> ${patient.prenom} ${patient.nom.toUpperCase()}</p>
+          <p><strong>Né(e) le :</strong> ${patient.date_naissance ? formatDateFR(patient.date_naissance) : '--'}${age ? ` (${age} ans)` : ''} &nbsp;&nbsp;&nbsp;&nbsp; <strong>Sexe :</strong> ${patient.sexe === 'M' ? 'Masculin' : 'Féminin'}</p>
+        </div>
+        <div class="title">ORDONNANCE MEDICALE</div>
+        <div class="content">${contenu.replace(/\n/g, '<br/>')}</div>
+        <div class="signature">
+          <p>Signature & Cachet du Médecin</p>
+          ${signature ? `<img src="${signature}" alt="Signature" />` : '<br/><br/>'}
+          <p><strong>${docName}</strong></p>
+        </div>
+        <div class="footer">
+          <div style="display: flex; justify-content: space-between; align-items: center; text-align: left;">
+            <div>
+              <p style="margin: 0;">MedRecord — Logiciel de Gestion de Dossier Médical Numérique • Document généré électroniquement</p>
+              <p style="font-size: 9px; color: #aaa; margin: 3px 0 0 0;">ID de vérification : ${documentId}</p>
+            </div>
+            <div style="text-align: right;">
+              <img src="${qrCodeUrl}" alt="QR Code d'authenticité" style="width: 70px; height: 70px; border: 1px solid #ddd; padding: 4px; background: #fff;" />
+              <p style="font-size: 8px; color: #aaa; margin: 2px 0 0 0; text-align: center;">Vérifier l'authenticité</p>
             </div>
           </div>
-        </body>
-        </html>
-      `;
+        </div>
+      </body>
+      </html>
+    `;
+  };
 
-      // 3. Print to File
+  const handleSaveOrdonnance = async (): Promise<string | null> => {
+    if (!contenu.trim()) {
+      showAlert('Erreur', 'L\'ordonnance est vide.');
+      return null;
+    }
+    if (!patient || !user) return null;
+
+    let documentId = '';
+    if (!existingOrdonnance) {
+      const newOrd = await addOrdonnance(
+        {
+          consultation_id: consultationId,
+          contenu: contenu.trim(),
+          date: new Date().toISOString().split('T')[0],
+          pdf_url: null,
+        },
+        user.id
+      );
+      setExistingOrdonnance(newOrd);
+      documentId = newOrd.id;
+    } else {
+      const db = await getDatabase();
+      const enc = await encryptData(contenu.trim());
+      await db.runAsync(
+        'UPDATE ordonnances SET contenu = ?, is_synced = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ?;',
+        [enc, existingOrdonnance.id]
+      );
+      documentId = existingOrdonnance.id;
+    }
+    return documentId;
+  };
+
+  const handlePrintOrdonnance = async () => {
+    setGenerating(true);
+    try {
+      const docId = await handleSaveOrdonnance();
+      if (!docId) return;
+      const htmlContent = generateOrdonnanceHTML(docId);
+
+      await Print.printAsync({ html: htmlContent });
+    } catch (err) {
+      console.error('Print error:', err);
+      showAlert('Erreur', 'Impossible de lancer l\'impression.');
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  const handleExportPDF = async () => {
+    setGenerating(true);
+    try {
+      const docId = await handleSaveOrdonnance();
+      if (!docId || !patient) return;
+      const htmlContent = generateOrdonnanceHTML(docId);
+
       const { uri } = await Print.printToFileAsync({ html: htmlContent });
-
-      // 4. Share PDF File
       await Sharing.shareAsync(uri, {
         mimeType: 'application/pdf',
-        dialogTitle: `Ordonnance_${patient.nom.toUpperCase()}_${dateStr}`,
+        dialogTitle: `Ordonnance_${patient.nom.toUpperCase()}`,
         UTI: 'com.adobe.pdf',
       });
-
-      showAlert('Succès', 'Ordonnance générée et partagée avec succès.', [
-        {
-          text: 'OK',
-          onPress: () => {
-            // Go back to the consultation details
-            router.replace({
-              pathname: '/patients/consultation_details' as any,
-              params: { id: consultationId },
-            });
-          },
-        },
-      ]);
     } catch (err) {
-      console.error(err);
-      showAlert('Erreur', 'Impossible de générer l\'ordonnance PDF.');
+      console.error('Export error:', err);
+      showAlert('Erreur', 'Impossible de générer le fichier PDF.');
     } finally {
       setGenerating(false);
     }
@@ -302,7 +308,7 @@ export default function CreateOrdonnanceScreen() {
                   const w = parseFloat(poids);
                   if (isNaN(w) || w <= 0) return '-- mg';
                   const dose = Math.round(w * 15);
-                  const mlSirop = Math.round((dose / 24) * 10) / 10; // Sirop standard 120mg/5ml => 24mg/ml
+                  const mlSirop = Math.round((dose / 24) * 10) / 10;
                   return `${dose} mg (${mlSirop} ml de sirop 120mg/5ml)`;
                 })()}
               </Text>
@@ -320,20 +326,37 @@ export default function CreateOrdonnanceScreen() {
           />
         </View>
 
-        <TouchableOpacity
-          style={[styles.generateButton, generating && styles.disabledButton]}
-          onPress={handleGeneratePDF}
-          disabled={generating}
-        >
-          {generating ? (
-            <ActivityIndicator color="#0F2C3D" />
-          ) : (
-            <>
-              <Ionicons name="print-outline" size={22} color="#0F2C3D" />
-              <Text style={styles.generateButtonText}>Générer & Partager l'Ordonnance PDF</Text>
-            </>
-          )}
-        </TouchableOpacity>
+        <View style={styles.actionsContainer}>
+          <TouchableOpacity
+            style={[styles.actionBtn, styles.printBtn, generating && styles.disabledButton]}
+            onPress={handlePrintOrdonnance}
+            disabled={generating}
+          >
+            {generating ? (
+              <ActivityIndicator color="#0F2C3D" />
+            ) : (
+              <>
+                <Ionicons name="print-outline" size={20} color="#0F2C3D" />
+                <Text style={styles.printBtnText}>Imprimer l'Ordonnance</Text>
+              </>
+            )}
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.actionBtn, styles.exportBtn, generating && styles.disabledButton]}
+            onPress={handleExportPDF}
+            disabled={generating}
+          >
+            {generating ? (
+              <ActivityIndicator color="#FFFFFF" />
+            ) : (
+              <>
+                <Ionicons name="download-outline" size={20} color="#FFFFFF" />
+                <Text style={styles.exportBtnText}>Exporter PDF</Text>
+              </>
+            )}
+          </TouchableOpacity>
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -382,102 +405,118 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
   placeholder: {
-    width: 24,
+    width: 44,
   },
   patientBanner: {
-    backgroundColor: '#2F5C77',
-    paddingVertical: 8,
-    paddingHorizontal: 20,
+    backgroundColor: '#1E3E52',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#2F5C77',
   },
   patientBannerText: {
-    color: '#FFFFFF',
-    fontWeight: 'bold',
+    color: '#28C2FF',
     fontSize: 14,
+    fontWeight: 'bold',
+    textAlign: 'center',
   },
   contentContainer: {
     padding: 20,
-    gap: 20,
-    paddingBottom: 120,
+    paddingBottom: 60,
   },
   prescriptionCard: {
     backgroundColor: '#1E3E52',
-    borderWidth: 1,
-    borderColor: '#2F5C77',
     borderRadius: 15,
     padding: 16,
+    borderWidth: 1,
+    borderColor: '#2F5C77',
+    marginBottom: 20,
   },
   label: {
-    fontSize: 13,
-    fontWeight: '600',
+    fontSize: 14,
+    fontWeight: 'bold',
     color: '#8AC8F9',
-    textTransform: 'uppercase',
-    marginBottom: 10,
+    marginBottom: 12,
   },
   infoBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: '#0F2C3D',
-    padding: 10,
+    backgroundColor: '#2F5C77',
+    paddingVertical: 6,
+    paddingHorizontal: 10,
     borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#2F5C77',
-    marginBottom: 12,
+    marginBottom: 10,
   },
   infoBadgeText: {
     color: '#E67E22',
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: 'bold',
   },
   calcCard: {
     backgroundColor: '#0F2C3D',
-    borderWidth: 1,
-    borderColor: '#2F5C77',
-    borderRadius: 8,
+    borderRadius: 10,
     padding: 10,
     marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#2F5C77',
   },
   calcHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
+    marginBottom: 4,
   },
   calcTitle: {
     color: '#8AC8F9',
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: 'bold',
-    textTransform: 'uppercase',
   },
   calcVal: {
-    color: '#2ECC71',
+    color: '#28C2FF',
     fontSize: 13,
     fontWeight: 'bold',
-    marginTop: 4,
   },
   textArea: {
     backgroundColor: '#0F2C3D',
     color: '#FFFFFF',
     borderRadius: 10,
-    padding: 12,
+    padding: 14,
     fontSize: 16,
+    lineHeight: 24,
     borderWidth: 1,
     borderColor: '#2F5C77',
+    minHeight: 220,
     textAlignVertical: 'top',
-    minHeight: 250,
+  },
+  actionsContainer: {
+    flexDirection: 'row',
+    gap: 12,
     marginTop: 8,
   },
-  generateButton: {
-    backgroundColor: '#28C2FF',
+  actionBtn: {
+    flex: 1,
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    gap: 10,
+    gap: 8,
+    borderRadius: 12,
     padding: 16,
-    borderRadius: 10,
   },
-  generateButtonText: {
+  printBtn: {
+    backgroundColor: '#28C2FF',
+  },
+  printBtnText: {
     color: '#0F2C3D',
-    fontSize: 16,
+    fontSize: 15,
+    fontWeight: 'bold',
+  },
+  exportBtn: {
+    backgroundColor: '#2F5C77',
+  },
+  exportBtnText: {
+    color: '#FFFFFF',
+    fontSize: 15,
     fontWeight: 'bold',
   },
   disabledButton: {

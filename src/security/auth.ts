@@ -58,6 +58,55 @@ const secureStoreDeleteItem = async (key: string): Promise<void> => {
 };
 
 /**
+ * Checks if an email address already exists in the database/storage for another user.
+ */
+export async function checkEmailExists(email: string, currentUserId?: string): Promise<boolean> {
+  const cleanEmail = email.trim().toLowerCase();
+  if (!cleanEmail) return false;
+
+  try {
+    const db = await getDatabase();
+    
+    // 1. Check SQLite database
+    let query = 'SELECT id FROM utilisateurs WHERE LOWER(email) = LOWER(?)';
+    const params: any[] = [cleanEmail];
+
+    if (currentUserId) {
+      query += ' AND id != ?';
+      params.push(currentUserId);
+    }
+    query += ' LIMIT 1;';
+
+    const existingUser = (await db.getFirstAsync(query, params)) as any;
+    if (existingUser) {
+      return true;
+    }
+
+    // 2. Check remote Supabase if available
+    try {
+      const { supabase } = require('../services/supabase');
+      if (supabase) {
+        let sbQuery = supabase.from('utilisateurs').select('id').eq('email', cleanEmail);
+        if (currentUserId) {
+          sbQuery = sbQuery.neq('id', currentUserId);
+        }
+        const { data } = await sbQuery.limit(1);
+        if (data && data.length > 0) {
+          return true;
+        }
+      }
+    } catch (e) {
+      // Supabase offline/not configured fallback
+    }
+
+    return false;
+  } catch (error) {
+    console.warn('MedRecord: Failed to check email uniqueness:', error);
+    return false;
+  }
+}
+
+/**
  * Checks if a PIN code has been set up on this device.
  */
 export async function isPinSetup(): Promise<boolean> {
@@ -70,6 +119,18 @@ export async function isPinSetup(): Promise<boolean> {
  */
 export async function setupPIN(pin: string, nom: string, prenom: string, email: string, telephone?: string | null): Promise<UserProfile> {
   try {
+    const db = await getDatabase();
+    
+    // Check if default user already exists
+    let user = (await db.getFirstAsync('SELECT * FROM utilisateurs LIMIT 1;')) as any;
+    let userId = user?.id;
+
+    // Check email uniqueness
+    const isEmailTaken = await checkEmailExists(email, userId);
+    if (isEmailTaken) {
+      throw new Error('Cette adresse email est déjà utilisée.');
+    }
+
     // 1. Hash the PIN using SHA-256
     const pinHash = await Crypto.digestStringAsync(
       Crypto.CryptoDigestAlgorithm.SHA256,
@@ -78,13 +139,6 @@ export async function setupPIN(pin: string, nom: string, prenom: string, email: 
 
     // 2. Save the PIN hash in secure store
     await secureStoreSetItem(PIN_HASH_KEY, pinHash);
-
-    // 3. Register user in SQLite database
-    const db = await getDatabase();
-    
-    // Check if default user already exists
-    let user = (await db.getFirstAsync('SELECT * FROM utilisateurs LIMIT 1;')) as any;
-    let userId = user?.id;
 
     if (!user) {
       userId = generateUUID();

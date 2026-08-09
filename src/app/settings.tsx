@@ -29,7 +29,7 @@ import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
 import { useSecurity } from '../security/SecurityContext';
-import { verifyPIN } from '../security/auth';
+import { verifyPIN, checkEmailExists } from '../security/auth';
 import { useThemePreference } from '../theme/ThemePreferenceContext';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
@@ -47,11 +47,27 @@ export default function SettingsScreen() {
   const [nom, setNom] = useState(user?.nom || '');
   const [prenom, setPrenom] = useState(user?.prenom || '');
   const [email, setEmail] = useState(user?.email || '');
+  const [emailError, setEmailError] = useState('');
   const [telephone, setTelephone] = useState(user?.telephone || '');
   const [newPin, setNewPin] = useState('');
   const [currentPin, setCurrentPin] = useState('');
   const [saving, setSaving] = useState(false);
   const [avatar, setAvatar] = useState('');
+
+  const validateEmailUniqueness = async (emailToTest: string) => {
+    if (!emailToTest.trim()) {
+      setEmailError('');
+      return true;
+    }
+    const isTaken = await checkEmailExists(emailToTest.trim(), user?.id);
+    if (isTaken) {
+      setEmailError('Cette adresse email est déjà utilisée.');
+      return false;
+    } else {
+      setEmailError('');
+      return true;
+    }
+  };
 
   const [googleUser, setGoogleUser] = useState<GoogleDriveUser | null>(null);
   const [lastBackup, setLastBackup] = useState<string | null>(null);
@@ -222,6 +238,13 @@ export default function SettingsScreen() {
       return;
     }
 
+    // Vérifier l'unicité de l'adresse email
+    const isEmailAvailable = await validateEmailUniqueness(email);
+    if (!isEmailAvailable) {
+      alert("Adresse email indisponible\n\nCette adresse email est déjà associée à un autre compte.");
+      return;
+    }
+
     if (!currentPin.trim()) {
       alert("Code PIN requis\n\nVeuillez saisir votre code PIN actuel pour valider les modifications.");
       return;
@@ -261,9 +284,9 @@ export default function SettingsScreen() {
       alert("Succès\n\nVotre profil de médecin et vos identifiants de sécurité ont été mis à jour !");
       setNewPin('');
       setCurrentPin('');
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
-      alert("Erreur\n\nUne erreur est survenue lors de la mise à jour du profil.");
+      alert("Erreur\n\n" + (e.message || "Une erreur est survenue lors de la mise à jour du profil."));
     } finally {
       setSaving(false);
     }
@@ -293,7 +316,11 @@ export default function SettingsScreen() {
         <ThemedView style={styles.titleContainer}>
           <ThemedText type="subtitle">Paramètres</ThemedText>
           <ThemedText style={styles.centerText} themeColor="textSecondary">
-            Configuration du Cabinet Médical Privé{'\n'}Dr {user ? `${user.prenom} ${user.nom}` : 'Mohamadou Bamba Diop'}
+            Configuration du Cabinet Médical Privé{'\n'}
+            {(() => {
+              const raw = `${user?.prenom || ''} ${user?.nom || ''}`.replace(/(Dr\.?|Docteur)\s*/gi, '').trim();
+              return `Dr ${raw || 'Fallou Diop'}`;
+            })()}
           </ThemedText>
         </ThemedView>
 
@@ -325,13 +352,23 @@ export default function SettingsScreen() {
               <View style={styles.inputGroup}>
                 <ThemedText style={styles.label}>Adresse Email *</ThemedText>
                 <TextInput
-                  style={styles.input}
+                  style={[styles.input, emailError ? { borderColor: '#FF6B6B', borderWidth: 2 } : null]}
                   placeholder="Email"
                   placeholderTextColor="#9ca3af"
                   value={email}
-                  onChangeText={setEmail}
+                  onChangeText={(val) => {
+                    setEmail(val);
+                    if (emailError) setEmailError('');
+                  }}
+                  onBlur={() => validateEmailUniqueness(email)}
                   keyboardType="email-address"
+                  autoCapitalize="none"
                 />
+                {!!emailError && (
+                  <ThemedText style={{ color: '#FF6B6B', fontSize: 13, marginTop: 6, fontWeight: 'bold' }}>
+                    ⚠️ {emailError}
+                  </ThemedText>
+                )}
               </View>
 
               <View style={styles.inputGroup}>
@@ -475,40 +512,78 @@ export default function SettingsScreen() {
                   </TouchableOpacity>
                 </View>
               ) : (
-                <View style={styles.googleEmpty}>
-                  <ThemedText style={styles.googleEmptyText}>
-                    Pour activer la sauvegarde **réelle** sur votre Google Drive (falludiop10008@gmail.com), collez un jeton d'accès OAuth2 ci-dessous :
-                  </ThemedText>
+                <View style={[styles.googleEmpty, Platform.OS === 'web' && ({ boxSizing: 'border-box', maxWidth: '100%', overflow: 'hidden' } as any)]}>
+                  {(() => {
+                    const rawName = `${user?.prenom || ''} ${user?.nom || ''}`.replace(/(Dr\.?|Docteur)\s*/gi, '').trim();
+                    const activeDocName = rawName ? `Dr ${rawName}` : 'du médecin connecté';
+                    const activeDocEmail = email || user?.email || 'compte Google';
+                    return (
+                      <>
+                        <ThemedText
+                          style={[
+                            styles.googleEmptyText,
+                            { marginBottom: 12 },
+                            Platform.OS === 'web' && ({ wordBreak: 'break-word', overflowWrap: 'anywhere', whiteSpace: 'normal' } as any)
+                          ]}
+                        >
+                          Activez la sauvegarde cloud automatique sur le compte Google du <ThemedText style={{ fontWeight: 'bold', color: '#28C2FF' }}>{activeDocName}</ThemedText> (<ThemedText style={[Platform.OS === 'web' && ({ wordBreak: 'break-word', overflowWrap: 'anywhere' } as any), { color: '#28C2FF' }]}>{activeDocEmail}</ThemedText>).
+                        </ThemedText>
 
-                  <View style={{ width: '100%', marginVertical: 10 }}>
-                    <TextInput
-                      style={styles.input}
-                      placeholder="Coller le Jeton Google (ya29...)"
-                      placeholderTextColor="#9ca3af"
-                      value={customToken}
-                      onChangeText={setCustomToken}
-                      secureTextEntry
-                    />
+                        <TouchableOpacity
+                          style={[
+                            styles.googleLoginBtn,
+                            { marginVertical: 6, backgroundColor: '#28C2FF', paddingVertical: 14, paddingHorizontal: 12, width: '100%' },
+                            Platform.OS === 'web' && ({ boxSizing: 'border-box', maxWidth: '100%' } as any)
+                          ]}
+                          onPress={handleGoogleLogin}
+                          disabled={saving}
+                        >
+                          <ThemedText
+                            style={[
+                              styles.googleLoginBtnText,
+                              { color: '#0F2C3D', fontWeight: 'bold', textAlign: 'center' },
+                              Platform.OS === 'web' && ({ wordBreak: 'break-word', overflowWrap: 'anywhere', whiteSpace: 'normal' } as any)
+                            ]}
+                          >
+                            Connecter Google Drive{'\n'}({activeDocEmail})
+                          </ThemedText>
+                        </TouchableOpacity>
+                      </>
+                    );
+                  })()}
+
+                  <View style={[{ width: '100%', maxWidth: '100%' }, Platform.OS === 'web' && ({ boxSizing: 'border-box' } as any)]}>
+                    <Collapsible title="Option avancée : Coller un Jeton Google OAuth2">
+                      <View style={[{ width: '100%', marginVertical: 10 }, Platform.OS === 'web' && ({ boxSizing: 'border-box' } as any)]}>
+                        <TextInput
+                          style={styles.input}
+                          placeholder="Coller le Jeton Google (ya29...)"
+                          placeholderTextColor="#9ca3af"
+                          value={customToken}
+                          onChangeText={setCustomToken}
+                          secureTextEntry
+                        />
+                        <TouchableOpacity
+                          style={[
+                            styles.googleLoginBtn,
+                            { marginTop: 8, backgroundColor: '#1E3E52' },
+                            Platform.OS === 'web' && ({ boxSizing: 'border-box', maxWidth: '100%' } as any)
+                          ]}
+                          onPress={handleSaveToken}
+                          disabled={saving}
+                        >
+                          <ThemedText
+                            style={[
+                              styles.googleLoginBtnText,
+                              Platform.OS === 'web' && ({ wordBreak: 'break-word', overflowWrap: 'anywhere', whiteSpace: 'normal' } as any)
+                            ]}
+                          >
+                            {saving ? 'Validation...' : 'Valider Jeton Personnalisé'}
+                          </ThemedText>
+                        </TouchableOpacity>
+                      </View>
+                    </Collapsible>
                   </View>
-
-                  <TouchableOpacity
-                    style={[styles.googleLoginBtn, { marginVertical: 6 }]}
-                    onPress={handleSaveToken}
-                    disabled={saving}
-                  >
-                    <ThemedText style={styles.googleLoginBtnText}>
-                      {saving ? 'Validation...' : 'Valider & Connecter'}
-                    </ThemedText>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    onPress={handleGoogleLogin}
-                    style={{ marginTop: 10 }}
-                  >
-                    <ThemedText style={{ color: '#28C2FF', textDecorationLine: 'underline', fontSize: 13, textAlign: 'center' }}>
-                      Ou utiliser le mode simulation clinique
-                    </ThemedText>
-                  </TouchableOpacity>
                 </View>
               )}
             </View>
@@ -557,23 +632,31 @@ export default function SettingsScreen() {
 const styles = StyleSheet.create({
   scrollView: {
     flex: 1,
+    width: '100%',
   },
   contentContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
+    flexDirection: 'column',
+    alignItems: 'center',
+    width: '100%',
+    paddingHorizontal: 12,
+    paddingVertical: 16,
   },
   container: {
+    width: '100%',
     maxWidth: MaxContentWidth,
-    flexGrow: 1,
+    flexDirection: 'column',
+    gap: Spacing.four,
   },
   titleContainer: {
-    gap: Spacing.three,
+    gap: Spacing.two,
     alignItems: 'center',
-    paddingHorizontal: Spacing.four,
-    paddingVertical: Spacing.six,
+    paddingHorizontal: Spacing.two,
+    paddingVertical: Spacing.four,
+    width: '100%',
   },
   centerText: {
     textAlign: 'center',
+    width: '100%',
   },
   pressed: {
     opacity: 0.7,
@@ -589,15 +672,18 @@ const styles = StyleSheet.create({
   },
   sectionsWrapper: {
     gap: Spacing.five,
-    paddingHorizontal: Spacing.four,
+    width: '100%',
+    paddingHorizontal: 0,
     paddingTop: Spacing.three,
   },
   formContainer: {
     paddingVertical: 12,
     gap: 12,
+    width: '100%',
   },
   inputGroup: {
     gap: 6,
+    width: '100%',
   },
   label: {
     color: '#8AC8F9',
@@ -613,6 +699,7 @@ const styles = StyleSheet.create({
     height: 40,
     color: '#FFFFFF',
     fontSize: 14,
+    width: '100%',
   },
   inputCurrentPin: {
     backgroundColor: '#1E3E52',
@@ -623,27 +710,32 @@ const styles = StyleSheet.create({
     height: 40,
     color: '#FFFFFF',
     fontSize: 14,
+    width: '100%',
   },
   saveButton: {
     backgroundColor: '#28C2FF',
-    height: 40,
-    borderRadius: 20,
+    height: 44,
+    borderRadius: 22,
     justifyContent: 'center',
     alignItems: 'center',
     marginTop: 8,
+    width: '100%',
   },
   saveButtonText: {
     color: '#0F2C3D',
     fontWeight: 'bold',
     fontSize: 14,
+    textAlign: 'center',
   },
   themeContainer: {
     paddingVertical: 12,
     gap: 12,
+    width: '100%',
   },
   themeOptions: {
     flexDirection: 'row',
     gap: 8,
+    width: '100%',
   },
   themeBtn: {
     flex: 1,
@@ -654,6 +746,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
+    minWidth: 0,
   },
   themeBtnActive: {
     backgroundColor: '#28C2FF',
@@ -677,10 +770,11 @@ const styles = StyleSheet.create({
     borderColor: '#2F5C77',
     borderRadius: 8,
     padding: 10,
+    width: '100%',
   },
   signatureImage: {
-    width: 120,
-    height: 60,
+    width: 100,
+    height: 50,
     borderRadius: 4,
   },
   sigClearBtn: {
@@ -702,18 +796,22 @@ const styles = StyleSheet.create({
     height: 48,
     justifyContent: 'center',
     alignItems: 'center',
+    width: '100%',
   },
   sigUploadBtnText: {
     color: '#28C2FF',
     fontWeight: 'bold',
     fontSize: 13,
+    textAlign: 'center',
   },
   backupContainer: {
     paddingVertical: 12,
     gap: 12,
+    width: '100%',
   },
   googleProfile: {
     gap: 16,
+    width: '100%',
   },
   googleUserRow: {
     flexDirection: 'row',
@@ -724,6 +822,7 @@ const styles = StyleSheet.create({
     borderColor: '#2F5C77',
     borderRadius: 10,
     padding: 12,
+    width: '100%',
   },
   googleAvatar: {
     width: 44,
@@ -732,6 +831,7 @@ const styles = StyleSheet.create({
   },
   googleMeta: {
     flex: 1,
+    minWidth: 0,
   },
   googleName: {
     color: '#FFFFFF',
@@ -752,14 +852,17 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#2F5C77',
     textAlign: 'center',
+    width: '100%',
   },
   backupActions: {
-    flexDirection: 'row',
-    gap: 12,
+    flexDirection: 'column',
+    gap: 10,
+    width: '100%',
   },
   actionBtn: {
-    flex: 1,
+    width: '100%',
     paddingVertical: 12,
+    paddingHorizontal: 12,
     borderRadius: 10,
     justifyContent: 'center',
     alignItems: 'center',
@@ -774,6 +877,7 @@ const styles = StyleSheet.create({
     color: '#0F2C3D',
     fontWeight: 'bold',
     fontSize: 13,
+    textAlign: 'center',
   },
   googleLogoutBtn: {
     borderWidth: 1,
@@ -783,27 +887,31 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginTop: 6,
+    width: '100%',
   },
   googleLogoutBtnText: {
     color: '#FF6B6B',
     fontWeight: 'bold',
     fontSize: 13,
+    textAlign: 'center',
   },
   googleEmpty: {
     alignItems: 'center',
     gap: 14,
     paddingVertical: 10,
+    width: '100%',
   },
   googleEmptyText: {
     color: '#D1E6F3',
     fontSize: 13,
     textAlign: 'center',
     lineHeight: 18,
+    width: '100%',
   },
   googleLoginBtn: {
     backgroundColor: '#28C2FF',
     paddingVertical: 12,
-    paddingHorizontal: 20,
+    paddingHorizontal: 12,
     borderRadius: 10,
     justifyContent: 'center',
     alignItems: 'center',
@@ -812,6 +920,7 @@ const styles = StyleSheet.create({
   googleLoginBtnText: {
     color: '#0F2C3D',
     fontWeight: 'bold',
-    fontSize: 14,
+    fontSize: 13,
+    textAlign: 'center',
   },
 });

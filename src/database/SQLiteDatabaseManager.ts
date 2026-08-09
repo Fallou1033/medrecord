@@ -11,7 +11,7 @@ export interface Patient {
   nom: string;
   prenom: string;
   sexe: 'M' | 'F';
-  date_naissance: string;
+  date_naissance: string | null;
   telephone: string | null;
   adresse: string | null;
   profession: string | null;
@@ -360,60 +360,57 @@ export async function createConsultation(
   const encTraitement = await encryptData(consultation.traitement);
   const encConseils = await encryptData(consultation.conseils);
 
-  // Use a transaction to ensure both consultation and vitals are saved together
-  await db.withTransactionAsync(async () => {
-    // 1. Insert Consultation
+  // 1. Insert Consultation
+  await db.runAsync(
+    `INSERT INTO consultations (
+      id, patient_id, medecin_id, date, motif, histoire_maladie, 
+      examen_clinique, diagnostic, traitement, conseils, date_controle, is_synced
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0);`,
+    [
+      consultationId,
+      consultation.patient_id,
+      consultation.medecin_id,
+      consultation.date,
+      encMotif,
+      encHistoire,
+      encExamenClinique,
+      encDiagnostic,
+      encTraitement,
+      encConseils,
+      consultation.date_controle || null,
+    ]
+  );
+
+  // 2. Insert Constantes if provided
+  if (constantes) {
+    const constanteId = generateUUID();
+    let imc: number | null = null;
+    if (constantes.poids && constantes.taille) {
+      // height in cm, convert to meters
+      imc = constantes.poids / Math.pow(constantes.taille / 100, 2);
+      // Round to 2 decimal places
+      imc = Math.round(imc * 100) / 100;
+    }
+
     await db.runAsync(
-      `INSERT INTO consultations (
-        id, patient_id, medecin_id, date, motif, histoire_maladie, 
-        examen_clinique, diagnostic, traitement, conseils, date_controle, is_synced
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0);`,
+      `INSERT INTO constantes (
+        id, consultation_id, temperature, tension_arterielle, 
+        frequence_cardiaque, saturation, glycemie, poids, taille, imc, is_synced
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0);`,
       [
+        constanteId,
         consultationId,
-        consultation.patient_id,
-        consultation.medecin_id,
-        consultation.date,
-        encMotif,
-        encHistoire,
-        encExamenClinique,
-        encDiagnostic,
-        encTraitement,
-        encConseils,
-        consultation.date_controle,
+        constantes.temperature,
+        constantes.tension_arterielle,
+        constantes.frequence_cardiaque,
+        constantes.saturation,
+        constantes.glycemie,
+        constantes.poids,
+        constantes.taille,
+        imc,
       ]
     );
-
-    // 2. Insert Constantes if provided
-    if (constantes) {
-      const constanteId = generateUUID();
-      let imc: number | null = null;
-      if (constantes.poids && constantes.taille) {
-        // height in cm, convert to meters
-        imc = constantes.poids / Math.pow(constantes.taille / 100, 2);
-        // Round to 2 decimal places
-        imc = Math.round(imc * 100) / 100;
-      }
-
-      await db.runAsync(
-        `INSERT INTO constantes (
-          id, consultation_id, temperature, tension_arterielle, 
-          frequence_cardiaque, saturation, glycemie, poids, taille, imc, is_synced
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0);`,
-        [
-          constanteId,
-          consultationId,
-          constantes.temperature,
-          constantes.tension_arterielle,
-          constantes.frequence_cardiaque,
-          constantes.saturation,
-          constantes.glycemie,
-          constantes.poids,
-          constantes.taille,
-          imc,
-        ]
-      );
-    }
-  });
+  }
 
   await writeAuditLog(userId, 'CREATE', 'consultations', consultationId, `Nouvelle consultation médicale`);
 

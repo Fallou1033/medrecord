@@ -22,7 +22,6 @@
     },
     "web": {
       "output": "single",
-      "baseUrl": "/medrecord",
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [

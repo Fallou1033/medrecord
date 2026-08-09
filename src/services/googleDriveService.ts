@@ -39,10 +39,10 @@ export async function getGoogleToken(): Promise<string | null> {
 /**
  * Saves a Google OAuth token and fetches the user profile from Google OAuth2 UserInfo endpoint.
  */
-export async function saveGoogleTokenAndFetchProfile(token: string): Promise<GoogleDriveUser> {
+export async function saveGoogleTokenAndFetchProfile(token: string, fallbackName?: string, fallbackEmail?: string): Promise<GoogleDriveUser> {
   let googleUser: GoogleDriveUser = {
-    email: 'falludiop10008@gmail.com',
-    name: 'Dr Mohamadou Bamba Diop',
+    email: fallbackEmail || 'medecin@medrecord.sn',
+    name: fallbackName || 'Docteur',
     photoUrl: 'default'
   };
 
@@ -100,7 +100,7 @@ export async function loginToGoogleDrive(doctorName?: string, doctorEmail?: stri
   const token = await getGoogleToken();
   if (token) {
     try {
-      return await saveGoogleTokenAndFetchProfile(token);
+      return await saveGoogleTokenAndFetchProfile(token, doctorName, doctorEmail);
     } catch (e) {
       console.warn('OAuth token fetch failed, falling back to mock.', e);
     }
@@ -108,8 +108,8 @@ export async function loginToGoogleDrive(doctorName?: string, doctorEmail?: stri
 
   // Fallback profile if no token is entered
   const mockUser: GoogleDriveUser = {
-    email: doctorEmail || 'dr.diop.bamba@gmail.com',
-    name: doctorName || 'Dr Mohamadou Bamba Diop',
+    email: doctorEmail || 'medecin@medrecord.sn',
+    name: doctorName || 'Docteur',
     photoUrl: doctorAvatar || 'default',
   };
 

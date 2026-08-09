@@ -1,17 +1,15 @@
-/**
- * Calculates age based on a birth date string (YYYY-MM-DD).
- */
-export function calculateAge(birthDateStr: string): number {
-  if (!birthDateStr) return 0;
+export function calculateAge(birthDateStr?: string | null): number | null {
+  if (!birthDateStr || !birthDateStr.trim()) return null;
   const today = new Date();
   const birthDate = new Date(birthDateStr);
+  if (isNaN(birthDate.getTime())) return null;
   let age = today.getFullYear() - birthDate.getFullYear();
   const m = today.getMonth() - birthDate.getMonth();
   
   if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
     age--;
   }
-  return age;
+  return age >= 0 ? age : null;
 }
 
 /**

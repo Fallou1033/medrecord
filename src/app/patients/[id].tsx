@@ -31,6 +31,7 @@ import {
 import { calculateAge, formatDateFR } from '../../utils/helpers';
 import { useSecurity } from '../../security/SecurityContext';
 import { writeAuditLog, getDatabase } from '../../database/db';
+import DatePickerDOB from '../../components/DatePickerDOB';
 
 type SubTab = 'info' | 'antecedents' | 'consultations' | 'vaccinations';
 
@@ -101,15 +102,17 @@ export default function PatientDetailsScreen() {
 
   const handleSavePatientEdit = async () => {
     if (!user || !patient) return;
-    if (!editNom.trim() || !editPrenom.trim() || !editDateNaissance.trim()) {
-      showAlert('Champs requis', 'Nom, Prénom et Date de naissance sont requis.');
+    if (!editNom.trim() || !editPrenom.trim()) {
+      showAlert('Champs requis', 'Le nom et le prénom sont requis.');
       return;
     }
 
-    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
-    if (!dateRegex.test(editDateNaissance.trim())) {
-      showAlert('Format invalide', 'La date de naissance doit être au format AAAA-MM-JJ.');
-      return;
+    if (editDateNaissance.trim()) {
+      const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+      if (!dateRegex.test(editDateNaissance.trim())) {
+        showAlert('Format invalide', 'La date de naissance doit être au format AAAA-MM-JJ.');
+        return;
+      }
     }
 
     setEditLoading(true);
@@ -120,7 +123,7 @@ export default function PatientDetailsScreen() {
           nom: editNom.trim(),
           prenom: editPrenom.trim(),
           sexe: editSexe,
-          date_naissance: editDateNaissance.trim(),
+          date_naissance: editDateNaissance.trim() || null,
           telephone: editTelephone.trim() || null,
           adresse: editAdresse.trim() || null,
           profession: editProfession.trim() || null,
@@ -882,18 +885,11 @@ export default function PatientDetailsScreen() {
                 </View>
               </View>
 
-              <View style={styles.inputGroup}>
-                <Text style={styles.modalLabel}>Date de Naissance (AAAA-MM-JJ) *</Text>
-                <TextInput
-                  style={styles.modalInputText}
-                  placeholder="ex: 1990-05-15"
-                  placeholderTextColor="#9ca3af"
-                  value={editDateNaissance}
-                  onChangeText={setEditDateNaissance}
-                  keyboardType="numeric"
-                  maxLength={10}
-                />
-              </View>
+              <DatePickerDOB
+                value={editDateNaissance}
+                onChange={setEditDateNaissance}
+                label="Date de Naissance (facultatif)"
+              />
 
               <View style={styles.inputGroup}>
                 <Text style={styles.modalLabel}>Numéro de Téléphone</Text>

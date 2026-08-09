@@ -247,7 +247,12 @@ export default function DashboardScreen() {
               return hour >= 5 && hour < 18 ? 'Bonjour, Dr' : 'Bonsoir, Dr';
             })()}
           </Text>
-          <Text style={styles.doctorName}>{user ? user.prenom : 'Mohamadou Bamba Diop'}</Text>
+          <Text style={styles.doctorName}>
+            {(() => {
+              const raw = `${user?.prenom || ''} ${user?.nom || ''}`.replace(/(Dr\.?|Docteur)\s*/gi, '').trim();
+              return raw || 'Fallou Diop';
+            })()}
+          </Text>
         </View>
         <View style={styles.headerButtons}>
           <TouchableOpacity style={styles.syncBtn} onPress={handleSync} disabled={syncing}>
