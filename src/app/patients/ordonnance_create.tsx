@@ -566,31 +566,16 @@ export default function CreateOrdonnanceScreen() {
 
         <View style={styles.actionsContainer}>
           <TouchableOpacity
-            style={[styles.actionBtn, styles.printBtn, generating && styles.disabledButton]}
+            style={[styles.actionBtn, styles.singlePrintBtn, generating && styles.disabledButton]}
             onPress={handlePrintOrdonnance}
-            disabled={generating}
-          >
-            {generating ? (
-              <ActivityIndicator color="#0F2C3D" />
-            ) : (
-              <>
-                <Ionicons name="print-outline" size={20} color="#0F2C3D" />
-                <Text style={styles.printBtnText}>Imprimer l'Ordonnance</Text>
-              </>
-            )}
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.actionBtn, styles.exportBtn, generating && styles.disabledButton]}
-            onPress={handleExportPDF}
             disabled={generating}
           >
             {generating ? (
               <ActivityIndicator color="#FFFFFF" />
             ) : (
               <>
-                <Ionicons name="download-outline" size={20} color="#FFFFFF" />
-                <Text style={styles.exportBtnText}>Exporter PDF</Text>
+                <Ionicons name="print-outline" size={22} color="#FFFFFF" />
+                <Text style={styles.singlePrintBtnText}>Imprimer / Sauvegarder en PDF</Text>
               </>
             )}
           </TouchableOpacity>
@@ -741,6 +726,20 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 16,
   },
+  singlePrintBtn: {
+    backgroundColor: '#28C2FF',
+    width: '100%',
+    shadowColor: '#28C2FF',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  singlePrintBtnText: {
+    color: '#0F2C3D',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
   printBtn: {
     backgroundColor: '#28C2FF',
   },
@@ -758,6 +757,6 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   disabledButton: {
-    opacity: 0.6,
+    opacity: 0.5,
   },
 });
