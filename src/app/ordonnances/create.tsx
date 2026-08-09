@@ -152,11 +152,15 @@ export default function CreateOrdonnanceScreen() {
       // 2. Generate PDF HTML String
       const age = calculateAge(patient.date_naissance);
       const dateStr = formatDateFR(new Date());
-      const verificationUrl = `https://verify.medrecord.sn/verify?id=${documentId}&type=ordonnance`;
-      const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent(verificationUrl)}`;
 
-      const docName = user ? `${user.prenom} ${user.nom}` : 'Dr Mohamadou Bamba Diop';
-      const docEmail = user ? user.email : 'bamba.diop@medrecord.sn';
+      const formatDoctorName = (nameStr: string) => {
+        const clean = nameStr.replace(/\b(dr|docteur)\.?\b/gi, '').replace(/\s+/g, ' ').trim();
+        return clean ? `Dr ${clean}` : 'Dr Daouda Diallo';
+      };
+
+      const rawDocName = user ? `${user.prenom || ''} ${user.nom || ''}`.trim() : 'Daouda Diallo';
+      const docName = formatDoctorName(rawDocName);
+      const docEmail = user ? user.email : 'falludiop10008@gmail.com';
       const docPhone = user && user.telephone ? user.telephone : '+221 77 123 4567';
 
       const htmlContent = `
@@ -176,12 +180,12 @@ export default function CreateOrdonnanceScreen() {
             .content { font-size: 16px; line-height: 1.8; min-height: 250px; white-space: pre-wrap; margin-bottom: 40px; }
             .signature { text-align: right; margin-top: 30px; font-size: 15px; }
             .signature img { max-height: 70px; width: auto; margin-top: 5px; margin-bottom: 5px; }
-            .footer { text-align: center; font-size: 11px; color: #888; border-top: 1px solid #ddd; padding-top: 15px; margin-top: 50px; }
+            .footer { text-align: left; font-size: 11px; color: #888; border-top: 1px solid #ddd; padding-top: 15px; margin-top: 50px; }
           </style>
         </head>
         <body>
           <div class="header">
-            <h1>${docName}</h1>
+            <h1>${docName.toUpperCase()}</h1>
             <p>Médecin Généraliste • Cabinet Médical Privé</p>
             <p>Dakar, Sénégal • Tél: ${docPhone} • Email: ${docEmail}</p>
           </div>
@@ -201,16 +205,7 @@ export default function CreateOrdonnanceScreen() {
             <p><strong>${docName}</strong></p>
           </div>
           <div class="footer">
-            <div style="display: flex; justify-content: space-between; align-items: center; text-align: left;">
-              <div>
-                <p style="margin: 0;">MedRecord — Logiciel de Gestion de Dossier Médical Numérique • Document généré électroniquement</p>
-                <p style="font-size: 9px; color: #aaa; margin: 3px 0 0 0;">ID de vérification : ${documentId}</p>
-              </div>
-              <div style="text-align: right;">
-                <img src="${qrCodeUrl}" alt="QR Code d'authenticité" style="width: 70px; height: 70px; border: 1px solid #ddd; padding: 4px; background: #fff;" />
-                <p style="font-size: 8px; color: #aaa; margin: 2px 0 0 0; text-align: center;">Vérifier l'authenticité</p>
-              </div>
-            </div>
+            <p style="margin: 0;">MedRecord — Logiciel de Gestion de Dossier Médical Numérique • Document généré électroniquement</p>
           </div>
         </body>
         </html>
