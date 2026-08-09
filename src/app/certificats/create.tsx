@@ -120,13 +120,310 @@ export default function CreateCertificatScreen() {
     }
   };
 
+  const executeWebIframePrint = (htmlContent: string) => {
+    return new Promise<void>((resolve) => {
+      try {
+        const isMobile = typeof navigator !== 'undefined' && (/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth < 768);
+
+        if (isMobile) {
+          const printWin = window.open('', '_blank');
+          if (printWin) {
+            printWin.document.open();
+            printWin.document.write(htmlContent);
+            printWin.document.close();
+            printWin.focus();
+            setTimeout(() => {
+              printWin.print();
+              resolve();
+            }, 500);
+            return;
+          }
+        }
+
+        const printFrame = document.createElement('iframe');
+        printFrame.style.position = 'fixed';
+        printFrame.style.right = '0';
+        printFrame.style.bottom = '0';
+        printFrame.style.width = '0';
+        printFrame.style.height = '0';
+        printFrame.style.border = '0';
+        printFrame.style.visibility = 'hidden';
+        document.body.appendChild(printFrame);
+
+        const frameDoc = printFrame.contentWindow?.document;
+        if (frameDoc) {
+          frameDoc.open();
+          frameDoc.write(htmlContent);
+          frameDoc.close();
+
+          setTimeout(() => {
+            printFrame.contentWindow?.focus();
+            printFrame.contentWindow?.print();
+            setTimeout(() => {
+              if (document.body.contains(printFrame)) {
+                document.body.removeChild(printFrame);
+              }
+              resolve();
+            }, 1000);
+          }, 400);
+        } else {
+          resolve();
+        }
+      } catch (e) {
+        console.error('Web iframe print error:', e);
+        resolve();
+      }
+    });
+  };
+
+  const generateCertificatHTML = (documentId: string) => {
+    if (!patient) return '';
+    const age = calculateAge(patient.date_naissance);
+    const dateStr = formatDateFR(new Date());
+
+    const rawDocName = user ? `${user.prenom || ''} ${user.nom || ''}`.trim() : 'Mohamadou Bamba Diop';
+    const docName = formatDoctorName(rawDocName);
+    const docNameUpper = docName.toUpperCase();
+
+    const docSpeciality = user?.specialite || 'Médecin Généraliste';
+    const docCabinet = user?.cabinet || 'Cabinet Médical Privé';
+    const docAddress = user?.adresse || 'Dakar, Sénégal';
+    const docEmail = user ? user.email : 'falludiop10008@gmail.com';
+    const docPhone = user && user.telephone ? user.telephone : '+221 77 123 4567';
+
+    const typeLabels: Record<CertType, string> = {
+      MEDICAL: 'CERTIFICAT MEDICAL',
+      ACCIDENT_TRAVAIL: "CERTIFICAT D'ACCIDENT DE TRAVAIL",
+      APTITUDE: "CERTIFICAT D'APTITUDE PHYSIQUE",
+      INAPTITUDE: "CERTIFICAT D'INAPTITUDE PHYSIQUE",
+      ARRET_TRAVAIL: "CERTIFICAT D'ARRET DE TRAVAIL",
+    };
+
+    return `<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <title>Certificat Medical - ${patient.prenom} ${patient.nom.toUpperCase()}</title>
+  <style>
+    @page {
+      size: A4 portrait;
+      margin: 8mm 10mm;
+    }
+    @media print {
+      nav, header, footer, .navbar, button, .btn, .no-print, input, textarea {
+        display: none !important;
+      }
+      body, html {
+        background: #ffffff !important;
+        color: #000000 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        font-family: Arial, Helvetica, sans-serif !important;
+      }
+      .certificat-container {
+        width: 100% !important;
+        max-height: 100vh !important;
+        box-sizing: border-box;
+        page-break-inside: avoid !important;
+      }
+    }
+    * {
+      box-sizing: border-box;
+    }
+    body {
+      font-family: Arial, Helvetica, sans-serif;
+      background-color: #ffffff;
+      color: #111111;
+      margin: 0;
+      padding: 8px;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+    .certificat-container {
+      width: 100%;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 8px;
+      background: #ffffff;
+      page-break-inside: avoid !important;
+    }
+    .header-table {
+      width: 100%;
+      border-collapse: collapse;
+      border-bottom: 2px solid #0F2C3D;
+      padding-bottom: 6px;
+      margin-bottom: 8px;
+    }
+    .doc-info {
+      text-align: left;
+      vertical-align: top;
+    }
+    .doc-name {
+      font-size: 17px;
+      font-weight: bold;
+      color: #0F2C3D;
+      margin: 0;
+      text-transform: uppercase;
+    }
+    .doc-sub {
+      font-size: 12px;
+      color: #333333;
+      margin: 2px 0;
+      font-weight: 600;
+    }
+    .doc-contact {
+      font-size: 11px;
+      color: #555555;
+      margin: 1px 0;
+    }
+    .date-box {
+      text-align: right;
+      vertical-align: top;
+      font-size: 12px;
+      font-weight: 600;
+      color: #333333;
+    }
+    .patient-card {
+      background-color: #F4F7F9;
+      border: 1px solid #D0D7DE;
+      border-left: 5px solid #0F2C3D;
+      border-radius: 5px;
+      padding: 8px 12px;
+      margin-bottom: 8px;
+    }
+    .patient-name {
+      font-size: 14px;
+      font-weight: bold;
+      color: #0F2C3D;
+      margin: 0 0 3px 0;
+    }
+    .patient-details {
+      font-size: 12px;
+      color: #333333;
+      margin: 0;
+    }
+    .title-banner {
+      text-align: center;
+      margin: 12px 0 10px 0;
+    }
+    .title-text {
+      font-size: 18px;
+      font-weight: 800;
+      letter-spacing: 2px;
+      color: #0F2C3D;
+      text-transform: uppercase;
+      border-bottom: 2px solid #0F2C3D;
+      display: inline-block;
+      padding-bottom: 2px;
+    }
+    .cert-body {
+      font-size: 13.5px;
+      line-height: 1.8;
+      min-height: 180px;
+      white-space: pre-wrap;
+      color: #000000;
+      padding: 6px 0;
+      margin-bottom: 12px;
+      text-align: justify;
+    }
+    .footer-table {
+      width: 100%;
+      margin-top: 15px;
+      border-collapse: collapse;
+    }
+    .signature-box {
+      text-align: right;
+      vertical-align: top;
+      width: 50%;
+    }
+    .signature-title {
+      font-size: 11px;
+      font-weight: bold;
+      color: #0F2C3D;
+      margin-bottom: 4px;
+    }
+    .signature-img {
+      max-height: 50px;
+      width: auto;
+      margin: 2px 0;
+    }
+    .signature-doc {
+      font-size: 12px;
+      font-weight: bold;
+      color: #222222;
+    }
+    .bottom-bar {
+      margin-top: 12px;
+      padding-top: 6px;
+      border-top: 1px solid #E1E4E8;
+      text-align: left;
+      font-size: 10px;
+      color: #666666;
+    }
+  </style>
+</head>
+<body>
+  <div class="certificat-container">
+    <table class="header-table">
+      <tr>
+        <td class="doc-info">
+          <div class="doc-name">${docNameUpper}</div>
+          <div class="doc-sub">${docSpeciality} • ${docCabinet}</div>
+          <div class="doc-contact">${docAddress} • Tél: ${docPhone}</div>
+          <div class="doc-contact">Email: ${docEmail}</div>
+        </td>
+        <td class="date-box">
+          Fait à Dakar, le ${dateStr}<br/>
+          <span style="font-size: 11px; color: #666; font-weight: normal;">Dossier N°: ${patient.numero_dossier}</span>
+        </td>
+      </tr>
+    </table>
+
+    <div class="patient-card">
+      <div class="patient-name">CERTIFICAT MÉDICAL POUR : ${patient.prenom} ${patient.nom.toUpperCase()}</div>
+      <div class="patient-details">
+        ${patient.date_naissance ? `<strong>Né(e) le :</strong> ${formatDateFR(patient.date_naissance)}` : ''}
+        ${age ? ` (${age} ans)` : ''}
+        &nbsp;&nbsp;|&nbsp;&nbsp;
+        <strong>Sexe :</strong> ${patient.sexe === 'M' ? 'Masculin' : 'Féminin'}
+      </div>
+    </div>
+
+    <div class="title-banner">
+      <span class="title-text">${typeLabels[type]}</span>
+    </div>
+
+    <div class="cert-body">${description.replace(/\n/g, '<br/>')}</div>
+
+    <table class="footer-table">
+      <tr>
+        <td style="vertical-align: bottom; width: 50%;">
+          <div style="font-size: 10px; color: #666;">
+            <em>« Certificat médical délivré pour valoir et faire valoir ce que de droit. »</em>
+          </div>
+        </td>
+        <td class="signature-box">
+          <div class="signature-title">Signature & Cachet du Médecin</div>
+          ${signature ? `<img src="${signature}" class="signature-img" alt="Signature" />` : '<div style="height: 40px;"></div>'}
+          <div class="signature-doc">${docName}</div>
+        </td>
+      </tr>
+    </table>
+
+    <div class="bottom-bar">
+      <p style="margin: 0; font-weight: bold; color: #0F2C3D;">MedRecord — Système de Dossier Médical Numérique</p>
+    </div>
+  </div>
+</body>
+</html>`;
+  };
+
   const handleGeneratePDF = async () => {
     if (!description.trim() || !dateDebut.trim()) {
       Alert.alert('Erreur', 'Veuillez remplir les champs obligatoires.');
       return;
     }
 
-    // Basic date validations
     const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
     if (!dateRegex.test(dateDebut) || (dateFin.trim() && !dateRegex.test(dateFin))) {
       Alert.alert('Date invalide', 'Le format de date doit être AAAA-MM-JJ.');
@@ -137,7 +434,6 @@ export default function CreateCertificatScreen() {
 
     setGenerating(true);
     try {
-      // 1. Save Certificat in local SQLite (encrypted)
       const newCert = await addCertificat(
         {
           patient_id: patientId,
@@ -145,96 +441,25 @@ export default function CreateCertificatScreen() {
           description: description.trim(),
           date_debut: dateDebut.trim(),
           date_fin: dateFin.trim() || null,
-          pdf_url: null, // Temporary
+          pdf_url: null,
         },
         user.id
       );
 
-      // 2. Generate PDF HTML
-      const documentId = newCert.id;
-      const age = calculateAge(patient.date_naissance);
-      const dateStr = formatDateFR(new Date());
+      const htmlContent = generateCertificatHTML(newCert.id);
 
-      const rawDocName = user ? `${user.prenom || ''} ${user.nom || ''}`.trim() : 'Mohamadou Bamba Diop';
-      const docName = formatDoctorName(rawDocName);
-      const docNameUpper = docName.toUpperCase();
-      const docEmail = user ? user.email : 'falludiop10008@gmail.com';
-      const docPhone = user && user.telephone ? user.telephone : '+221 77 123 4567';
-
-      const typeLabels: Record<CertType, string> = {
-        MEDICAL: 'CERTIFICAT MEDICAL',
-        ACCIDENT_TRAVAIL: "INITIAL D'ACCIDENT DE TRAVAIL",
-        APTITUDE: "D'APTITUDE PHYSIQUE",
-        INAPTITUDE: "D'INAPTITUDE PHYSIQUE",
-        ARRET_TRAVAIL: 'DE DISPENSE / ARRET DE TRAVAIL',
-      };
-
-      const htmlContent = `
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <meta charset="utf-8">
-          <style>
-            body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; padding: 40px; color: #222; }
-            .header { text-align: center; border-bottom: 2px solid #1B4B66; padding-bottom: 20px; margin-bottom: 30px; }
-            .header h1 { margin: 0; color: #1B4B66; font-size: 24px; text-transform: uppercase; letter-spacing: 1px; }
-            .header p { margin: 5px 0 0 0; color: #555; font-size: 14px; }
-            .meta { display: flex; justify-content: space-between; margin-bottom: 30px; font-size: 14px; border-bottom: 1px solid #eee; padding-bottom: 10px; }
-            .patient-info { margin-bottom: 35px; background-color: #f8f9fa; padding: 15px; border-radius: 8px; border-left: 4px solid #1B4B66; }
-            .patient-info p { margin: 5px 0; font-size: 15px; }
-            .title { text-align: center; font-size: 18px; font-weight: bold; margin-bottom: 40px; color: #1B4B66; border-top: 1px solid #eee; border-bottom: 1px solid #eee; padding: 12px; text-transform: uppercase; letter-spacing: 1px; }
-            .content { font-size: 16px; line-height: 2; min-height: 200px; text-align: justify; margin-bottom: 40px; text-indent: 30px; }
-            .signature { text-align: right; margin-top: 30px; font-size: 15px; }
-            .signature img { max-height: 70px; width: auto; margin-top: 5px; margin-bottom: 5px; }
-            .footer { text-align: left; font-size: 11px; color: #888; border-top: 1px solid #ddd; padding-top: 15px; margin-top: 50px; }
-          </style>
-        </head>
-        <body>
-          <div class="header">
-            <h1>${docNameUpper}</h1>
-            <p>Médecin Généraliste • Cabinet Médical Privé</p>
-            <p>Dakar, Sénégal • Tél: ${docPhone} • Email: ${docEmail}</p>
-          </div>
-          <div class="meta">
-            <div><strong>Fait à Dakar, le :</strong> ${dateStr}</div>
-            <div><strong>Dossier N°:</strong> ${patient.numero_dossier}</div>
-          </div>
-          <div class="patient-info">
-            <p><strong>Patient(e) :</strong> ${patient.prenom} ${patient.nom.toUpperCase()}</p>
-            <p><strong>Né(e) le :</strong> ${formatDateFR(patient.date_naissance)} (${age} ans) &nbsp;&nbsp;&nbsp;&nbsp; <strong>Sexe :</strong> ${patient.sexe === 'M' ? 'Masculin' : 'Féminin'}</p>
-          </div>
-          <div class="title">CERTIFICAT MEDICAL ${typeLabels[type]}</div>
-          <div class="content">
-            ${description.replace(/\n/g, '<br/>')}
-          </div>
-          <div class="signature">
-            <p>Signature & Cachet du Médecin</p>
-            ${signature ? `<img src="${signature}" alt="Signature" />` : '<br/><br/>'}
-            <p><strong>${docName}</strong></p>
-          </div>
-          <div class="footer">
-            <p style="margin: 0;">MedRecord — Logiciel de Gestion de Dossier Médical Numérique • Document généré électroniquement</p>
-          </div>
-        </body>
-        </html>
-      `;
-
-      // 2. Print to PDF File
-      const { uri } = await Print.printToFileAsync({ html: htmlContent });
-
-      // 3. Share PDF File
-      await Sharing.shareAsync(uri, {
-        mimeType: 'application/pdf',
-        dialogTitle: `Certificat_${patient.nom.toUpperCase()}_${dateStr}`,
-        UTI: 'com.adobe.pdf',
-      });
-
-      Alert.alert('Succès', 'Certificat généré et partagé avec succès.', [
-        { text: 'OK', onPress: () => router.replace(`/patients/${patientId}`) },
-      ]);
+      if (Platform.OS === 'web') {
+        await executeWebIframePrint(htmlContent);
+      } else {
+        await Print.printAsync({ html: htmlContent });
+      }
     } catch (err) {
       console.error(err);
-      Alert.alert('Erreur', 'Impossible de générer le certificat PDF.');
+      if (Platform.OS === 'web') {
+        window.print();
+      } else {
+        Alert.alert('Erreur', 'Impossible de générer le certificat PDF.');
+      }
     } finally {
       setGenerating(false);
     }
