@@ -114,12 +114,20 @@ export async function isPinSetup(): Promise<boolean> {
   return !!hash;
 }
 
+export function cleanRawName(str: string | null | undefined): string {
+  if (!str) return '';
+  return str.replace(/\b(dr|docteur)\.?\b/gi, '').replace(/\s+/g, ' ').trim();
+}
+
 /**
  * Sets up a new security PIN code and registers the default doctor profile in SQLite.
  */
 export async function setupPIN(pin: string, nom: string, prenom: string, email: string, telephone?: string | null): Promise<UserProfile> {
   try {
     const db = await getDatabase();
+
+    const cleanNom = cleanRawName(nom);
+    const cleanPrenom = cleanRawName(prenom);
     
     // Check if default user already exists
     let user = (await db.getFirstAsync('SELECT * FROM utilisateurs LIMIT 1;')) as any;
@@ -145,13 +153,13 @@ export async function setupPIN(pin: string, nom: string, prenom: string, email: 
       await db.runAsync(
         `INSERT INTO utilisateurs (id, email, nom, prenom, telephone, role, pin_hash, biometrie_active) 
          VALUES (?, ?, ?, ?, ?, ?, ?, 0);`,
-        [userId, email, nom, prenom, telephone || null, 'MEDECIN', pinHash]
+        [userId, email, cleanNom, cleanPrenom, telephone || null, 'MEDECIN', pinHash]
       );
     } else {
       // Update existing user's PIN
       await db.runAsync(
         `UPDATE utilisateurs SET pin_hash = ?, email = ?, nom = ?, prenom = ?, telephone = ? WHERE id = ?;`,
-        [pinHash, email, nom, prenom, telephone || null, userId]
+        [pinHash, email, cleanNom, cleanPrenom, telephone || null, userId]
       );
     }
 
@@ -344,15 +352,28 @@ export async function getActiveUserProfile(): Promise<UserProfile | null> {
       };
     }
 
-    return {
-      id: user.id,
-      email: user.email,
-      nom: user.nom,
-      prenom: user.prenom,
-      telephone: user.telephone,
-      role: user.role,
-      biometrie_active: user.biometrie_active === 1,
-    };
+    if (user) {
+      const cleanedNom = cleanRawName(user.nom);
+      const cleanedPrenom = cleanRawName(user.prenom);
+
+      if (cleanedNom !== user.nom || cleanedPrenom !== user.prenom) {
+        await db.runAsync('UPDATE utilisateurs SET nom = ?, prenom = ? WHERE id = ?;', [
+          cleanedNom,
+          cleanedPrenom,
+          user.id,
+        ]);
+      }
+
+      return {
+        id: user.id,
+        email: user.email,
+        nom: cleanedNom,
+        prenom: cleanedPrenom,
+        telephone: user.telephone,
+        role: user.role,
+        biometrie_active: user.biometrie_active === 1,
+      };
+    }
   } catch (error) {
     console.error('MedRecord: Failed to get active user profile:', error);
     return null;

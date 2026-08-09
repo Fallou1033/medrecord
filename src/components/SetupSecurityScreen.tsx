@@ -73,9 +73,9 @@ export default function SetupSecurityScreen() {
 
     setLoading(true);
     try {
-      // Prepend Dr if not present
-      const formattedNom = nom.trim().startsWith('Dr ') ? nom.trim() : `Dr ${nom.trim()}`;
-      await setupSecurity(pin, formattedNom, prenom.trim(), email.trim());
+      const cleanNom = nom.trim().replace(/\b(dr|docteur)\.?\b/gi, '').replace(/\s+/g, ' ').trim();
+      const cleanPrenom = prenom.trim().replace(/\b(dr|docteur)\.?\b/gi, '').replace(/\s+/g, ' ').trim();
+      await setupSecurity(pin, cleanNom, cleanPrenom, email.trim());
     } catch (error: any) {
       console.error(error);
       showAlert('Erreur', error.message || "Impossible d'enregistrer le profil et le code PIN.");

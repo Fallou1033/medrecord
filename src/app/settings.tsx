@@ -178,11 +178,16 @@ export default function SettingsScreen() {
     }
   };
 
+  const cleanRawName = (str: string | null | undefined): string => {
+    if (!str) return '';
+    return str.replace(/\b(dr|docteur)\.?\b/gi, '').replace(/\s+/g, ' ').trim();
+  };
+
   // Synchronise les états locaux avec l'utilisateur global s'il change
   useEffect(() => {
     if (user) {
-      setNom(user.nom);
-      setPrenom(user.prenom);
+      setNom(cleanRawName(user.nom));
+      setPrenom(cleanRawName(user.prenom));
       setEmail(user.email);
       setTelephone(user.telephone || '');
     }
@@ -270,7 +275,11 @@ export default function SettingsScreen() {
       }
 
       // 3. Mettre à jour dans la base locale et le secure store
-      await setupSecurity(finalPin, nom.trim(), prenom.trim(), email.trim(), telephone.trim());
+      const cleanNom = cleanRawName(nom);
+      const cleanPrenom = cleanRawName(prenom);
+      await setupSecurity(finalPin, cleanNom, cleanPrenom, email.trim(), telephone.trim());
+      setNom(cleanNom);
+      setPrenom(cleanPrenom);
 
       // 4. Enregistrer la signature & la photo de profil
       if (Platform.OS === 'web') {
