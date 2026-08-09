@@ -38,18 +38,42 @@ export default function CreateCertificatScreen() {
   const [dateFin, setDateFin] = useState(''); // YYYY-MM-DD (optional, for sick leaves)
   const [signature, setSignature] = useState('');
 
-  // Standard medical templates depending on certificate type
-  const templates: Record<CertType, string> = {
-    MEDICAL:
-      "Je soussigné, Dr Mohamadou Bamba Diop, certifie après examen médical effectué ce jour, que l'état de santé du patient susmentionné justifie...",
-    ACCIDENT_TRAVAIL:
-      "Je soussigné, Dr Mohamadou Bamba Diop, certifie avoir examiné ce jour le patient susnommé, qui déclare avoir été victime d'un accident de travail. Les constatations cliniques initiales sont : ",
-    APTITUDE:
-      "Je soussigné, Dr Mohamadou Bamba Diop, certifie après examen clinique ce jour n'avoir pas constaté de contre-indication médicale à la pratique de : ",
-    INAPTITUDE:
-      "Je soussigné, Dr Mohamadou Bamba Diop, certifie après examen clinique ce jour que the patient susnommé présente une inaptitude médicale temporaire à : ",
-    ARRET_TRAVAIL:
-      "Je soussigné, Dr Mohamadou Bamba Diop, certifie que l'état de santé du patient susnommé nécessite un arrêt de travail d'une durée de ___ jours, allant du ___ au ___ inclus.",
+  const formatDoctorName = (nameStr: string) => {
+    const clean = nameStr.replace(/\b(dr|docteur)\.?\b/gi, '').replace(/\s+/g, ' ').trim();
+    return clean ? `Dr ${clean}` : 'Dr Mohamadou Bamba Diop';
+  };
+
+  const calculateDaysCount = (startStr: string, endStr: string): number => {
+    if (!startStr || !endStr) return 0;
+    const start = new Date(startStr);
+    const end = new Date(endStr);
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) return 0;
+    if (end < start) return 0;
+    const diffTime = Math.abs(end.getTime() - start.getTime());
+    return Math.round(diffTime / (1000 * 60 * 60 * 24)) + 1;
+  };
+
+  const generateTemplateText = (t: CertType, start: string, end: string, dName: string): string => {
+    if (t === 'ARRET_TRAVAIL') {
+      const days = calculateDaysCount(start, end);
+      const daysText = days > 0 ? `${days}` : '___';
+      const startFormatted = start ? formatDateFR(start) : '___';
+      const endFormatted = end ? formatDateFR(end) : '___';
+      return `Je soussigné, ${dName}, certifie que l'état de santé du patient susnommé nécessite un arrêt de travail d'une durée de ${daysText} jours, allant du ${startFormatted} au ${endFormatted} inclus. Ce présent certificat lui est délivré pour valoir et faire valoir ce que de droit.`;
+    }
+    if (t === 'MEDICAL') {
+      return `Je soussigné, ${dName}, certifie après examen médical effectué ce jour, que l'état de santé du patient susmentionné justifie...`;
+    }
+    if (t === 'ACCIDENT_TRAVAIL') {
+      return `Je soussigné, ${dName}, certifie avoir examiné ce jour le patient susnommé, qui déclare avoir été victime d'un accident de travail. Les constatations cliniques initiales sont : `;
+    }
+    if (t === 'APTITUDE') {
+      return `Je soussigné, ${dName}, certifie après examen clinique ce jour n'avoir pas constaté de contre-indication médicale à la pratique de : `;
+    }
+    if (t === 'INAPTITUDE') {
+      return `Je soussigné, ${dName}, certifie après examen clinique ce jour que le patient susnommé présente une inaptitude médicale temporaire à : `;
+    }
+    return '';
   };
 
   useEffect(() => {
@@ -58,10 +82,12 @@ export default function CreateCertificatScreen() {
     }
   }, [patientId]);
 
-  // Update description template whenever type changes
+  // Update description template whenever type or dates change
   useEffect(() => {
-    setDescription(templates[type]);
-  }, [type]);
+    const rawDocName = user ? `${user.prenom || ''} ${user.nom || ''}`.trim() : 'Mohamadou Bamba Diop';
+    const docName = formatDoctorName(rawDocName);
+    setDescription(generateTemplateText(type, dateDebut, dateFin, docName));
+  }, [type, dateDebut, dateFin, user]);
 
   // Load signature
   useEffect(() => {
@@ -129,11 +155,11 @@ export default function CreateCertificatScreen() {
       const documentId = newCert.id;
       const age = calculateAge(patient.date_naissance);
       const dateStr = formatDateFR(new Date());
-      const verificationUrl = `https://verify.medrecord.sn/verify?id=${documentId}&type=certificat`;
-      const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent(verificationUrl)}`;
 
-      const docName = user ? `${user.prenom} ${user.nom}` : 'Dr Mohamadou Bamba Diop';
-      const docEmail = user ? user.email : 'bamba.diop@medrecord.sn';
+      const rawDocName = user ? `${user.prenom || ''} ${user.nom || ''}`.trim() : 'Mohamadou Bamba Diop';
+      const docName = formatDoctorName(rawDocName);
+      const docNameUpper = docName.toUpperCase();
+      const docEmail = user ? user.email : 'falludiop10008@gmail.com';
       const docPhone = user && user.telephone ? user.telephone : '+221 77 123 4567';
 
       const typeLabels: Record<CertType, string> = {
@@ -161,12 +187,12 @@ export default function CreateCertificatScreen() {
             .content { font-size: 16px; line-height: 2; min-height: 200px; text-align: justify; margin-bottom: 40px; text-indent: 30px; }
             .signature { text-align: right; margin-top: 30px; font-size: 15px; }
             .signature img { max-height: 70px; width: auto; margin-top: 5px; margin-bottom: 5px; }
-            .footer { text-align: center; font-size: 11px; color: #888; border-top: 1px solid #ddd; padding-top: 15px; margin-top: 50px; }
+            .footer { text-align: left; font-size: 11px; color: #888; border-top: 1px solid #ddd; padding-top: 15px; margin-top: 50px; }
           </style>
         </head>
         <body>
           <div class="header">
-            <h1>${docName}</h1>
+            <h1>${docNameUpper}</h1>
             <p>Médecin Généraliste • Cabinet Médical Privé</p>
             <p>Dakar, Sénégal • Tél: ${docPhone} • Email: ${docEmail}</p>
           </div>
@@ -181,9 +207,6 @@ export default function CreateCertificatScreen() {
           <div class="title">CERTIFICAT MEDICAL ${typeLabels[type]}</div>
           <div class="content">
             ${description.replace(/\n/g, '<br/>')}
-            <p style="margin-top: 25px; font-weight: bold; font-style: italic; color: #1B4B66;">
-              « Ce présent certificat lui est délivré pour valoir et faire valoir ce que de droit. »
-            </p>
           </div>
           <div class="signature">
             <p>Signature & Cachet du Médecin</p>
@@ -191,16 +214,7 @@ export default function CreateCertificatScreen() {
             <p><strong>${docName}</strong></p>
           </div>
           <div class="footer">
-            <div style="display: flex; justify-content: space-between; align-items: center; text-align: left;">
-              <div>
-                <p style="margin: 0;">MedRecord — Logiciel de Gestion de Dossier Médical Numérique • Document généré électroniquement</p>
-                <p style="font-size: 9px; color: #aaa; margin: 3px 0 0 0;">ID de vérification : ${documentId}</p>
-              </div>
-              <div style="text-align: right;">
-                <img src="${qrCodeUrl}" alt="QR Code d'authenticité" style="width: 70px; height: 70px; border: 1px solid #ddd; padding: 4px; background: #fff;" />
-                <p style="font-size: 8px; color: #aaa; margin: 2px 0 0 0; text-align: center;">Vérifier l'authenticité</p>
-              </div>
-            </div>
+            <p style="margin: 0;">MedRecord — Logiciel de Gestion de Dossier Médical Numérique • Document généré électroniquement</p>
           </div>
         </body>
         </html>
