@@ -394,15 +394,9 @@ export default function CreateOrdonnanceScreen() {
     return documentId;
   };
 
-  const handlePrintOrdonnance = async () => {
-    setGenerating(true);
-    try {
-      const docId = await handleSaveOrdonnance();
-      if (!docId) return;
-      const htmlContent = generateOrdonnanceHTML(docId);
-
-      if (Platform.OS === 'web') {
-        // Create an isolated hidden iframe specifically for printing the single A4 document
+  const executeWebIframePrint = (htmlContent: string) => {
+    return new Promise<void>((resolve) => {
+      try {
         const printFrame = document.createElement('iframe');
         printFrame.style.position = 'fixed';
         printFrame.style.right = '0';
@@ -426,9 +420,28 @@ export default function CreateOrdonnanceScreen() {
               if (document.body.contains(printFrame)) {
                 document.body.removeChild(printFrame);
               }
+              resolve();
             }, 1000);
           }, 300);
+        } else {
+          resolve();
         }
+      } catch (e) {
+        console.error('Web iframe print error:', e);
+        resolve();
+      }
+    });
+  };
+
+  const handlePrintOrdonnance = async () => {
+    setGenerating(true);
+    try {
+      const docId = await handleSaveOrdonnance();
+      if (!docId) return;
+      const htmlContent = generateOrdonnanceHTML(docId);
+
+      if (Platform.OS === 'web') {
+        await executeWebIframePrint(htmlContent);
       } else {
         await Print.printAsync({ html: htmlContent });
       }
@@ -447,15 +460,24 @@ export default function CreateOrdonnanceScreen() {
       if (!docId || !patient) return;
       const htmlContent = generateOrdonnanceHTML(docId);
 
-      const { uri } = await Print.printToFileAsync({ html: htmlContent });
-      await Sharing.shareAsync(uri, {
-        mimeType: 'application/pdf',
-        dialogTitle: `Ordonnance_${patient.nom.toUpperCase()}`,
-        UTI: 'com.adobe.pdf',
-      });
+      if (Platform.OS === 'web') {
+        // On Web, use browser print dialog (Save as PDF) which is 100% reliable and supported on all browsers
+        await executeWebIframePrint(htmlContent);
+      } else {
+        const { uri } = await Print.printToFileAsync({ html: htmlContent });
+        await Sharing.shareAsync(uri, {
+          mimeType: 'application/pdf',
+          dialogTitle: `Ordonnance_${patient.nom.toUpperCase()}`,
+          UTI: 'com.adobe.pdf',
+        });
+      }
     } catch (err) {
-      console.error('Export error:', err);
-      showAlert('Erreur', 'Impossible de générer le fichier PDF.');
+      console.error('PDF Export Detailed Error:', err);
+      if (Platform.OS === 'web') {
+        window.print();
+      } else {
+        showAlert('Erreur', 'Impossible de générer le fichier PDF.');
+      }
     } finally {
       setGenerating(false);
     }
