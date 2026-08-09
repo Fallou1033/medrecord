@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   StyleSheet,
   View,
@@ -20,6 +20,52 @@ import { calculateIMC } from '../../utils/helpers';
 import { useSecurity } from '../../security/SecurityContext';
 import DatePickerDOB from '../../components/DatePickerDOB';
 
+// Draft Auto-save Helpers
+async function saveConsultationDraft(pId: string, data: any) {
+  try {
+    const key = `draft_consultation_${pId}`;
+    const jsonStr = JSON.stringify(data);
+    if (Platform.OS === 'web') {
+      localStorage.setItem(key, jsonStr);
+    } else {
+      const SecureStore = require('expo-secure-store');
+      await SecureStore.setItemAsync(key, jsonStr);
+    }
+  } catch (e) {
+    console.warn('Failed to save consultation draft', e);
+  }
+}
+
+async function loadConsultationDraft(pId: string) {
+  try {
+    const key = `draft_consultation_${pId}`;
+    let jsonStr: string | null = null;
+    if (Platform.OS === 'web') {
+      jsonStr = localStorage.getItem(key);
+    } else {
+      const SecureStore = require('expo-secure-store');
+      jsonStr = await SecureStore.getItemAsync(key);
+    }
+    return jsonStr ? JSON.parse(jsonStr) : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+async function clearConsultationDraft(pId: string) {
+  try {
+    const key = `draft_consultation_${pId}`;
+    if (Platform.OS === 'web') {
+      localStorage.removeItem(key);
+    } else {
+      const SecureStore = require('expo-secure-store');
+      await SecureStore.deleteItemAsync(key);
+    }
+  } catch (e) {
+    console.warn('Failed to clear consultation draft', e);
+  }
+}
+
 export default function CreateConsultationScreen() {
   const router = useRouter();
   const { patientId } = useLocalSearchParams<{ patientId: string }>();
@@ -28,6 +74,9 @@ export default function CreateConsultationScreen() {
   const [patient, setPatient] = useState<Patient | null>(null);
   const [loadingPatient, setLoadingPatient] = useState(true);
   const [loading, setLoading] = useState(false);
+  const [hasRestoredDraft, setHasRestoredDraft] = useState(false);
+
+  const isInitialMount = useRef(true);
 
   // Vitals State
   const [temperature, setTemperature] = useState('');
@@ -56,6 +105,109 @@ export default function CreateConsultationScreen() {
       loadPatient();
     }
   }, [patientId]);
+
+  // Restore draft on initial mount
+  useEffect(() => {
+    if (!patientId) return;
+    (async () => {
+      const draft = await loadConsultationDraft(patientId);
+      if (draft) {
+        if (draft.temperature !== undefined) setTemperature(draft.temperature);
+        if (draft.tension !== undefined) setTension(draft.tension);
+        if (draft.pulsations !== undefined) setPulsations(draft.pulsations);
+        if (draft.saturation !== undefined) setSaturation(draft.saturation);
+        if (draft.glycemie !== undefined) setGlycemie(draft.glycemie);
+        if (draft.poids !== undefined) setPoids(draft.poids);
+        if (draft.taille !== undefined) setTaille(draft.taille);
+        if (draft.motif !== undefined) setMotif(draft.motif);
+        if (draft.histoire !== undefined) setHistoire(draft.histoire);
+        if (draft.examenClinique !== undefined) examenCliniqueSet(draft.examenClinique);
+        if (draft.diagnostic !== undefined) setDiagnostic(draft.diagnostic);
+        if (draft.traitement !== undefined) setTraitement(draft.traitement);
+        if (draft.conseils !== undefined) setConseils(draft.conseils);
+        if (draft.dateControle !== undefined) setDateControle(draft.dateControle);
+
+        const hasContent = Boolean(
+          (draft.motif && draft.motif.trim()) ||
+          (draft.diagnostic && draft.diagnostic.trim()) ||
+          (draft.traitement && draft.traitement.trim()) ||
+          (draft.histoire && draft.histoire.trim()) ||
+          (draft.examenClinique && draft.examenClinique.trim()) ||
+          (draft.poids && draft.poids.trim()) ||
+          (draft.temperature && draft.temperature.trim())
+        );
+
+        if (hasContent) {
+          setHasRestoredDraft(true);
+        }
+      }
+    })();
+  }, [patientId]);
+
+  // Auto-save draft on input change
+  useEffect(() => {
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return;
+    }
+    if (!patientId) return;
+
+    const draftData = {
+      temperature,
+      tension,
+      pulsations,
+      saturation,
+      glycemie,
+      poids,
+      taille,
+      motif,
+      histoire,
+      examenClinique,
+      diagnostic,
+      traitement,
+      conseils,
+      dateControle,
+    };
+
+    saveConsultationDraft(patientId, draftData);
+  }, [
+    patientId,
+    temperature,
+    tension,
+    pulsations,
+    saturation,
+    glycemie,
+    poids,
+    taille,
+    motif,
+    histoire,
+    examenClinique,
+    diagnostic,
+    traitement,
+    conseils,
+    dateControle,
+  ]);
+
+  const handleResetDraft = async () => {
+    setTemperature('');
+    setTension('');
+    setPulsations('');
+    setSaturation('');
+    setGlycemie('');
+    setPoids('');
+    setTaille('');
+    setMotif('');
+    setHistoire('');
+    examenCliniqueSet('');
+    setDiagnostic('');
+    setTraitement('');
+    setConseils('');
+    setDateControle(defaultControlDate);
+    setHasRestoredDraft(false);
+    if (patientId) {
+      await clearConsultationDraft(patientId);
+    }
+  };
 
   useEffect(() => {
     const cleanW = poids.replace(',', '.');
@@ -151,6 +303,11 @@ export default function CreateConsultationScreen() {
         user.id
       );
 
+      // Clear draft on successful save
+      if (patientId) {
+        await clearConsultationDraft(patientId);
+      }
+
       showAlert('Succès', 'La consultation a été enregistrée avec succès.', [
         {
           text: 'OK',
@@ -196,6 +353,21 @@ export default function CreateConsultationScreen() {
             <Text style={styles.patientBannerName}>
               Patient: {patient.prenom} {patient.nom.toUpperCase()} ({patient.numero_dossier})
             </Text>
+          </View>
+        )}
+
+        {hasRestoredDraft && (
+          <View style={styles.draftBanner}>
+            <View style={styles.draftBannerContent}>
+              <Ionicons name="bookmark-outline" size={18} color="#28C2FF" />
+              <Text style={styles.draftBannerText}>
+                Saisie conservée : Brouillon de consultation restauré automatiquement.
+              </Text>
+            </View>
+            <TouchableOpacity style={styles.resetDraftBtn} onPress={handleResetDraft}>
+              <Ionicons name="trash-outline" size={14} color="#FF6B6B" />
+              <Text style={styles.resetDraftText}>Effacer</Text>
+            </TouchableOpacity>
           </View>
         )}
 
@@ -307,13 +479,13 @@ export default function CreateConsultationScreen() {
             </View>
           </View>
 
-          {/* Section 2: Clinical Details */}
-          <Text style={styles.sectionTitle}>Observation Clinique</Text>
+          {/* Section 2: Clinical Observation */}
+          <Text style={[styles.sectionTitle, { marginTop: 24 }]}>Observation Clinique & Diagnostic</Text>
 
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Motif de consultation *</Text>
+            <Text style={styles.label}>Motif de Consultation *</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipsContainer}>
-              {['Consultation routine', 'Fièvre isolée', 'Toux & Syndrome grippal', 'Douleurs abdominales', 'Céphalées persistantes'].map((item) => (
+              {['Fièvre', 'Toux', 'Céphalées', 'Douleur abdominale', 'Asthénie', 'Vertiges'].map((item) => (
                 <TouchableOpacity key={item} style={styles.chip} onPress={() => setMotif(item)}>
                   <Text style={styles.chipText}>{item}</Text>
                 </TouchableOpacity>
@@ -321,7 +493,7 @@ export default function CreateConsultationScreen() {
             </ScrollView>
             <TextInput
               style={styles.input}
-              placeholder="Saisissez le motif principal..."
+              placeholder="Ex: Fièvre depuis 48h, toux sèche..."
               placeholderTextColor="#9ca3af"
               value={motif}
               onChangeText={setMotif}
@@ -329,10 +501,10 @@ export default function CreateConsultationScreen() {
           </View>
 
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Histoire de la maladie</Text>
+            <Text style={styles.label}>Histoire de la Maladie</Text>
             <TextInput
               style={[styles.input, styles.textArea]}
-              placeholder="Antécédents immédiats, durée des symptômes..."
+              placeholder="Déroulement des symptômes, antécédents récents..."
               placeholderTextColor="#9ca3af"
               multiline
               numberOfLines={3}
@@ -422,20 +594,22 @@ export default function CreateConsultationScreen() {
                   style={[styles.input, styles.calcInput]}
                   placeholder="Poids"
                   placeholderTextColor="#9ca3af"
-                  keyboardType="numeric"
+                  keyboardType="decimal-pad"
+                  inputMode="decimal"
                   value={poids}
-                  onChangeText={setPoids}
+                  onChangeText={(val) => setPoids(val.replace(',', '.'))}
                 />
               </View>
-              <View style={[styles.calcResultGroup, { flex: 1.5 }]}>
+
+              <View style={[styles.calcResultGroup, { flex: 1.2 }]}>
                 <Text style={styles.calcResultLabel}>Dose recommandée par prise</Text>
                 <Text style={styles.calcResultVal}>
                   {(() => {
-                    const w = parseFloat(poids);
+                    const w = parseFloat(poids.replace(',', '.'));
                     if (isNaN(w) || w <= 0) return '-- mg';
                     const dose = Math.round(w * 15);
-                    const mlSirop = Math.round((dose / 24) * 10) / 10; // Sirop standard 120mg/5ml => 24mg/ml
-                    return `${dose} mg (${mlSirop} ml de sirop 120mg/5ml)`;
+                    const mlSirop = Math.round((dose / 24) * 10) / 10;
+                    return `${dose} mg (${mlSirop} ml sirop)`;
                   })()}
                 </Text>
               </View>
@@ -447,9 +621,11 @@ export default function CreateConsultationScreen() {
             onPress={handleSubmit}
             disabled={loading}
           >
-            <Text style={styles.submitButtonText}>
-              {loading ? 'Enregistrement...' : 'Enregistrer la consultation'}
-            </Text>
+            {loading ? (
+              <ActivityIndicator color="#0F2C3D" />
+            ) : (
+              <Text style={styles.submitButtonText}>Enregistrer la consultation</Text>
+            )}
           </TouchableOpacity>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -500,43 +676,84 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
   placeholder: {
-    width: 24,
+    width: 44,
   },
   patientBanner: {
-    backgroundColor: '#2F5C77',
-    paddingVertical: 8,
-    paddingHorizontal: 20,
+    backgroundColor: '#1E3E52',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#2F5C77',
   },
   patientBannerName: {
-    color: '#FFFFFF',
-    fontWeight: 'bold',
+    color: '#28C2FF',
     fontSize: 14,
+    fontWeight: 'bold',
+    textAlign: 'center',
+  },
+  draftBanner: {
+    backgroundColor: '#1B3E54',
+    borderColor: '#28C2FF',
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 12,
+    marginHorizontal: 16,
+    marginTop: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  draftBannerContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flex: 1,
+  },
+  draftBannerText: {
+    color: '#E0F2FE',
+    fontSize: 12,
+    fontWeight: '600',
+    flex: 1,
+  },
+  resetDraftBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(255, 107, 107, 0.15)',
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 107, 107, 0.3)',
+  },
+  resetDraftText: {
+    color: '#FF6B6B',
+    fontSize: 12,
+    fontWeight: 'bold',
   },
   formContainer: {
-    padding: 20,
-    paddingBottom: 120,
+    padding: 16,
+    paddingBottom: 40,
   },
   sectionTitle: {
     fontSize: 16,
     fontWeight: 'bold',
     color: '#28C2FF',
-    marginTop: 16,
     marginBottom: 16,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
   },
   row: {
     flexDirection: 'row',
     gap: 12,
+    marginBottom: 16,
   },
   inputGroup: {
     marginBottom: 16,
   },
   label: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#8AC8F9',
-    marginBottom: 6,
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+    marginBottom: 8,
   },
   input: {
     backgroundColor: '#1E3E52',
@@ -548,26 +765,41 @@ const styles = StyleSheet.create({
     borderColor: '#2F5C77',
   },
   textArea: {
+    height: 100,
     textAlignVertical: 'top',
+  },
+  chipsContainer: {
+    flexDirection: 'row',
+    marginBottom: 8,
+  },
+  chip: {
+    backgroundColor: '#2F5C77',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 16,
+    marginRight: 8,
+  },
+  chipText: {
+    color: '#FFFFFF',
+    fontSize: 12,
   },
   imcBox: {
     backgroundColor: '#1E3E52',
+    borderRadius: 10,
+    padding: 12,
     borderWidth: 1,
     borderColor: '#2F5C77',
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    height: 48,
-    justifyContent: 'center',
     alignItems: 'center',
+    justifyContent: 'center',
   },
   imcText: {
-    color: '#8AC8F9',
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: 'bold',
+    color: '#9ca3af',
   },
   submitButton: {
     backgroundColor: '#28C2FF',
-    borderRadius: 10,
+    borderRadius: 12,
     padding: 16,
     alignItems: 'center',
     marginTop: 24,
@@ -578,26 +810,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   disabledButton: {
-    opacity: 0.6,
-  },
-  chipsContainer: {
-    flexDirection: 'row',
-    marginBottom: 10,
-    marginTop: 2,
-  },
-  chip: {
-    backgroundColor: '#0F2C3D',
-    borderWidth: 1,
-    borderColor: '#2F5C77',
-    borderRadius: 15,
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    marginRight: 8,
-  },
-  chipText: {
-    color: '#8AC8F9',
-    fontSize: 12,
-    fontWeight: '600',
+    opacity: 0.7,
   },
   calcCard: {
     backgroundColor: '#1A3344',
