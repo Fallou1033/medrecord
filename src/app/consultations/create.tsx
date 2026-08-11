@@ -18,6 +18,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { createConsultation, getPatientById, Patient } from '../../database/SQLiteDatabaseManager';
 import { calculateIMC } from '../../utils/helpers';
 import { useSecurity } from '../../security/SecurityContext';
+import DatePickerDOB from '../../components/DatePickerDOB';
 
 export default function CreateConsultationScreen() {
   const router = useRouter();
@@ -393,15 +394,10 @@ export default function CreateConsultationScreen() {
           </View>
 
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Date de contrôle (AAAA-MM-JJ)</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="AAAA-MM-JJ"
-              placeholderTextColor="#9ca3af"
+            <DatePickerDOB
+              label="Date de contrôle *"
               value={dateControle}
-              onChangeText={setDateControle}
-              keyboardType="numeric"
-              maxLength={10}
+              onChange={setDateControle}
             />
           </View>
 

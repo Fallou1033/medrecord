@@ -786,28 +786,18 @@ export default function PatientDetailsScreen() {
             </View>
 
             <View style={styles.inputGroup}>
-              <Text style={styles.modalLabel}>Date d'administration (AAAA-MM-JJ) *</Text>
-              <TextInput
-                style={styles.modalInputText}
-                placeholder="AAAA-MM-JJ"
-                placeholderTextColor="#9ca3af"
+              <DatePickerDOB
+                label="Date d'administration *"
                 value={vaccineDate}
-                onChangeText={setVaccineDate}
-                keyboardType="numeric"
-                maxLength={10}
+                onChange={setVaccineDate}
               />
             </View>
 
             <View style={styles.inputGroup}>
-              <Text style={styles.modalLabel}>Date de rappel (AAAA-MM-JJ, optionnelle)</Text>
-              <TextInput
-                style={styles.modalInputText}
-                placeholder="AAAA-MM-JJ"
-                placeholderTextColor="#9ca3af"
+              <DatePickerDOB
+                label="Date de rappel (optionnelle)"
                 value={vaccineRecallDate}
-                onChangeText={setVaccineRecallDate}
-                keyboardType="numeric"
-                maxLength={10}
+                onChange={setVaccineRecallDate}
               />
             </View>
 
