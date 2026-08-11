@@ -469,23 +469,91 @@ export default function CreateCertificatScreen() {
       return;
     }
 
-    const cleanPhone = (patient.telephone || '').replace(/[^\d+]/g, '');
+    const phoneRaw = patient.telephone ? patient.telephone.trim() : '';
+    if (!phoneRaw) {
+      Alert.alert('Aucun numéro', 'Aucun numéro de téléphone n\'est renseigné pour ce patient.');
+      return;
+    }
+
+    let cleanPhone = phoneRaw.replace(/[^0-9+]/g, '');
+    if (cleanPhone.startsWith('+')) {
+      cleanPhone = cleanPhone.substring(1);
+    }
+    if (cleanPhone.startsWith('00')) {
+      cleanPhone = cleanPhone.substring(2);
+    }
+    if (cleanPhone.length === 9 && /^(77|78|76|70|75|33)/.test(cleanPhone)) {
+      cleanPhone = '221' + cleanPhone;
+    }
+
     const rawDocName = user ? `${user.prenom || ''} ${user.nom || ''}`.trim() : 'Mohamadou Bamba Diop';
     const cleanDocName = formatDoctorName(rawDocName);
+    const dateStr = formatDateFR(new Date());
 
-    const message = `Bonjour ${patient.prenom} ${patient.nom.toUpperCase()},\n\nVoici votre certificat médical délivré par le ${cleanDocName} :\n\n"${description.trim()}"\n\nBien cordialement,\nMedRecord — Cabinet Médical Privé`;
+    try {
+      let certId = 'DOC-CERT';
+      if (user) {
+        const newCert = await addCertificat(
+          {
+            patient_id: patientId,
+            type,
+            description: description.trim(),
+            date_debut: dateDebut.trim(),
+            date_fin: dateFin.trim() || null,
+            pdf_url: null,
+          },
+          user.id
+        );
+        certId = newCert.id;
+      }
 
-    const encodedMsg = encodeURIComponent(message);
-    const targetPhone = cleanPhone.startsWith('+') ? cleanPhone.replace('+', '') : (cleanPhone.length === 9 ? `221${cleanPhone}` : cleanPhone);
-    const whatsappUrl = targetPhone ? `https://api.whatsapp.com/send?phone=${targetPhone}&text=${encodedMsg}` : `https://api.whatsapp.com/send?text=${encodedMsg}`;
+      const htmlContent = generateCertificatHTML(certId);
 
-    if (Platform.OS === 'web') {
-      window.open(whatsappUrl, '_blank');
-    } else {
-      const Linking = require('react-native').Linking;
-      Linking.openURL(whatsappUrl).catch(() => {
-        Alert.alert('Erreur WhatsApp', 'Impossible d\'ouvrir l\'application WhatsApp.');
-      });
+      const baseUrl = Platform.OS === 'web'
+        ? window.location.origin + window.location.pathname
+        : 'https://fallou1033.github.io/medrecord/';
+      const directDocLink = `${baseUrl}#/patients/certificat_create?patientId=${patientId}`;
+
+      if (Platform.OS === 'web') {
+        // Option A: Partage du fichier réel via l'API Web Share (navigator.share) sur mobile web
+        const fileName = `Certificat_${patient.nom.toUpperCase()}_${patient.prenom}.html`;
+        const docFile = new File([htmlContent], fileName, { type: 'text/html' });
+
+        if (typeof navigator !== 'undefined' && navigator.canShare && navigator.canShare({ files: [docFile] })) {
+          try {
+            await navigator.share({
+              files: [docFile],
+              title: `Certificat Médical - ${patient.prenom} ${patient.nom.toUpperCase()}`,
+              text: `Bonjour ${patient.prenom} ${patient.nom.toUpperCase()},\n\nVoici votre certificat médical délivré par le ${cleanDocName} le ${dateStr}.\n\n📄 Document officiel à consulter et télécharger au format PDF A4.`,
+            });
+            return;
+          } catch (shareErr) {
+            console.log('Web Share annulé ou non supporté, repli sur le lien WhatsApp Web:', shareErr);
+          }
+        }
+
+        // Option B (Desktop / WhatsApp Web): Déclencher l'impression/PDF + envoi du lien direct dans WhatsApp Web
+        await executeWebIframePrint(htmlContent);
+
+        const message = `Bonjour ${patient.prenom} ${patient.nom.toUpperCase()},\n\nVoici votre certificat médical délivré par le ${cleanDocName} du ${dateStr} :\n\n📄 *CONSULTER & TÉLÉCHARGER LE CERTIFICAT PDF* :\n${directDocLink}\n\nVous pouvez cliquer sur le lien ci-dessus pour le télécharger et l'imprimer.\n\n---\n*MedRecord* - Dossier Médical Numérique`;
+        const whatsappUrl = `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodeURIComponent(message)}`;
+
+        window.open(whatsappUrl, '_blank');
+      } else {
+        // Mobile Native App (iOS / Android): Générer et partager le fichier PDF binaire directement
+        setGenerating(true);
+        const { uri } = await Print.printToFileAsync({ html: htmlContent });
+        await Sharing.shareAsync(uri, {
+          mimeType: 'application/pdf',
+          dialogTitle: `Certificat_${patient.nom.toUpperCase()}_${dateStr}`,
+          UTI: 'com.adobe.pdf',
+        });
+      }
+    } catch (err) {
+      console.error('WhatsApp share error:', err);
+      Alert.alert('Erreur', 'Impossible de préparer le document pour le partage.');
+    } finally {
+      setGenerating(false);
     }
   };
 
