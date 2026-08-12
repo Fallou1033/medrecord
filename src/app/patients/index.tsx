@@ -51,15 +51,11 @@ export default function PatientsListScreen() {
     }
   };
 
-  // Perform search in memory (decrypted fields)
-  useEffect(() => {
-    if (!search.trim()) {
-      setFilteredPatients(patients);
-      return;
-    }
-
+  // Perform search in memory with useMemo for 60 FPS typing
+  const filteredPatients = React.useMemo(() => {
+    if (!search.trim()) return patients;
     const query = search.toLowerCase().trim();
-    const filtered = patients.filter((p) => {
+    return patients.filter((p) => {
       const fullName = `${p.prenom} ${p.nom}`.toLowerCase();
       const folderNum = p.numero_dossier.toLowerCase();
       const phone = (p.telephone || '').toLowerCase();
@@ -74,51 +70,13 @@ export default function PatientsListScreen() {
         dobFormatted.includes(query)
       );
     });
-    setFilteredPatients(filtered);
   }, [search, patients]);
 
-  const renderPatientItem = ({ item }: { item: Patient }) => {
-    const age = calculateAge(item.date_naissance);
-    const genderIcon = item.sexe === 'M' ? 'male' : 'female';
-    const genderColor = item.sexe === 'M' ? '#8AC8F9' : '#FFB2C9';
+  const renderPatientItem = useCallback(({ item }: { item: Patient }) => {
+    return <MemoizedPatientCard item={item} />;
+  }, []);
 
-    return (
-      <Link href={`/patients/${item.id}`} asChild>
-        <TouchableOpacity style={styles.card}>
-          <View style={styles.cardHeader}>
-            <Text style={styles.folderNumber}>{item.numero_dossier}</Text>
-            <View style={styles.syncStatus}>
-              <Ionicons
-                name={item.is_synced ? 'cloud-done-outline' : 'cloud-offline-outline'}
-                size={18}
-                color={item.is_synced ? '#2ECC71' : '#E67E22'}
-              />
-            </View>
-          </View>
-
-          <Text style={styles.name}>
-            {item.prenom} {item.nom.toUpperCase()}
-          </Text>
-
-          <View style={styles.cardFooter}>
-            <View style={styles.metaInfo}>
-              <Ionicons name={genderIcon} size={14} color={genderColor} />
-              <Text style={styles.metaText}>
-                {item.sexe} • {age} ans
-              </Text>
-            </View>
-
-            {item.telephone && (
-              <View style={styles.metaInfo}>
-                <Ionicons name="call-outline" size={14} color="#8AC8F9" />
-                <Text style={styles.metaText}>{item.telephone}</Text>
-              </View>
-            )}
-          </View>
-        </TouchableOpacity>
-      </Link>
-    );
-  };
+  const keyExtractor = useCallback((item: Patient) => item.id, []);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -162,14 +120,60 @@ export default function PatientsListScreen() {
       ) : (
         <FlatList
           data={filteredPatients}
-          keyExtractor={(item) => item.id}
+          keyExtractor={keyExtractor}
           renderItem={renderPatientItem}
+          initialNumToRender={12}
+          maxToRenderPerBatch={10}
+          windowSize={5}
           contentContainerStyle={styles.listContainer}
         />
       )}
     </SafeAreaView>
   );
 }
+
+const MemoizedPatientCard = React.memo(({ item }: { item: Patient }) => {
+  const age = calculateAge(item.date_naissance);
+  const genderIcon = item.sexe === 'M' ? 'male' : 'female';
+  const genderColor = item.sexe === 'M' ? '#8AC8F9' : '#FFB2C9';
+
+  return (
+    <Link href={`/patients/${item.id}`} asChild>
+      <TouchableOpacity style={styles.card}>
+        <View style={styles.cardHeader}>
+          <Text style={styles.folderNumber}>{item.numero_dossier}</Text>
+          <View style={styles.syncStatus}>
+            <Ionicons
+              name={item.is_synced ? 'cloud-done-outline' : 'cloud-offline-outline'}
+              size={18}
+              color={item.is_synced ? '#2ECC71' : '#E67E22'}
+            />
+          </View>
+        </View>
+
+        <Text style={styles.name}>
+          {item.prenom} {item.nom.toUpperCase()}
+        </Text>
+
+        <View style={styles.cardFooter}>
+          <View style={styles.metaInfo}>
+            <Ionicons name={genderIcon} size={14} color={genderColor} />
+            <Text style={styles.metaText}>
+              {item.sexe} • {age} ans
+            </Text>
+          </View>
+
+          {item.telephone && (
+            <View style={styles.metaInfo}>
+              <Ionicons name="call-outline" size={14} color="#8AC8F9" />
+              <Text style={styles.metaText}>{item.telephone}</Text>
+            </View>
+          )}
+        </View>
+      </TouchableOpacity>
+    </Link>
+  );
+});
 
 const styles = StyleSheet.create({
   container: {

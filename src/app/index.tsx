@@ -27,11 +27,19 @@ interface Stats {
   topPathologies: { name: string; count: number }[];
 }
 
+let dashboardCache: {
+  stats: Stats;
+  todayRdvs: any[];
+  tomorrowRdvs: any[];
+  favorites: any[];
+  recents: any[];
+} | null = null;
+
 export default function DashboardScreen() {
   const router = useRouter();
   const { user, lock } = useSecurity();
 
-  const [stats, setStats] = useState<Stats>({
+  const [stats, setStats] = useState<Stats>(() => dashboardCache?.stats || {
     totalPatients: 0,
     visitesAujourdhui: 0,
     nouveauxMois: 0,
@@ -39,11 +47,11 @@ export default function DashboardScreen() {
     patientsF: 0,
     topPathologies: [],
   });
-  const [todayRdvs, setTodayRdvs] = useState<any[]>([]);
-  const [tomorrowRdvs, setTomorrowRdvs] = useState<any[]>([]);
-  const [favorites, setFavorites] = useState<any[]>([]);
-  const [recents, setRecents] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [todayRdvs, setTodayRdvs] = useState<any[]>(() => dashboardCache?.todayRdvs || []);
+  const [tomorrowRdvs, setTomorrowRdvs] = useState<any[]>(() => dashboardCache?.tomorrowRdvs || []);
+  const [favorites, setFavorites] = useState<any[]>(() => dashboardCache?.favorites || []);
+  const [recents, setRecents] = useState<any[]>(() => dashboardCache?.recents || []);
+  const [loading, setLoading] = useState<boolean>(!dashboardCache);
   const [syncing, setSyncing] = useState(false);
 
   useFocusEffect(
@@ -53,7 +61,9 @@ export default function DashboardScreen() {
   );
 
   const loadDashboardData = async () => {
-    setLoading(true);
+    if (!dashboardCache) {
+      setLoading(true);
+    }
     try {
       const db = await getDatabase();
       const allPatients = await getPatients();
@@ -177,19 +187,37 @@ export default function DashboardScreen() {
       setTomorrowRdvs(decryptedTomorrowRdvs);
 
       // 7. Load favorites and recents from storage
-      try {
-        const favsKey = 'favorites_patients';
-        const recentsKey = 'recents_patients';
+      const favsKey = 'favorites_patients';
+      const recentsKey = 'recents_patients';
+      let loadedFavs: any[] = [];
+      let loadedRecents: any[] = [];
         if (Platform.OS === 'web') {
-          setFavorites(JSON.parse(localStorage.getItem(favsKey) || '[]'));
-          setRecents(JSON.parse(localStorage.getItem(recentsKey) || '[]'));
+          loadedFavs = JSON.parse(localStorage.getItem(favsKey) || '[]');
+          loadedRecents = JSON.parse(localStorage.getItem(recentsKey) || '[]');
         } else {
           const SecureStore = require('expo-secure-store');
           const favsData = await SecureStore.getItemAsync(favsKey);
           const recentsData = await SecureStore.getItemAsync(recentsKey);
-          setFavorites(JSON.parse(favsData || '[]'));
-          setRecents(JSON.parse(recentsData || '[]'));
+          loadedFavs = JSON.parse(favsData || '[]');
+          loadedRecents = JSON.parse(recentsData || '[]');
         }
+        setFavorites(loadedFavs);
+        setRecents(loadedRecents);
+
+        dashboardCache = {
+          stats: {
+            totalPatients: patientCount,
+            visitesAujourdhui: visitsToday,
+            nouveauxMois: newMois,
+            patientsM: mCount,
+            patientsF: fCount,
+            topPathologies,
+          },
+          todayRdvs: decryptedRdvs,
+          tomorrowRdvs: decryptedTomorrowRdvs,
+          favorites: loadedFavs,
+          recents: loadedRecents,
+        };
       } catch (e) {
         console.error('Failed to load favorites/recents on dashboard:', e);
       }
