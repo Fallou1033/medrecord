@@ -22,7 +22,6 @@ export default function PatientsListScreen() {
   const router = useRouter();
   const { user } = useSecurity();
   const [patients, setPatients] = useState<Patient[]>([]);
-  const [filteredPatients, setFilteredPatients] = useState<Patient[]>([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
 
@@ -38,7 +37,6 @@ export default function PatientsListScreen() {
     try {
       const list = await getPatients();
       setPatients(list);
-      setFilteredPatients(list);
 
       // Audit read list
       if (user) {

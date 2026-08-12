@@ -191,6 +191,7 @@ export default function DashboardScreen() {
       const recentsKey = 'recents_patients';
       let loadedFavs: any[] = [];
       let loadedRecents: any[] = [];
+      try {
         if (Platform.OS === 'web') {
           loadedFavs = JSON.parse(localStorage.getItem(favsKey) || '[]');
           loadedRecents = JSON.parse(localStorage.getItem(recentsKey) || '[]');
@@ -201,26 +202,26 @@ export default function DashboardScreen() {
           loadedFavs = JSON.parse(favsData || '[]');
           loadedRecents = JSON.parse(recentsData || '[]');
         }
-        setFavorites(loadedFavs);
-        setRecents(loadedRecents);
-
-        dashboardCache = {
-          stats: {
-            totalPatients: patientCount,
-            visitesAujourdhui: visitsToday,
-            nouveauxMois: newMois,
-            patientsM: mCount,
-            patientsF: fCount,
-            topPathologies,
-          },
-          todayRdvs: decryptedRdvs,
-          tomorrowRdvs: decryptedTomorrowRdvs,
-          favorites: loadedFavs,
-          recents: loadedRecents,
-        };
       } catch (e) {
         console.error('Failed to load favorites/recents on dashboard:', e);
       }
+      setFavorites(loadedFavs);
+      setRecents(loadedRecents);
+
+      dashboardCache = {
+        stats: {
+          totalPatients: patientCount,
+          visitesAujourdhui: visitsToday,
+          nouveauxMois: newMois,
+          patientsM: mCount,
+          patientsF: fCount,
+          topPathologies,
+        },
+        todayRdvs: decryptedRdvs,
+        tomorrowRdvs: decryptedTomorrowRdvs,
+        favorites: loadedFavs,
+        recents: loadedRecents,
+      };
     } catch (err) {
       console.error('Failed to load dashboard data:', err);
     } finally {
