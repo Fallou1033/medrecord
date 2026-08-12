@@ -19,6 +19,7 @@ export default function SetupSecurityScreen() {
   const [prenom, setPrenom] = useState('');
   const [email, setEmail] = useState('');
   const [emailError, setEmailError] = useState('');
+  const [telephone, setTelephone] = useState('');
   const [pin, setPin] = useState('');
   const [confirmPin, setConfirmPin] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
@@ -50,8 +51,8 @@ export default function SetupSecurityScreen() {
 
   const handleSetup = async () => {
     setErrorMsg('');
-    if (!nom.trim() || !prenom.trim() || !email.trim() || !pin || !confirmPin) {
-      showAlert('Champs requis', 'Veuillez remplir tous les champs obligatoires.');
+    if (!nom.trim() || !prenom.trim() || !email.trim() || !telephone.trim() || !pin || !confirmPin) {
+      showAlert('Champs requis', 'Veuillez remplir tous les champs obligatoires (prénom, nom, email, téléphone et code PIN).');
       return;
     }
 
@@ -75,7 +76,7 @@ export default function SetupSecurityScreen() {
     try {
       const cleanNom = nom.trim().replace(/\b(dr|docteur)\.?\b/gi, '').replace(/\s+/g, ' ').trim();
       const cleanPrenom = prenom.trim().replace(/\b(dr|docteur)\.?\b/gi, '').replace(/\s+/g, ' ').trim();
-      await setupSecurity(pin, cleanNom, cleanPrenom, email.trim());
+      await setupSecurity(pin, cleanNom, cleanPrenom, email.trim(), telephone.trim());
     } catch (error: any) {
       console.error(error);
       showAlert('Erreur', error.message || "Impossible d'enregistrer le profil et le code PIN.");
@@ -146,6 +147,18 @@ export default function SetupSecurityScreen() {
                 ⚠️ {emailError}
               </Text>
             )}
+          </View>
+
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Numéro de Téléphone</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Ex: +221 77 123 45 67"
+              value={telephone}
+              onChangeText={setTelephone}
+              keyboardType="phone-pad"
+              placeholderTextColor="#9ca3af"
+            />
           </View>
 
           <View style={styles.inputGroup}>
