@@ -25,7 +25,7 @@ import {
 } from '../../database/SQLiteDatabaseManager';
 import { getDatabase } from '../../database/db';
 import { encryptData, decryptData } from '../../security/encryption';
-import { calculateAge, formatDateFR } from '../../utils/helpers';
+import { calculateAge, formatDateFR, formatDoctorName } from '../../utils/helpers';
 import { useSecurity } from '../../security/SecurityContext';
 
 export default function CreateOrdonnanceScreen() {
