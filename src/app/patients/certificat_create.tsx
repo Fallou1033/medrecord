@@ -186,9 +186,9 @@ export default function CreateCertificatScreen() {
     const docName = formatDoctorName(rawDocName);
     const docNameUpper = docName.toUpperCase();
 
-    const docSpeciality = user?.specialite || 'Médecin Généraliste';
-    const docCabinet = user?.cabinet || 'Cabinet Médical Privé';
-    const docAddress = user?.adresse || 'Dakar, Sénégal';
+    const docSpeciality = (user as any)?.specialite || 'Médecin Généraliste';
+    const docCabinet = (user as any)?.cabinet || 'Cabinet Médical Privé';
+    const docAddress = (user as any)?.adresse || 'Dakar, Sénégal';
     const docEmail = user ? user.email : 'falludiop10008@gmail.com';
     const docPhone = user && user.telephone ? user.telephone : '+221 77 123 4567';
 

@@ -374,6 +374,8 @@ export async function getActiveUserProfile(): Promise<UserProfile | null> {
         biometrie_active: user.biometrie_active === 1,
       };
     }
+
+    return null;
   } catch (error) {
     console.error('MedRecord: Failed to get active user profile:', error);
     return null;

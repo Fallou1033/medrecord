@@ -129,9 +129,9 @@ export default function CreateOrdonnanceScreen() {
     const docName = formatDoctorName(rawDocName);
     const docNameUpper = docName.toUpperCase();
 
-    const docSpeciality = user?.specialite || 'Médecin Généraliste';
-    const docCabinet = user?.cabinet || 'Cabinet Médical Privé';
-    const docAddress = user?.adresse || 'Dakar, Sénégal';
+    const docSpeciality = (user as any)?.specialite || 'Médecin Généraliste';
+    const docCabinet = (user as any)?.cabinet || 'Cabinet Médical Privé';
+    const docAddress = (user as any)?.adresse || 'Dakar, Sénégal';
     const docEmail = user?.email || 'falludiop10008@gmail.com';
     const docPhone = user?.telephone || '+221 77 123 4567';
 
@@ -525,7 +525,8 @@ export default function CreateOrdonnanceScreen() {
       cleanPhone = '221' + cleanPhone;
     }
 
-    const docName = user?.name || 'Dr Fallou Diop';
+    const rawDocName = user ? `${user.prenom || ''} ${user.nom || ''}`.trim() : 'Mohamadou Bamba Diop';
+    const docName = formatDoctorName(rawDocName);
     const dateStr = formatDateFR(new Date());
 
     try {

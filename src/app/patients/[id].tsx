@@ -91,7 +91,7 @@ export default function PatientDetailsScreen() {
     setEditNom(patient.nom);
     setEditPrenom(patient.prenom);
     setEditSexe(patient.sexe);
-    setEditDateNaissance(patient.date_naissance);
+    setEditDateNaissance(patient.date_naissance || '');
     setEditTelephone(patient.telephone || '');
     setEditAdresse(patient.adresse || '');
     setEditProfession(patient.profession || '');
