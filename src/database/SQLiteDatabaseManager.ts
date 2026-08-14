@@ -26,7 +26,7 @@ export interface Patient {
 export interface Antecedent {
   id: string;
   patient_id: string;
-  type: 'MEDICAL' | 'CHIRURGICAL' | 'TRAUMATIQUE' | 'OBSTETRICAL' | 'FAMILIAL' | 'ALLERGIE' | 'TRAITEMENT_CHRONIQUE';
+  type: 'MEDICAL' | 'CHIRURGICAL' | 'TRAUMATIQUE' | 'OBSTETRICAL' | 'FAMILIAL' | 'ALLERGIE' | 'TRAITEMENT_CHRONIQUE' | 'GYNECO_OBSTETRIQUE' | string;
   description: string;
   created_at: string;
   updated_at: string;
@@ -81,7 +81,7 @@ export interface Ordonnance {
 export interface Certificat {
   id: string;
   patient_id: string;
-  type: 'MEDICAL' | 'ACCIDENT_TRAVAIL' | 'APTITUDE' | 'INAPTITUDE' | 'ARRET_TRAVAIL';
+  type: 'CM_REPOS' | 'CM_VISITE' | 'CM_COUPS_BLESSURES' | 'APTITUDE' | 'INAPTITUDE' | 'MEDICAL' | 'ACCIDENT_TRAVAIL' | 'ARRET_TRAVAIL' | string;
   description: string;
   date_debut: string;
   date_fin: string | null;

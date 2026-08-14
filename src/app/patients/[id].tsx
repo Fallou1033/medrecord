@@ -485,20 +485,24 @@ export default function PatientDetailsScreen() {
           </View>
         </View>
 
-        {/* Custom Tab Bar */}
+        {/* Custom Tab Bar (Vaccins shown ONLY if age < 15) */}
         <View style={styles.tabBar}>
-          {(['info', 'antecedents', 'consultations', 'vaccinations'] as SubTab[]).map((tab) => {
+          {(
+            (age !== null && age < 15)
+              ? ['info', 'antecedents', 'consultations', 'vaccinations']
+              : ['info', 'antecedents', 'consultations']
+          ).map((tab) => {
             let label = 'Infos';
             if (tab === 'antecedents') label = 'Antécédents';
             if (tab === 'consultations') label = 'Visites';
-            if (tab === 'vaccinations') label = 'Vaccins';
+            if (tab === 'vaccinations') label = 'Vaccins (Pédiatrie)';
 
             const isActive = activeTab === tab;
             return (
               <TouchableOpacity
                 key={tab}
                 style={[styles.tabItem, isActive && styles.tabItemActive]}
-                onPress={() => setActiveTab(tab)}
+                onPress={() => setActiveTab(tab as SubTab)}
               >
                 <Text style={[styles.tabLabel, isActive && styles.tabLabelActive]}>
                   {label}
@@ -706,12 +710,16 @@ export default function PatientDetailsScreen() {
             <View style={styles.inputGroup}>
               <Text style={styles.modalLabel}>Type d'antécédent</Text>
               <View style={styles.typeSelector}>
-                {(['MEDICAL', 'CHIRURGICAL', 'ALLERGIE', 'TRAITEMENT_CHRONIQUE'] as Antecedent['type'][]).map((type) => {
-                  let label = 'Médical';
-                  if (type === 'CHIRURGICAL') label = 'Chirurgie';
-                  if (type === 'ALLERGIE') label = 'Allergie';
-                  if (type === 'TRAITEMENT_CHRONIQUE') label = 'Chronique';
-
+                {(
+                  [
+                    { type: 'MEDICAL', label: 'Médicaux' },
+                    { type: 'CHIRURGICAL', label: 'Chirurgicaux' },
+                    { type: 'ALLERGIE', label: 'Allergies' },
+                    ...(patient?.sexe === 'F' && age !== null && age > 15
+                      ? [{ type: 'GYNECO_OBSTETRIQUE', label: 'Gynéco-Obstétricaux' }]
+                      : []),
+                  ] as { type: Antecedent['type']; label: string }[]
+                ).map(({ type, label }) => {
                   const isSel = antType === type;
                   return (
                     <TouchableOpacity
@@ -882,14 +890,15 @@ export default function PatientDetailsScreen() {
               />
 
               <View style={styles.inputGroup}>
-                <Text style={styles.modalLabel}>Numéro de Téléphone</Text>
+                <Text style={styles.modalLabel}>Numéro de Téléphone (9 chiffres max)</Text>
                 <TextInput
                   style={styles.modalInputText}
-                  placeholder="ex: +221 77 123 45 67"
+                  placeholder="ex: 771234567"
                   placeholderTextColor="#9ca3af"
                   value={editTelephone}
-                  onChangeText={setEditTelephone}
-                  keyboardType="phone-pad"
+                  onChangeText={(txt) => setEditTelephone(txt.replace(/[^\d]/g, '').slice(0, 9))}
+                  keyboardType="number-pad"
+                  maxLength={9}
                 />
               </View>
 

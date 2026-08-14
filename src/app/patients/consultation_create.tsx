@@ -95,6 +95,7 @@ export default function CreateConsultationScreen() {
   const [motif, setMotif] = useState('');
   const [histoire, setHistoire] = useState('');
   const [examenClinique, examenCliniqueSet] = useState('');
+  const [hypotheses, setHypotheses] = useState('');
   const [diagnostic, setDiagnostic] = useState('');
   const [traitement, setTraitement] = useState('');
   const [conseils, setConseils] = useState('');
@@ -527,7 +528,20 @@ export default function CreateConsultationScreen() {
           </View>
 
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Diagnostic Médical *</Text>
+            <Text style={styles.label}>Hypothèses Diagnostiques (optionnel)</Text>
+            <TextInput
+              style={[styles.input, styles.textArea]}
+              placeholder="Listing des hypothèses / diagnostic différentiel (ex: 1. Paludisme 2. Dengue 3. Fièvre typhoïde)..."
+              placeholderTextColor="#9ca3af"
+              multiline
+              numberOfLines={3}
+              value={hypotheses}
+              onChangeText={setHypotheses}
+            />
+          </View>
+
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Diagnostic Positif (conclusion) *</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipsContainer}>
               {['Paludisme simple', 'Syndrome grippal', 'Hypertension artérielle', 'Gastro-entérite aiguë', 'Infection respiratoire'].map((item) => (
                 <TouchableOpacity key={item} style={styles.chip} onPress={() => setDiagnostic(item)}>
@@ -537,7 +551,7 @@ export default function CreateConsultationScreen() {
             </ScrollView>
             <TextInput
               style={styles.input}
-              placeholder="Ex: Hypertension artérielle modérée, Paludisme simple..."
+              placeholder="Diagnostic final retenu (ex: Paludisme simple à P. falciparum)..."
               placeholderTextColor="#9ca3af"
               value={diagnostic}
               onChangeText={setDiagnostic}

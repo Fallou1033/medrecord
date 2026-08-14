@@ -21,7 +21,7 @@ import { calculateAge, formatDateFR, formatDoctorName } from '../../utils/helper
 import { useSecurity } from '../../security/SecurityContext';
 import DatePickerDOB from '@/components/DatePickerDOB';
 
-type CertType = 'MEDICAL' | 'ACCIDENT_TRAVAIL' | 'APTITUDE' | 'INAPTITUDE' | 'ARRET_TRAVAIL';
+type CertType = 'CM_REPOS' | 'CM_VISITE' | 'CM_COUPS_BLESSURES' | 'APTITUDE' | 'INAPTITUDE';
 
 export default function CreateCertificatScreen() {
   const router = useRouter();
@@ -32,10 +32,11 @@ export default function CreateCertificatScreen() {
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
 
-  const [type, setType] = useState<CertType>('MEDICAL');
+  const [type, setType] = useState<CertType>('CM_REPOS');
   const [description, setDescription] = useState('');
   const [dateDebut, setDateDebut] = useState(new Date().toISOString().split('T')[0]); // YYYY-MM-DD
   const [dateFin, setDateFin] = useState(''); // YYYY-MM-DD (optional, for sick leaves)
+  const [ittJours, setIttJours] = useState('5'); // Incapacité Totale de Travail en jours
   const [signature, setSignature] = useState('');
 
   const formatDoctorName = (nameStr: string) => {
@@ -53,22 +54,23 @@ export default function CreateCertificatScreen() {
     return Math.round(diffTime / (1000 * 60 * 60 * 24)) + 1;
   };
 
-  const generateTemplateText = (t: CertType, start: string, end: string, dName: string): string => {
-    if (t === 'ARRET_TRAVAIL') {
+  const generateTemplateText = (t: CertType, start: string, end: string, itt: string, dName: string): string => {
+    if (t === 'CM_REPOS') {
       const days = calculateDaysCount(start, end);
       const daysText = days > 0 ? `${days}` : '___';
       const startFormatted = start ? formatDateFR(start) : '___';
       const endFormatted = end ? formatDateFR(end) : '___';
-      return `Je soussigné, ${dName}, certifie que l'état de santé du patient susnommé nécessite un arrêt de travail d'une durée de ${daysText} jours, allant du ${startFormatted} au ${endFormatted} inclus. Ce présent certificat lui est délivré pour valoir et faire valoir ce que de droit.`;
+      return `Je soussigné, ${dName}, certifie que l'état de santé du patient susnommé nécessite un repos médical d'une durée de ${daysText} jours, allant du ${startFormatted} au ${endFormatted} inclus. Ce présent certificat lui est délivré pour valoir et faire valoir ce que de droit.`;
     }
-    if (t === 'MEDICAL') {
-      return `Je soussigné, ${dName}, certifie après examen médical effectué ce jour, que l'état de santé du patient susmentionné justifie...`;
+    if (t === 'CM_VISITE') {
+      return `Je soussigné, ${dName}, certifie avoir examiné ce jour le patient susnommé dans le cadre d'une visite / contre-visite médicale. Les constatations cliniques établies sont les suivantes : `;
     }
-    if (t === 'ACCIDENT_TRAVAIL') {
-      return `Je soussigné, ${dName}, certifie avoir examiné ce jour le patient susnommé, qui déclare avoir été victime d'un accident de travail. Les constatations cliniques initiales sont : `;
+    if (t === 'CM_COUPS_BLESSURES') {
+      const ittText = itt ? `${itt}` : '___';
+      return `Je soussigné, ${dName}, certifie avoir examiné ce jour le patient susnommé qui présente des lésions de coups et blessures. Les constatations cliniques entraînent une Incapacité Totale de Travail (ITT) fixée à ${ittText} jours, sous réserve de complications ultérieures.`;
     }
     if (t === 'APTITUDE') {
-      return `Je soussigné, ${dName}, certifie après examen clinique ce jour n'avoir pas constaté de contre-indication médicale à la pratique de : `;
+      return `Je soussigné, ${dName}, certifie après examen clinique ce jour n'avoir pas constaté de contre-indication médicale à l'aptitude physique et sportive de : `;
     }
     if (t === 'INAPTITUDE') {
       return `Je soussigné, ${dName}, certifie après examen clinique ce jour que le patient susnommé présente une inaptitude médicale temporaire à : `;
@@ -82,12 +84,12 @@ export default function CreateCertificatScreen() {
     }
   }, [patientId]);
 
-  // Update description template whenever type or dates change
+  // Update description template whenever type or dates or ITT change
   useEffect(() => {
     const rawDocName = user ? `${user.prenom || ''} ${user.nom || ''}`.trim() : 'Mohamadou Bamba Diop';
     const docName = formatDoctorName(rawDocName);
-    setDescription(generateTemplateText(type, dateDebut, dateFin, docName));
-  }, [type, dateDebut, dateFin, user]);
+    setDescription(generateTemplateText(type, dateDebut, dateFin, ittJours, docName));
+  }, [type, dateDebut, dateFin, ittJours, user]);
 
   // Load signature
   useEffect(() => {
@@ -193,11 +195,11 @@ export default function CreateCertificatScreen() {
     const docPhone = user && user.telephone ? user.telephone : '+221 77 123 4567';
 
     const typeLabels: Record<CertType, string> = {
-      MEDICAL: 'CERTIFICAT MEDICAL',
-      ACCIDENT_TRAVAIL: "CERTIFICAT D'ACCIDENT DE TRAVAIL",
-      APTITUDE: "CERTIFICAT D'APTITUDE PHYSIQUE",
-      INAPTITUDE: "CERTIFICAT D'INAPTITUDE PHYSIQUE",
-      ARRET_TRAVAIL: "CERTIFICAT D'ARRET DE TRAVAIL",
+      CM_REPOS: 'CERTIFICAT MÉDICAL DE REPOS',
+      CM_VISITE: 'CERTIFICAT MÉDICAL DE VISITE / CONTRE-VISITE',
+      CM_COUPS_BLESSURES: 'CERTIFICAT MÉDICAL DE COUPS ET BLESSURES',
+      APTITUDE: "CERTIFICAT MÉDICAL D'APTITUDE",
+      INAPTITUDE: "CERTIFICAT MÉDICAL D'INAPTITUDE",
     };
 
     return `<!DOCTYPE html>
@@ -558,11 +560,11 @@ export default function CreateCertificatScreen() {
   };
 
   const certTypes: { type: CertType; label: string }[] = [
-    { type: 'MEDICAL', label: 'Médical' },
-    { type: 'ACCIDENT_TRAVAIL', label: 'Accident Travail' },
+    { type: 'CM_REPOS', label: 'CM de Repos' },
+    { type: 'CM_VISITE', label: 'Visite / Contre-visite' },
+    { type: 'CM_COUPS_BLESSURES', label: 'Coups & Blessures' },
     { type: 'APTITUDE', label: 'Aptitude' },
     { type: 'INAPTITUDE', label: 'Inaptitude' },
-    { type: 'ARRET_TRAVAIL', label: 'Arrêt de travail' },
   ];
 
   return (
@@ -604,17 +606,31 @@ export default function CreateCertificatScreen() {
 
           <View style={{ gap: 14 }}>
             <DatePickerDOB
-              label="Date de début *"
+              label="Date d'établissement *"
               value={dateDebut}
               onChange={setDateDebut}
             />
 
-            {type === 'ARRET_TRAVAIL' && (
+            {type === 'CM_REPOS' && (
               <DatePickerDOB
-                label="Date de fin"
+                label="Date de fin de repos (calcul de durée)"
                 value={dateFin}
                 onChange={setDateFin}
               />
+            )}
+
+            {type === 'CM_COUPS_BLESSURES' && (
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Incapacité Totale de Travail (ITT en jours) *</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Ex: 5, 10, 15..."
+                  placeholderTextColor="#9ca3af"
+                  value={ittJours}
+                  onChangeText={(val) => setIttJours(val.replace(/[^\d]/g, ''))}
+                  keyboardType="numeric"
+                />
+              </View>
             )}
           </View>
 

@@ -299,14 +299,15 @@ export default function CreatePatientScreen() {
           <Text style={styles.sectionTitle}>Coordonnées & Médical</Text>
 
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Téléphone</Text>
+            <Text style={styles.label}>Téléphone (9 chiffres max)</Text>
             <TextInput
               style={styles.input}
-              placeholder="Ex: +221 77 123 45 67"
+              placeholder="Ex: 771234567"
               placeholderTextColor="#9ca3af"
               value={telephone}
-              onChangeText={setTelephone}
-              keyboardType="phone-pad"
+              onChangeText={(txt) => setTelephone(txt.replace(/[^\d]/g, '').slice(0, 9))}
+              keyboardType="number-pad"
+              maxLength={9}
             />
           </View>
 
