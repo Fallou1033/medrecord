@@ -336,7 +336,7 @@ export default function SettingsScreen() {
             <Ionicons name="person-outline" size={22} color="#28C2FF" />
           </View>
           <View style={styles.menuTextGroup}>
-            <Text style={styles.menuTitle}>Profil du Praticien</Text>
+            <Text style={styles.menuTitle}>Profil du Médecin</Text>
             <Text style={styles.menuSubtitle}>
               Informations personnelles, spécialité, contact, signature
             </Text>
@@ -445,7 +445,7 @@ export default function SettingsScreen() {
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Profil du Praticien</Text>
+              <Text style={styles.modalTitle}>Profil du Médecin</Text>
               <TouchableOpacity onPress={() => setActiveModal(null)}>
                 <Ionicons name="close-circle" size={26} color="#94A3B8" />
               </TouchableOpacity>
