@@ -1,6 +1,21 @@
 import React, { useState, useEffect } from 'react';
-import { SymbolView } from 'expo-symbols';
+import {
+  Platform,
+  ScrollView,
+  StyleSheet,
+  TextInput,
+  View,
+  TouchableOpacity,
+  ActivityIndicator,
+  Modal,
+  Text,
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { Image } from 'expo-image';
+import * as ImagePicker from 'expo-image-picker';
+import * as SecureStore from 'expo-secure-store';
+
 import {
   getConnectedUser,
   loginToGoogleDrive,
@@ -11,29 +26,11 @@ import {
   GoogleDriveUser,
   saveGoogleTokenAndFetchProfile,
 } from '../services/googleDriveService';
-import {
-  Platform,
-  ScrollView,
-  StyleSheet,
-  TextInput,
-  View,
-  TouchableOpacity,
-  ActivityIndicator,
-} from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Collapsible } from '@/components/ui/collapsible';
-import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
-import { useTheme } from '@/hooks/use-theme';
-
 import { useSecurity } from '../security/SecurityContext';
 import { verifyPIN, checkEmailExists } from '../security/auth';
 import { useThemePreference } from '../theme/ThemePreferenceContext';
-import { Image } from 'expo-image';
-import * as ImagePicker from 'expo-image-picker';
-import * as SecureStore from 'expo-secure-store';
+import { BottomTabInset, Spacing } from '@/constants/theme';
+import { useTheme } from '@/hooks/use-theme';
 
 export default function SettingsScreen() {
   const safeAreaInsets = useSafeAreaInsets();
@@ -42,8 +39,13 @@ export default function SettingsScreen() {
     bottom: safeAreaInsets.bottom + BottomTabInset + Spacing.three,
   };
   const theme = useTheme();
-
+  const { themeMode, setThemeMode } = useThemePreference();
   const { user, setupSecurity } = useSecurity();
+
+  // Active modal section: 'profile' | 'cabinet' | 'security' | 'backup' | 'theme' | 'about' | null
+  const [activeModal, setActiveModal] = useState<string | null>(null);
+
+  // Doctor Profile state
   const [nom, setNom] = useState(user?.nom || '');
   const [prenom, setPrenom] = useState(user?.prenom || '');
   const [email, setEmail] = useState(user?.email || '');
@@ -53,6 +55,80 @@ export default function SettingsScreen() {
   const [currentPin, setCurrentPin] = useState('');
   const [saving, setSaving] = useState(false);
   const [avatar, setAvatar] = useState('');
+  const [signature, setSignature] = useState('');
+
+  // Cabinet Info State
+  const [cabinetNom, setCabinetNom] = useState('Cabinet Médical Privé');
+  const [cabinetAdresse, setCabinetAdresse] = useState('Dakar, Sénégal');
+  const [cabinetPhone, setCabinetPhone] = useState('+221 77 123 45 67');
+  const [cabinetHeader, setCabinetHeader] = useState('Consultations & Soins Médicaux Généralistes');
+
+  // Google Drive & Backup state
+  const [googleUser, setGoogleUser] = useState<GoogleDriveUser | null>(null);
+  const [lastBackup, setLastBackup] = useState<string | null>(null);
+  const [backingUp, setBackingUp] = useState(false);
+  const [restoring, setRestoring] = useState(false);
+  const [customToken, setCustomToken] = useState('');
+
+  const cleanRawName = (str: string | null | undefined): string => {
+    if (!str) return '';
+    return str.replace(/\b(dr|docteur)\.?\b/gi, '').replace(/\s+/g, ' ').trim();
+  };
+
+  useEffect(() => {
+    loadGoogleDriveStatus();
+    loadCabinetDetails();
+  }, []);
+
+  const loadGoogleDriveStatus = async () => {
+    const connectedUser = await getConnectedUser();
+    setGoogleUser(connectedUser);
+    const time = await getLatestBackupTimestamp();
+    setLastBackup(time);
+
+    // Load doctor avatar photo & signature
+    if (Platform.OS === 'web') {
+      const savedAvatar = localStorage.getItem('doctor_avatar');
+      if (savedAvatar) setAvatar(savedAvatar);
+      const savedSig = localStorage.getItem('doctor_signature');
+      if (savedSig) setSignature(savedSig);
+    } else {
+      SecureStore.getItemAsync('doctor_avatar')
+        .then((savedAvatar) => savedAvatar && setAvatar(savedAvatar))
+        .catch(() => {});
+      SecureStore.getItemAsync('doctor_signature')
+        .then((savedSig) => savedSig && setSignature(savedSig))
+        .catch(() => {});
+    }
+  };
+
+  const loadCabinetDetails = async () => {
+    if (Platform.OS === 'web') {
+      const cNom = localStorage.getItem('cabinet_nom');
+      const cAdr = localStorage.getItem('cabinet_adresse');
+      const cTel = localStorage.getItem('cabinet_phone');
+      const cHead = localStorage.getItem('cabinet_header');
+      if (cNom) setCabinetNom(cNom);
+      if (cAdr) setCabinetAdresse(cAdr);
+      if (cTel) setCabinetPhone(cTel);
+      if (cHead) setCabinetHeader(cHead);
+    } else {
+      SecureStore.getItemAsync('cabinet_nom').then((val) => val && setCabinetNom(val)).catch(() => {});
+      SecureStore.getItemAsync('cabinet_adresse').then((val) => val && setCabinetAdresse(val)).catch(() => {});
+      SecureStore.getItemAsync('cabinet_phone').then((val) => val && setCabinetPhone(val)).catch(() => {});
+      SecureStore.getItemAsync('cabinet_header').then((val) => val && setCabinetHeader(val)).catch(() => {});
+    }
+  };
+
+  // Synchronise local state with global user
+  useEffect(() => {
+    if (user) {
+      setNom(cleanRawName(user.nom));
+      setPrenom(cleanRawName(user.prenom));
+      setEmail(user.email);
+      setTelephone(user.telephone || '');
+    }
+  }, [user]);
 
   const validateEmailUniqueness = async (emailToTest: string) => {
     if (!emailToTest.trim()) {
@@ -69,61 +145,88 @@ export default function SettingsScreen() {
     }
   };
 
-  const [googleUser, setGoogleUser] = useState<GoogleDriveUser | null>(null);
-  const [lastBackup, setLastBackup] = useState<string | null>(null);
-  const [backingUp, setBackingUp] = useState(false);
-  const [restoring, setRestoring] = useState(false);
-  const [customToken, setCustomToken] = useState('');
-
-  useEffect(() => {
-    loadGoogleDriveStatus();
-  }, []);
-
-  const loadGoogleDriveStatus = async () => {
-    const user = await getConnectedUser();
-    setGoogleUser(user);
-    const time = await getLatestBackupTimestamp();
-    setLastBackup(time);
-
-    // Load doctor avatar photo
-    if (Platform.OS === 'web') {
-      const savedAvatar = localStorage.getItem('doctor_avatar');
-      if (savedAvatar) setAvatar(savedAvatar);
-    } else {
-      SecureStore.getItemAsync('doctor_avatar')
-        .then((savedAvatar) => {
-          if (savedAvatar) setAvatar(savedAvatar);
-        })
-        .catch(() => {});
-    }
-  };
-
-  const handleSaveToken = async () => {
-    if (!customToken.trim()) {
-      alert("Erreur\n\nVeuillez coller un jeton d'accès Google valide.");
+  const handleSaveProfile = async () => {
+    if (!prenom.trim() || !nom.trim() || !email.trim() || !telephone.trim()) {
+      alert("Champs obligatoires\n\nVeuillez renseigner le prénom, le nom, l'adresse email et le numéro de téléphone.");
       return;
     }
+
+    const isEmailAvailable = await validateEmailUniqueness(email);
+    if (!isEmailAvailable) {
+      alert("Adresse email indisponible\n\nCette adresse email est déjà associée à un autre compte.");
+      return;
+    }
+
+    if (!currentPin.trim()) {
+      alert("Code PIN requis\n\nVeuillez saisir votre code PIN actuel pour valider les modifications.");
+      return;
+    }
+
     setSaving(true);
     try {
-      const user = await saveGoogleTokenAndFetchProfile(customToken.trim());
-      setGoogleUser(user);
-      const time = await getLatestBackupTimestamp();
-      setLastBackup(time);
-      setCustomToken('');
-      alert("Succès\n\nConnexion réelle Google Drive établie !");
+      const pinIsValid = await verifyPIN(currentPin.trim());
+      if (!pinIsValid) {
+        alert("Code PIN actuel incorrect\n\nLe code PIN saisi n'est pas valide.");
+        setSaving(false);
+        return;
+      }
+
+      const finalPin = newPin.trim() ? newPin.trim() : currentPin.trim();
+
+      if (newPin.trim() && newPin.trim().length !== 4) {
+        alert("Nouveau PIN invalide\n\nLe nouveau code PIN doit comporter précisément 4 chiffres.");
+        setSaving(false);
+        return;
+      }
+
+      const cleanNomVal = cleanRawName(nom);
+      const cleanPrenomVal = cleanRawName(prenom);
+      await setupSecurity(finalPin, cleanNomVal, cleanPrenomVal, email.trim(), telephone.trim());
+      setNom(cleanNomVal);
+      setPrenom(cleanPrenomVal);
+
+      if (Platform.OS === 'web') {
+        localStorage.setItem('doctor_signature', signature);
+        localStorage.setItem('doctor_avatar', avatar);
+      } else {
+        await SecureStore.setItemAsync('doctor_signature', signature);
+        await SecureStore.setItemAsync('doctor_avatar', avatar);
+      }
+
+      alert("Succès\n\nVotre profil de médecin a été mis à jour avec succès !");
+      setNewPin('');
+      setCurrentPin('');
+      setActiveModal(null);
     } catch (e: any) {
-      alert("Erreur d'authentification\n\nJeton invalide ou expiré.\nDétails : " + e.message);
+      console.error(e);
+      alert("Erreur\n\n" + (e.message || "Une erreur est survenue lors de la mise à jour."));
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleSaveCabinet = async () => {
+    if (Platform.OS === 'web') {
+      localStorage.setItem('cabinet_nom', cabinetNom);
+      localStorage.setItem('cabinet_adresse', cabinetAdresse);
+      localStorage.setItem('cabinet_phone', cabinetPhone);
+      localStorage.setItem('cabinet_header', cabinetHeader);
+    } else {
+      await SecureStore.setItemAsync('cabinet_nom', cabinetNom);
+      await SecureStore.setItemAsync('cabinet_adresse', cabinetAdresse);
+      await SecureStore.setItemAsync('cabinet_phone', cabinetPhone);
+      await SecureStore.setItemAsync('cabinet_header', cabinetHeader);
+    }
+    alert("Succès\n\nInformations du cabinet enregistrées !");
+    setActiveModal(null);
   };
 
   const handleGoogleLogin = async () => {
     try {
       const docName = `Dr ${prenom.trim()} ${nom.trim()}`;
       const docEmail = email.trim();
-      const user = await loginToGoogleDrive(docName, docEmail, avatar);
-      setGoogleUser(user);
+      const connectedUser = await loginToGoogleDrive(docName, docEmail, avatar);
+      setGoogleUser(connectedUser);
       const time = await getLatestBackupTimestamp();
       setLastBackup(time);
       alert("Succès\n\nConnexion à Google Drive établie !");
@@ -138,7 +241,7 @@ export default function SettingsScreen() {
       await logoutFromGoogleDrive();
       setGoogleUser(null);
       setLastBackup(null);
-      alert("Succès\n\nDéconnexion de Google Drive réussie.");
+      alert("Succès\n\nDéconnexion réussie.");
     } catch (e) {
       console.error(e);
     }
@@ -150,63 +253,25 @@ export default function SettingsScreen() {
       await backupDatabaseToDrive();
       const time = await getLatestBackupTimestamp();
       setLastBackup(time);
-      alert("Succès\n\nSauvegarde des données médicales effectuée avec succès !");
+      alert("Succès\n\nSauvegarde effectuée !");
     } catch (e: any) {
-      console.error(e);
-      alert("Erreur de sauvegarde\n\n" + e.message);
+      alert("Erreur\n\n" + e.message);
     } finally {
       setBackingUp(false);
     }
   };
 
   const handleRestore = async () => {
-    const confirmRestore = confirm 
-      ? confirm("Attention : Restauration des données\n\nCette action va écraser l'intégralité de vos données cliniques actuelles sur cet appareil par celles de votre Google Drive. Voulez-vous continuer ?")
-      : true;
-
-    if (!confirmRestore) return;
-
     setRestoring(true);
     try {
       await restoreDatabaseFromDrive();
-      alert("Succès\n\nDonnées restaurées avec succès !");
+      alert("Succès\n\nDonnées restaurées !");
     } catch (e: any) {
-      console.error(e);
-      alert("Erreur de restauration\n\n" + e.message);
+      alert("Erreur\n\n" + e.message);
     } finally {
       setRestoring(false);
     }
   };
-
-  const cleanRawName = (str: string | null | undefined): string => {
-    if (!str) return '';
-    return str.replace(/\b(dr|docteur)\.?\b/gi, '').replace(/\s+/g, ' ').trim();
-  };
-
-  // Synchronise les états locaux avec l'utilisateur global s'il change
-  useEffect(() => {
-    if (user) {
-      setNom(cleanRawName(user.nom));
-      setPrenom(cleanRawName(user.prenom));
-      setEmail(user.email);
-      setTelephone(user.telephone || '');
-    }
-  }, [user]);
-
-  const [signature, setSignature] = useState('');
-
-  useEffect(() => {
-    if (Platform.OS === 'web') {
-      const savedSig = localStorage.getItem('doctor_signature');
-      if (savedSig) setSignature(savedSig);
-    } else {
-      SecureStore.getItemAsync('doctor_signature')
-        .then((savedSig) => {
-          if (savedSig) setSignature(savedSig);
-        })
-        .catch(() => {});
-    }
-  }, []);
 
   const pickImage = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -215,10 +280,8 @@ export default function SettingsScreen() {
       quality: 0.5,
       base64: true,
     });
-
     if (!result.canceled && result.assets && result.assets[0].base64) {
-      const base64Image = `data:image/png;base64,${result.assets[0].base64}`;
-      setSignature(base64Image);
+      setSignature(`data:image/png;base64,${result.assets[0].base64}`);
     }
   };
 
@@ -230,74 +293,8 @@ export default function SettingsScreen() {
       quality: 0.5,
       base64: true,
     });
-
     if (!result.canceled && result.assets && result.assets[0].base64) {
-      const base64Image = `data:image/png;base64,${result.assets[0].base64}`;
-      setAvatar(base64Image);
-    }
-  };
-
-  const handleSaveProfile = async () => {
-    if (!prenom.trim() || !nom.trim() || !email.trim() || !telephone.trim()) {
-      alert("Champs obligatoires\n\nVeuillez renseigner le prénom, le nom, l'adresse email et le numéro de téléphone.");
-      return;
-    }
-
-    // Vérifier l'unicité de l'adresse email
-    const isEmailAvailable = await validateEmailUniqueness(email);
-    if (!isEmailAvailable) {
-      alert("Adresse email indisponible\n\nCette adresse email est déjà associée à un autre compte.");
-      return;
-    }
-
-    if (!currentPin.trim()) {
-      alert("Code PIN requis\n\nVeuillez saisir votre code PIN actuel pour valider les modifications.");
-      return;
-    }
-
-    setSaving(true);
-    try {
-      // 1. Valider le code PIN actuel de l'utilisateur
-      const pinIsValid = await verifyPIN(currentPin.trim());
-      if (!pinIsValid) {
-        alert("Code PIN actuel incorrect\n\nLe code PIN saisi n'est pas valide.");
-        setSaving(false);
-        return;
-      }
-
-      // 2. Déterminer le code PIN final à enregistrer
-      const finalPin = newPin.trim() ? newPin.trim() : currentPin.trim();
-
-      if (newPin.trim() && newPin.trim().length !== 4) {
-        alert("Nouveau PIN invalide\n\nLe nouveau code PIN doit comporter précisément 4 chiffres.");
-        setSaving(false);
-        return;
-      }
-
-      // 3. Mettre à jour dans la base locale et le secure store
-      const cleanNom = cleanRawName(nom);
-      const cleanPrenom = cleanRawName(prenom);
-      await setupSecurity(finalPin, cleanNom, cleanPrenom, email.trim(), telephone.trim());
-      setNom(cleanNom);
-      setPrenom(cleanPrenom);
-
-      // 4. Enregistrer la signature & la photo de profil
-      if (Platform.OS === 'web') {
-        localStorage.setItem('doctor_signature', signature);
-        localStorage.setItem('doctor_avatar', avatar);
-      } else {
-        await SecureStore.setItemAsync('doctor_signature', signature);
-        await SecureStore.setItemAsync('doctor_avatar', avatar);
-      }
-
-      alert("Succès\n\nVotre profil de médecin et vos identifiants de sécurité ont été mis à jour !");
-      setNewPin('');
-      setCurrentPin('');
-    } catch (e: any) {
-      console.error(e);
-      alert("Erreur\n\n" + (e.message || "Une erreur est survenue lors de la mise à jour du profil."));
-    } finally {
-      setSaving(false);
+      setAvatar(`data:image/png;base64,${result.assets[0].base64}`);
     }
   };
 
@@ -309,61 +306,180 @@ export default function SettingsScreen() {
       paddingBottom: insets.bottom,
     },
     web: {
-      paddingTop: 80,
+      paddingTop: 40,
       paddingBottom: Spacing.four,
     },
   });
 
-  const { themeMode, setThemeMode } = useThemePreference();
-
   return (
     <ScrollView
-      style={[styles.scrollView, { backgroundColor: theme.background }]}
-      contentInset={insets}
-      contentContainerStyle={[styles.contentContainer, contentPlatformStyle]}>
-      <ThemedView style={styles.container}>
-        <ThemedView style={styles.titleContainer}>
-          <ThemedText type="subtitle">Paramètres</ThemedText>
-          <ThemedText style={styles.centerText} themeColor="textSecondary">
-            Configuration du Cabinet Médical Privé{'\n'}
-            {(() => {
-              const raw = `${user?.prenom || ''} ${user?.nom || ''}`.replace(/(Dr\.?|Docteur)\s*/gi, '').trim();
-              return `Dr ${raw || 'Fallou Diop'}`;
-            })()}
-          </ThemedText>
-        </ThemedView>
+      style={styles.pageBackground}
+      contentContainerStyle={[styles.scrollContent, contentPlatformStyle]}
+    >
+      {/* 1. Header Simplifié & Élégant */}
+      <View style={styles.headerContainer}>
+        <Text style={styles.headerTitle}>Paramètres</Text>
+        <Text style={styles.headerSubtitle}>
+          Gérez les préférences de votre compte et du cabinet
+        </Text>
+      </View>
 
-        <ThemedView style={styles.sectionsWrapper}>
-          <Collapsible title="Identité du Docteur & Profil">
-            <View style={styles.formContainer}>
-              <View style={styles.inputGroup}>
-                <ThemedText style={styles.label}>Prénom *</ThemedText>
+      {/* 2. Liste Structurée des Menus dans un Conteneur Card Luxe */}
+      <View style={styles.menuContainer}>
+        {/* Item 1: Profil du Praticien */}
+        <TouchableOpacity
+          style={styles.menuCard}
+          activeOpacity={0.7}
+          onPress={() => setActiveModal('profile')}
+        >
+          <View style={styles.iconBadge}>
+            <Ionicons name="person-outline" size={22} color="#28C2FF" />
+          </View>
+          <View style={styles.menuTextGroup}>
+            <Text style={styles.menuTitle}>Profil du Praticien</Text>
+            <Text style={styles.menuSubtitle}>
+              Informations personnelles, spécialité, contact, signature
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color="#64748B" />
+        </TouchableOpacity>
+
+        {/* Item 2: Informations du Cabinet */}
+        <TouchableOpacity
+          style={styles.menuCard}
+          activeOpacity={0.7}
+          onPress={() => setActiveModal('cabinet')}
+        >
+          <View style={styles.iconBadge}>
+            <Ionicons name="business-outline" size={22} color="#28C2FF" />
+          </View>
+          <View style={styles.menuTextGroup}>
+            <Text style={styles.menuTitle}>Informations du Cabinet</Text>
+            <Text style={styles.menuSubtitle}>
+              Nom de la structure, adresse, téléphone, en-tête des ordonnances & logo
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color="#64748B" />
+        </TouchableOpacity>
+
+        {/* Item 3: Sécurité & Verrouillage */}
+        <TouchableOpacity
+          style={styles.menuCard}
+          activeOpacity={0.7}
+          onPress={() => setActiveModal('security')}
+        >
+          <View style={styles.iconBadge}>
+            <Ionicons name="shield-checkmark-outline" size={22} color="#28C2FF" />
+          </View>
+          <View style={styles.menuTextGroup}>
+            <Text style={styles.menuTitle}>Sécurité & Verrouillage</Text>
+            <Text style={styles.menuSubtitle}>
+              Code PIN, mot de passe, délai de verrouillage automatique
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color="#64748B" />
+        </TouchableOpacity>
+
+        {/* Item 4: Sauvegarde & Synchronisation */}
+        <TouchableOpacity
+          style={styles.menuCard}
+          activeOpacity={0.7}
+          onPress={() => setActiveModal('backup')}
+        >
+          <View style={styles.iconBadge}>
+            <Ionicons name="cloud-upload-outline" size={22} color="#28C2FF" />
+          </View>
+          <View style={styles.menuTextGroup}>
+            <Text style={styles.menuTitle}>Sauvegarde & Synchronisation</Text>
+            <Text style={styles.menuSubtitle}>
+              Sauvegarde cloud, export local et restauration des données
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color="#64748B" />
+        </TouchableOpacity>
+
+        {/* Item 5: Apparence & Thème */}
+        <TouchableOpacity
+          style={styles.menuCard}
+          activeOpacity={0.7}
+          onPress={() => setActiveModal('theme')}
+        >
+          <View style={styles.iconBadge}>
+            <Ionicons name="color-palette-outline" size={22} color="#28C2FF" />
+          </View>
+          <View style={styles.menuTextGroup}>
+            <Text style={styles.menuTitle}>Apparence & Thème</Text>
+            <Text style={styles.menuSubtitle}>
+              Mode sombre / clair, contraste et affichage
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color="#64748B" />
+        </TouchableOpacity>
+
+        {/* Item 6: À propos & Support */}
+        <TouchableOpacity
+          style={styles.menuCardLast}
+          activeOpacity={0.7}
+          onPress={() => setActiveModal('about')}
+        >
+          <View style={styles.iconBadge}>
+            <Ionicons name="information-circle-outline" size={22} color="#28C2FF" />
+          </View>
+          <View style={styles.menuTextGroup}>
+            <Text style={styles.menuTitle}>À propos & Support</Text>
+            <Text style={styles.menuSubtitle}>
+              Version de l'application (v1.0), aide et contact technique
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color="#64748B" />
+        </TouchableOpacity>
+      </View>
+
+      {/* ================= MODAL 1: PROFIL DU PRATICIEN ================= */}
+      <Modal
+        visible={activeModal === 'profile'}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setActiveModal(null)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Profil du Praticien</Text>
+              <TouchableOpacity onPress={() => setActiveModal(null)}>
+                <Ionicons name="close-circle" size={26} color="#94A3B8" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={styles.modalScroll}>
+              <View style={styles.formGroup}>
+                <Text style={styles.inputLabel}>Prénom *</Text>
                 <TextInput
-                  style={styles.input}
+                  style={styles.textInput}
                   placeholder="Prénom"
-                  placeholderTextColor="#9ca3af"
+                  placeholderTextColor="#94A3B8"
                   value={prenom}
                   onChangeText={setPrenom}
                 />
               </View>
 
-              <View style={styles.inputGroup}>
-                <ThemedText style={styles.label}>Nom de famille *</ThemedText>
+              <View style={styles.formGroup}>
+                <Text style={styles.inputLabel}>Nom de famille *</Text>
                 <TextInput
-                  style={styles.input}
+                  style={styles.textInput}
                   placeholder="Nom"
-                  placeholderTextColor="#9ca3af"
+                  placeholderTextColor="#94A3B8"
                   value={nom}
                   onChangeText={setNom}
                 />
               </View>
 
-              <View style={styles.inputGroup}>
-                <ThemedText style={styles.label}>Adresse Email *</ThemedText>
+              <View style={styles.formGroup}>
+                <Text style={styles.inputLabel}>Adresse Email *</Text>
                 <TextInput
-                  style={[styles.input, emailError ? { borderColor: '#FF6B6B', borderWidth: 2 } : null]}
+                  style={[styles.textInput, emailError ? { borderColor: '#FF6B6B', borderWidth: 1.5 } : null]}
                   placeholder="Email"
-                  placeholderTextColor="#9ca3af"
+                  placeholderTextColor="#94A3B8"
                   value={email}
                   onChangeText={(val) => {
                     setEmail(val);
@@ -374,31 +490,30 @@ export default function SettingsScreen() {
                   autoCapitalize="none"
                 />
                 {!!emailError && (
-                  <ThemedText style={{ color: '#FF6B6B', fontSize: 13, marginTop: 6, fontWeight: 'bold' }}>
-                    ⚠️ {emailError}
-                  </ThemedText>
+                  <Text style={styles.errorText}>⚠️ {emailError}</Text>
                 )}
               </View>
 
-              <View style={styles.inputGroup}>
-                <ThemedText style={styles.label}>Numéro de téléphone *</ThemedText>
+              <View style={styles.formGroup}>
+                <Text style={styles.inputLabel}>Numéro de Téléphone (9 chiffres max) *</Text>
                 <TextInput
-                  style={styles.input}
-                  placeholder="Ex: +221 77 123 45 67"
-                  placeholderTextColor="#9ca3af"
+                  style={styles.textInput}
+                  placeholder="Ex: 771234567"
+                  placeholderTextColor="#94A3B8"
                   value={telephone}
-                  onChangeText={setTelephone}
-                  keyboardType="phone-pad"
+                  onChangeText={(txt) => setTelephone(txt.replace(/\D/g, '').slice(0, 9))}
+                  keyboardType="number-pad"
+                  maxLength={9}
                 />
               </View>
 
               <View style={{ flexDirection: 'row', gap: 12 }}>
-                <View style={[styles.inputGroup, { flex: 1 }]}>
-                  <ThemedText style={styles.label}>Nouveau PIN (optionnel)</ThemedText>
+                <View style={[styles.formGroup, { flex: 1 }]}>
+                  <Text style={styles.inputLabel}>Nouveau PIN (optionnel)</Text>
                   <TextInput
-                    style={styles.input}
-                    placeholder="Nouveau code PIN"
-                    placeholderTextColor="#9ca3af"
+                    style={styles.textInput}
+                    placeholder="4 chiffres"
+                    placeholderTextColor="#94A3B8"
                     value={newPin}
                     onChangeText={setNewPin}
                     keyboardType="numeric"
@@ -407,12 +522,12 @@ export default function SettingsScreen() {
                   />
                 </View>
 
-                <View style={[styles.inputGroup, { flex: 1 }]}>
-                  <ThemedText style={styles.label}>PIN actuel (obligatoire) *</ThemedText>
+                <View style={[styles.formGroup, { flex: 1 }]}>
+                  <Text style={styles.inputLabel}>PIN actuel *</Text>
                   <TextInput
-                    style={styles.inputCurrentPin}
-                    placeholder="Saisir PIN actuel"
-                    placeholderTextColor="#9ca3af"
+                    style={[styles.textInput, { borderColor: '#28C2FF' }]}
+                    placeholder="PIN actuel"
+                    placeholderTextColor="#94A3B8"
                     value={currentPin}
                     onChangeText={setCurrentPin}
                     keyboardType="numeric"
@@ -422,514 +537,637 @@ export default function SettingsScreen() {
                 </View>
               </View>
 
-              <View style={styles.inputGroup}>
-                <ThemedText style={styles.label}>Photo de Profil du Médecin</ThemedText>
+              <View style={styles.formGroup}>
+                <Text style={styles.inputLabel}>Photo de Profil du Médecin</Text>
                 {avatar ? (
-                  <View style={styles.signaturePreviewContainer}>
-                    <Image source={{ uri: avatar }} style={[styles.signatureImage, { width: 80, height: 80, borderRadius: 40 }]} />
-                    <TouchableOpacity style={styles.sigClearBtn} onPress={() => setAvatar('')}>
-                      <ThemedText style={styles.sigClearBtnText}>Supprimer</ThemedText>
+                  <View style={styles.imagePreviewContainer}>
+                    <Image source={{ uri: avatar }} style={styles.avatarPreview} />
+                    <TouchableOpacity style={styles.removeBtn} onPress={() => setAvatar('')}>
+                      <Text style={styles.removeBtnText}>Supprimer photo</Text>
                     </TouchableOpacity>
                   </View>
                 ) : (
-                  <TouchableOpacity style={styles.sigUploadBtn} onPress={pickAvatar}>
-                    <ThemedText style={styles.sigUploadBtnText}>Téléverser une photo de profil</ThemedText>
+                  <TouchableOpacity style={styles.uploadBtn} onPress={pickAvatar}>
+                    <Ionicons name="camera-outline" size={18} color="#28C2FF" />
+                    <Text style={styles.uploadBtnText}>Téléverser une photo de profil</Text>
                   </TouchableOpacity>
                 )}
               </View>
 
-              <View style={styles.inputGroup}>
-                <ThemedText style={styles.label}>Signature du Médecin (pour les ordonnances et certificats)</ThemedText>
+              <View style={styles.formGroup}>
+                <Text style={styles.inputLabel}>Signature du Médecin (pour ordonnances & certificats)</Text>
                 {signature ? (
-                  <View style={styles.signaturePreviewContainer}>
-                    <Image source={{ uri: signature }} style={styles.signatureImage} />
-                    <TouchableOpacity style={styles.sigClearBtn} onPress={() => setSignature('')}>
-                      <ThemedText style={styles.sigClearBtnText}>Supprimer</ThemedText>
+                  <View style={styles.imagePreviewContainer}>
+                    <Image source={{ uri: signature }} style={styles.signaturePreview} />
+                    <TouchableOpacity style={styles.removeBtn} onPress={() => setSignature('')}>
+                      <Text style={styles.removeBtnText}>Supprimer signature</Text>
                     </TouchableOpacity>
                   </View>
                 ) : (
-                  <TouchableOpacity style={styles.sigUploadBtn} onPress={pickImage}>
-                    <ThemedText style={styles.sigUploadBtnText}>Téléverser une image de signature</ThemedText>
+                  <TouchableOpacity style={styles.uploadBtn} onPress={pickImage}>
+                    <Ionicons name="pencil-outline" size={18} color="#28C2FF" />
+                    <Text style={styles.uploadBtnText}>Téléverser une image de signature</Text>
                   </TouchableOpacity>
                 )}
               </View>
 
               <TouchableOpacity
-                style={styles.saveButton}
+                style={styles.saveSubmitBtn}
                 onPress={handleSaveProfile}
-                disabled={saving}>
+                disabled={saving}
+              >
                 {saving ? (
                   <ActivityIndicator size="small" color="#0F2C3D" />
                 ) : (
-                  <ThemedText style={styles.saveButtonText}>Enregistrer les modifications</ThemedText>
+                  <Text style={styles.saveSubmitBtnText}>Enregistrer le profil</Text>
                 )}
               </TouchableOpacity>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ================= MODAL 2: INFORMATIONS DU CABINET ================= */}
+      <Modal
+        visible={activeModal === 'cabinet'}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setActiveModal(null)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Informations du Cabinet</Text>
+              <TouchableOpacity onPress={() => setActiveModal(null)}>
+                <Ionicons name="close-circle" size={26} color="#94A3B8" />
+              </TouchableOpacity>
             </View>
-          </Collapsible>
 
-          <Collapsible title="Sécurité & Verrouillage">
-            <ThemedText type="small">
-              Le verrouillage automatique est activé et se déclenche après 2 minutes d'inactivité pour garantir le respect du secret médical. Les clés de cryptage AES-256 locales protègent vos données cliniques.
-            </ThemedText>
-          </Collapsible>
+            <ScrollView style={styles.modalScroll}>
+              <View style={styles.formGroup}>
+                <Text style={styles.inputLabel}>Nom de la structure / Cabinet *</Text>
+                <TextInput
+                  style={styles.textInput}
+                  placeholder="Ex: Cabinet Médical Privé"
+                  placeholderTextColor="#94A3B8"
+                  value={cabinetNom}
+                  onChangeText={setCabinetNom}
+                />
+              </View>
 
-          <Collapsible title="Sauvegarde & Restauration Google Drive">
-            <View style={styles.backupContainer}>
+              <View style={styles.formGroup}>
+                <Text style={styles.inputLabel}>Adresse de l'établissement</Text>
+                <TextInput
+                  style={styles.textInput}
+                  placeholder="Ex: Dakar, Liberté 6 Extension"
+                  placeholderTextColor="#94A3B8"
+                  value={cabinetAdresse}
+                  onChangeText={setCabinetAdresse}
+                />
+              </View>
+
+              <View style={styles.formGroup}>
+                <Text style={styles.inputLabel}>Téléphone fixe / secrétariat</Text>
+                <TextInput
+                  style={styles.textInput}
+                  placeholder="Ex: +221 33 825 00 00"
+                  placeholderTextColor="#94A3B8"
+                  value={cabinetPhone}
+                  onChangeText={setCabinetPhone}
+                />
+              </View>
+
+              <View style={styles.formGroup}>
+                <Text style={styles.inputLabel}>En-tête personnalisé des Ordonnance & Certificats</Text>
+                <TextInput
+                  style={styles.textInput}
+                  placeholder="Ex: Consultations, Soins & Suivi Médical"
+                  placeholderTextColor="#94A3B8"
+                  value={cabinetHeader}
+                  onChangeText={setCabinetHeader}
+                />
+              </View>
+
+              <TouchableOpacity
+                style={styles.saveSubmitBtn}
+                onPress={handleSaveCabinet}
+              >
+                <Text style={styles.saveSubmitBtnText}>Enregistrer le cabinet</Text>
+              </TouchableOpacity>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ================= MODAL 3: SÉCURITÉ & VERROUILLAGE ================= */}
+      <Modal
+        visible={activeModal === 'security'}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setActiveModal(null)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Sécurité & Verrouillage</Text>
+              <TouchableOpacity onPress={() => setActiveModal(null)}>
+                <Ionicons name="close-circle" size={26} color="#94A3B8" />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.modalScroll}>
+              <View style={styles.infoBadgeBox}>
+                <Ionicons name="shield-checkmark" size={24} color="#28C2FF" />
+                <Text style={styles.infoBadgeTitle}>Chiffrement Médical AES-256</Text>
+                <Text style={styles.infoBadgeDesc}>
+                  Vos dossiers patients et données cliniques sont chiffrés localement sur votre appareil. Le verrouillage automatique par code PIN se déclenche après 2 minutes d'inactivité.
+                </Text>
+              </View>
+
+              <TouchableOpacity
+                style={[styles.saveSubmitBtn, { marginTop: 20 }]}
+                onPress={() => {
+                  setActiveModal('profile');
+                }}
+              >
+                <Text style={styles.saveSubmitBtnText}>Modifier mon Code PIN (4 chiffres)</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ================= MODAL 4: SAUVEGARDE & SYNCHRONISATION ================= */}
+      <Modal
+        visible={activeModal === 'backup'}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setActiveModal(null)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Sauvegarde & Synchronisation</Text>
+              <TouchableOpacity onPress={() => setActiveModal(null)}>
+                <Ionicons name="close-circle" size={26} color="#94A3B8" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={styles.modalScroll}>
               {googleUser ? (
-                <View style={styles.googleProfile}>
-                  <View style={styles.googleUserRow}>
+                <View style={styles.backupCardContent}>
+                  <View style={styles.userGoogleRow}>
                     <Image
                       source={avatar ? { uri: avatar } : require('../../assets/images/favicon.png')}
-                      style={styles.googleAvatar}
+                      style={styles.userGoogleAvatar}
                     />
-                    <View style={styles.googleMeta}>
-                      <ThemedText style={styles.googleName}>Dr {prenom.trim()} {nom.trim()}</ThemedText>
-                      <ThemedText style={styles.googleEmail}>{email.trim()}</ThemedText>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.userGoogleName}>Dr {prenom.trim()} {nom.trim()}</Text>
+                      <Text style={styles.userGoogleEmail}>{email.trim()}</Text>
                     </View>
                   </View>
 
-                  <ThemedText style={styles.backupStatus}>
+                  <Text style={styles.lastBackupText}>
                     Dernière sauvegarde : {lastBackup ? new Date(lastBackup).toLocaleString('fr-FR') : 'Aucune'}
-                  </ThemedText>
+                  </Text>
 
-                  <View style={styles.backupActions}>
+                  <View style={{ gap: 10, marginTop: 12 }}>
                     <TouchableOpacity
-                      style={[styles.actionBtn, styles.backupBtn]}
+                      style={styles.backupRunBtn}
                       onPress={handleBackup}
-                      disabled={backingUp}>
+                      disabled={backingUp}
+                    >
                       {backingUp ? (
                         <ActivityIndicator size="small" color="#0F2C3D" />
                       ) : (
-                        <ThemedText style={styles.actionBtnText}>Sauvegarder Maintenant</ThemedText>
+                        <Text style={styles.backupRunBtnText}>⚡ Sauvegarder Maintenant</Text>
                       )}
                     </TouchableOpacity>
 
                     <TouchableOpacity
-                      style={[styles.actionBtn, styles.restoreBtn]}
+                      style={styles.restoreRunBtn}
                       onPress={handleRestore}
-                      disabled={restoring}>
+                      disabled={restoring}
+                    >
                       {restoring ? (
                         <ActivityIndicator size="small" color="#FFFFFF" />
                       ) : (
-                        <ThemedText style={[styles.actionBtnText, { color: '#FFFFFF' }]}>Restaurer la base</ThemedText>
+                        <Text style={styles.restoreRunBtnText}>📥 Restaurer la base de données</Text>
                       )}
                     </TouchableOpacity>
                   </View>
 
-                  <TouchableOpacity style={styles.googleLogoutBtn} onPress={handleGoogleLogout}>
-                    <ThemedText style={styles.googleLogoutBtnText}>Déconnecter Google Drive</ThemedText>
+                  <TouchableOpacity style={styles.logoutGoogleBtn} onPress={handleGoogleLogout}>
+                    <Text style={styles.logoutGoogleBtnText}>Déconnecter Google Drive</Text>
                   </TouchableOpacity>
                 </View>
               ) : (
-                <View style={[styles.googleEmpty, Platform.OS === 'web' && ({ boxSizing: 'border-box', maxWidth: '100%', overflow: 'hidden' } as any)]}>
-                  {(() => {
-                    const rawName = `${user?.prenom || ''} ${user?.nom || ''}`.replace(/(Dr\.?|Docteur)\s*/gi, '').trim();
-                    const activeDocName = rawName ? `Dr ${rawName}` : 'du médecin connecté';
-                    const activeDocEmail = email || user?.email || 'compte Google';
-                    return (
-                      <>
-                        <ThemedText
-                          style={[
-                            styles.googleEmptyText,
-                            { marginBottom: 12 },
-                            Platform.OS === 'web' && ({ wordBreak: 'break-word', overflowWrap: 'anywhere', whiteSpace: 'normal' } as any)
-                          ]}
-                        >
-                          Activez la sauvegarde cloud automatique sur le compte Google du <ThemedText style={{ fontWeight: 'bold', color: '#28C2FF' }}>{activeDocName}</ThemedText> (<ThemedText style={[Platform.OS === 'web' && ({ wordBreak: 'break-word', overflowWrap: 'anywhere' } as any), { color: '#28C2FF' }]}>{activeDocEmail}</ThemedText>).
-                        </ThemedText>
+                <View style={styles.backupCardContent}>
+                  <Text style={styles.backupIntroText}>
+                    Sauvegardez l'intégralité de vos dossiers cliniques de façon sécurisée et synchronisez-les entre vos appareils mobile et ordinateur.
+                  </Text>
 
-                        <TouchableOpacity
-                          style={[
-                            styles.googleLoginBtn,
-                            { marginVertical: 6, backgroundColor: '#28C2FF', paddingVertical: 14, paddingHorizontal: 12, width: '100%' },
-                            Platform.OS === 'web' && ({ boxSizing: 'border-box', maxWidth: '100%' } as any)
-                          ]}
-                          onPress={handleGoogleLogin}
-                          disabled={saving}
-                        >
-                          <ThemedText
-                            style={[
-                              styles.googleLoginBtnText,
-                              { color: '#0F2C3D', fontWeight: 'bold', textAlign: 'center' },
-                              Platform.OS === 'web' && ({ wordBreak: 'break-word', overflowWrap: 'anywhere', whiteSpace: 'normal' } as any)
-                            ]}
-                          >
-                            Connecter Google Drive{'\n'}({activeDocEmail})
-                          </ThemedText>
-                        </TouchableOpacity>
-                      </>
-                    );
-                  })()}
-
-                  <View style={[{ width: '100%', maxWidth: '100%' }, Platform.OS === 'web' && ({ boxSizing: 'border-box' } as any)]}>
-                    <Collapsible title="Option avancée : Coller un Jeton Google OAuth2">
-                      <View style={[{ width: '100%', marginVertical: 10 }, Platform.OS === 'web' && ({ boxSizing: 'border-box' } as any)]}>
-                        <TextInput
-                          style={styles.input}
-                          placeholder="Coller le Jeton Google (ya29...)"
-                          placeholderTextColor="#9ca3af"
-                          value={customToken}
-                          onChangeText={setCustomToken}
-                          secureTextEntry
-                        />
-                        <TouchableOpacity
-                          style={[
-                            styles.googleLoginBtn,
-                            { marginTop: 8, backgroundColor: '#1E3E52' },
-                            Platform.OS === 'web' && ({ boxSizing: 'border-box', maxWidth: '100%' } as any)
-                          ]}
-                          onPress={handleSaveToken}
-                          disabled={saving}
-                        >
-                          <ThemedText
-                            style={[
-                              styles.googleLoginBtnText,
-                              Platform.OS === 'web' && ({ wordBreak: 'break-word', overflowWrap: 'anywhere', whiteSpace: 'normal' } as any)
-                            ]}
-                          >
-                            {saving ? 'Validation...' : 'Valider Jeton Personnalisé'}
-                          </ThemedText>
-                        </TouchableOpacity>
-                      </View>
-                    </Collapsible>
-                  </View>
+                  <TouchableOpacity
+                    style={styles.loginGoogleBtn}
+                    onPress={handleGoogleLogin}
+                    disabled={saving}
+                  >
+                    <Ionicons name="logo-google" size={18} color="#0F2C3D" />
+                    <Text style={styles.loginGoogleBtnText}>Connexion Google Drive</Text>
+                  </TouchableOpacity>
                 </View>
               )}
-            </View>
-          </Collapsible>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
 
-          <Collapsible title="Apparence & Thème">
-            <View style={styles.themeContainer}>
-              <ThemedText style={styles.label}>Mode d'affichage de l'application</ThemedText>
-              <View style={styles.themeOptions}>
-                {(['light', 'dark', 'system'] as const).map((mode) => {
-                  const isActive = themeMode === mode;
-                  const labels = {
-                    light: 'Clair',
-                    dark: 'Sombre',
-                    system: 'Système',
-                  };
-                  return (
-                    <TouchableOpacity
-                      key={mode}
-                      style={[
-                        styles.themeBtn,
-                        isActive && styles.themeBtnActive,
-                      ]}
-                      onPress={() => setThemeMode(mode)}
-                    >
-                      <ThemedText
-                        style={[
-                          styles.themeBtnText,
-                          isActive && styles.themeBtnTextActive,
-                        ]}
-                      >
-                        {labels[mode]}
-                      </ThemedText>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
+      {/* ================= MODAL 5: APPARENCE & THÈME ================= */}
+      <Modal
+        visible={activeModal === 'theme'}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setActiveModal(null)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Apparence & Thème</Text>
+              <TouchableOpacity onPress={() => setActiveModal(null)}>
+                <Ionicons name="close-circle" size={26} color="#94A3B8" />
+              </TouchableOpacity>
             </View>
-          </Collapsible>
-        </ThemedView>
-      </ThemedView>
+
+            <View style={styles.modalScroll}>
+              <TouchableOpacity
+                style={[styles.themeOptionRow, themeMode === 'dark' && styles.themeOptionActive]}
+                onPress={() => setThemeMode('dark')}
+              >
+                <Ionicons name="moon-outline" size={20} color="#28C2FF" />
+                <Text style={styles.themeOptionText}>Mode Sombre Pro (Recommandé)</Text>
+                {themeMode === 'dark' && <Ionicons name="checkmark" size={20} color="#28C2FF" />}
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.themeOptionRow, themeMode === 'light' && styles.themeOptionActive]}
+                onPress={() => setThemeMode('light')}
+              >
+                <Ionicons name="sunny-outline" size={20} color="#28C2FF" />
+                <Text style={styles.themeOptionText}>Mode Clair</Text>
+                {themeMode === 'light' && <Ionicons name="checkmark" size={20} color="#28C2FF" />}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ================= MODAL 6: À PROPOS & SUPPORT ================= */}
+      <Modal
+        visible={activeModal === 'about'}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setActiveModal(null)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>À propos de MedRecord</Text>
+              <TouchableOpacity onPress={() => setActiveModal(null)}>
+                <Ionicons name="close-circle" size={26} color="#94A3B8" />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.modalScroll}>
+              <View style={{ alignItems: 'center', marginVertical: 12 }}>
+                <Ionicons name="medical" size={48} color="#28C2FF" />
+                <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#FFFFFF', marginTop: 8 }}>
+                  MedRecord Pro
+                </Text>
+                <Text style={{ fontSize: 13, color: '#94A3B8', marginTop: 2 }}>
+                  Version 1.0.0 (Production Release)
+                </Text>
+              </View>
+
+              <Text style={{ fontSize: 13, color: '#CBD5E1', textAlign: 'center', lineHeight: 20 }}>
+                Plateforme médicale intelligente de gestion de dossier patient électronique (DPE), ordonnances et certificats conformes.
+              </Text>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  scrollView: {
+  pageBackground: {
     flex: 1,
-    width: '100%',
+    backgroundColor: '#0F172A', // Slate 900 dark background
   },
-  contentContainer: {
-    flexDirection: 'column',
+  scrollContent: {
+    paddingHorizontal: 20,
+  },
+  headerContainer: {
+    marginBottom: 24,
+    paddingTop: 12,
+  },
+  headerTitle: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+  },
+  headerSubtitle: {
+    fontSize: 14,
+    color: '#94A3B8',
+    marginTop: 4,
+    fontWeight: '400',
+  },
+  menuContainer: {
+    backgroundColor: '#1E293B', // Slate 800
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#334155', // Slate 700
+    overflow: 'hidden',
+  },
+  menuCard: {
+    flexDirection: 'row',
     alignItems: 'center',
-    width: '100%',
-    paddingHorizontal: 12,
     paddingVertical: 16,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#334155',
   },
-  container: {
-    width: '100%',
-    maxWidth: MaxContentWidth,
-    flexDirection: 'column',
-    gap: Spacing.four,
-  },
-  titleContainer: {
-    gap: Spacing.two,
-    alignItems: 'center',
-    paddingHorizontal: Spacing.two,
-    paddingVertical: Spacing.four,
-    width: '100%',
-  },
-  centerText: {
-    textAlign: 'center',
-    width: '100%',
-  },
-  pressed: {
-    opacity: 0.7,
-  },
-  linkButton: {
+  menuCardLast: {
     flexDirection: 'row',
-    paddingHorizontal: Spacing.four,
-    paddingVertical: Spacing.two,
-    borderRadius: Spacing.five,
-    justifyContent: 'center',
-    gap: Spacing.one,
     alignItems: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 16,
   },
-  sectionsWrapper: {
-    gap: Spacing.five,
-    width: '100%',
-    paddingHorizontal: 0,
-    paddingTop: Spacing.three,
-  },
-  formContainer: {
-    paddingVertical: 12,
-    gap: 12,
-    width: '100%',
-  },
-  inputGroup: {
-    gap: 6,
-    width: '100%',
-  },
-  label: {
-    color: '#8AC8F9',
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  input: {
-    backgroundColor: '#1E3E52',
-    borderWidth: 1,
-    borderColor: '#2F5C77',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    height: 40,
-    color: '#FFFFFF',
-    fontSize: 14,
-    width: '100%',
-  },
-  inputCurrentPin: {
-    backgroundColor: '#1E3E52',
-    borderWidth: 1,
-    borderColor: '#FF6B6B',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    height: 40,
-    color: '#FFFFFF',
-    fontSize: 14,
-    width: '100%',
-  },
-  saveButton: {
-    backgroundColor: '#28C2FF',
+  iconBadge: {
+    width: 44,
     height: 44,
-    borderRadius: 22,
+    borderRadius: 12,
+    backgroundColor: '#0F172A',
     justifyContent: 'center',
     alignItems: 'center',
-    marginTop: 8,
-    width: '100%',
-  },
-  saveButtonText: {
-    color: '#0F2C3D',
-    fontWeight: 'bold',
-    fontSize: 14,
-    textAlign: 'center',
-  },
-  themeContainer: {
-    paddingVertical: 12,
-    gap: 12,
-    width: '100%',
-  },
-  themeOptions: {
-    flexDirection: 'row',
-    gap: 8,
-    width: '100%',
-  },
-  themeBtn: {
-    flex: 1,
-    backgroundColor: '#1E3E52',
+    marginRight: 14,
     borderWidth: 1,
-    borderColor: '#2F5C77',
-    paddingVertical: 10,
-    borderRadius: 8,
-    alignItems: 'center',
+    borderColor: '#334155',
+  },
+  menuTextGroup: {
+    flex: 1,
+    paddingRight: 8,
+  },
+  menuTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  menuSubtitle: {
+    fontSize: 13,
+    color: '#94A3B8',
+    marginTop: 3,
+    lineHeight: 18,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.85)',
     justifyContent: 'center',
-    minWidth: 0,
+    alignItems: 'center',
+    padding: 20,
   },
-  themeBtnActive: {
-    backgroundColor: '#28C2FF',
-    borderColor: '#28C2FF',
+  modalCard: {
+    width: '100%',
+    maxWidth: 540,
+    backgroundColor: '#1E293B',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#334155',
+    padding: 20,
+    maxHeight: '90%',
   },
-  themeBtnText: {
-    color: '#8AC8F9',
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#334155',
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+  },
+  modalScroll: {
+    maxHeight: 520,
+  },
+  formGroup: {
+    marginBottom: 16,
+  },
+  inputLabel: {
     fontSize: 13,
     fontWeight: '600',
+    color: '#8AC8F9',
+    marginBottom: 6,
   },
-  themeBtnTextActive: {
-    color: '#0F2C3D',
-    fontWeight: 'bold',
-  },
-  signaturePreviewContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    backgroundColor: '#0F2C3D',
-    borderWidth: 1,
-    borderColor: '#2F5C77',
-    borderRadius: 8,
-    padding: 10,
-    width: '100%',
-  },
-  signatureImage: {
-    width: 100,
-    height: 50,
-    borderRadius: 4,
-  },
-  sigClearBtn: {
-    backgroundColor: '#FF6B6B',
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 6,
-  },
-  sigClearBtnText: {
-    color: '#0F2C3D',
-    fontWeight: 'bold',
-    fontSize: 12,
-  },
-  sigUploadBtn: {
-    backgroundColor: '#0F2C3D',
-    borderWidth: 1,
-    borderColor: '#2F5C77',
-    borderRadius: 8,
-    height: 48,
-    justifyContent: 'center',
-    alignItems: 'center',
-    width: '100%',
-  },
-  sigUploadBtnText: {
-    color: '#28C2FF',
-    fontWeight: 'bold',
-    fontSize: 13,
-    textAlign: 'center',
-  },
-  backupContainer: {
-    paddingVertical: 12,
-    gap: 12,
-    width: '100%',
-  },
-  googleProfile: {
-    gap: 16,
-    width: '100%',
-  },
-  googleUserRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    backgroundColor: '#0F2C3D',
-    borderWidth: 1,
-    borderColor: '#2F5C77',
+  textInput: {
+    backgroundColor: '#0F172A',
+    color: '#FFFFFF',
     borderRadius: 10,
     padding: 12,
-    width: '100%',
+    fontSize: 15,
+    borderWidth: 1,
+    borderColor: '#334155',
   },
-  googleAvatar: {
+  errorText: {
+    color: '#FF6B6B',
+    fontSize: 13,
+    marginTop: 6,
+    fontWeight: 'bold',
+  },
+  uploadBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#0F172A',
+    borderWidth: 1,
+    borderColor: '#334155',
+    borderRadius: 10,
+    padding: 14,
+  },
+  uploadBtnText: {
+    color: '#28C2FF',
+    fontWeight: '600',
+    fontSize: 14,
+  },
+  imagePreviewContainer: {
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#0F172A',
+    padding: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#334155',
+  },
+  avatarPreview: {
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+  },
+  signaturePreview: {
+    width: 200,
+    height: 80,
+    resizeMode: 'contain',
+  },
+  removeBtn: {
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+  },
+  removeBtnText: {
+    color: '#FF6B6B',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  saveSubmitBtn: {
+    backgroundColor: '#28C2FF',
+    borderRadius: 10,
+    paddingVertical: 14,
+    alignItems: 'center',
+    marginTop: 8,
+    marginBottom: 12,
+  },
+  saveSubmitBtnText: {
+    color: '#0F2C3D',
+    fontWeight: 'bold',
+    fontSize: 15,
+  },
+  infoBadgeBox: {
+    alignItems: 'center',
+    backgroundColor: '#0F172A',
+    padding: 20,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#334155',
+  },
+  infoBadgeTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+    marginTop: 8,
+  },
+  infoBadgeDesc: {
+    fontSize: 13,
+    color: '#94A3B8',
+    textAlign: 'center',
+    marginTop: 6,
+    lineHeight: 18,
+  },
+  backupCardContent: {
+    backgroundColor: '#0F172A',
+    padding: 16,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#334155',
+  },
+  userGoogleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 12,
+  },
+  userGoogleAvatar: {
     width: 44,
     height: 44,
     borderRadius: 22,
   },
-  googleMeta: {
-    flex: 1,
-    minWidth: 0,
-  },
-  googleName: {
-    color: '#FFFFFF',
+  userGoogleName: {
     fontSize: 15,
     fontWeight: 'bold',
+    color: '#FFFFFF',
   },
-  googleEmail: {
-    color: '#8AC8F9',
+  userGoogleEmail: {
+    fontSize: 13,
+    color: '#94A3B8',
+  },
+  lastBackupText: {
     fontSize: 12,
+    color: '#28C2FF',
+    fontWeight: '600',
+    marginBottom: 8,
   },
-  backupStatus: {
-    color: '#8AC8F9',
+  backupRunBtn: {
+    backgroundColor: '#28C2FF',
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  backupRunBtnText: {
+    color: '#0F2C3D',
+    fontWeight: 'bold',
+    fontSize: 14,
+  },
+  restoreRunBtn: {
+    backgroundColor: '#334155',
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  restoreRunBtnText: {
+    color: '#FFFFFF',
+    fontWeight: 'bold',
+    fontSize: 14,
+  },
+  logoutGoogleBtn: {
+    marginTop: 14,
+    alignItems: 'center',
+  },
+  logoutGoogleBtnText: {
+    color: '#FF6B6B',
     fontSize: 13,
     fontWeight: '600',
-    backgroundColor: '#0F2C3D',
-    padding: 10,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#2F5C77',
-    textAlign: 'center',
-    width: '100%',
   },
-  backupActions: {
-    flexDirection: 'column',
-    gap: 10,
-    width: '100%',
+  backupIntroText: {
+    fontSize: 14,
+    color: '#CBD5E1',
+    lineHeight: 20,
+    marginBottom: 14,
   },
-  actionBtn: {
-    width: '100%',
-    paddingVertical: 12,
-    paddingHorizontal: 12,
-    borderRadius: 10,
-    justifyContent: 'center',
+  loginGoogleBtn: {
+    flexDirection: 'row',
     alignItems: 'center',
-  },
-  backupBtn: {
+    justifyContent: 'center',
+    gap: 8,
     backgroundColor: '#28C2FF',
+    paddingVertical: 14,
+    borderRadius: 10,
   },
-  restoreBtn: {
-    backgroundColor: '#E67E22',
-  },
-  actionBtnText: {
+  loginGoogleBtnText: {
     color: '#0F2C3D',
     fontWeight: 'bold',
-    fontSize: 13,
-    textAlign: 'center',
+    fontSize: 14,
   },
-  googleLogoutBtn: {
+  themeOptionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: '#0F172A',
+    padding: 16,
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#FF6B6B',
-    borderRadius: 10,
-    paddingVertical: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginTop: 6,
-    width: '100%',
+    borderColor: '#334155',
+    marginBottom: 10,
   },
-  googleLogoutBtnText: {
-    color: '#FF6B6B',
-    fontWeight: 'bold',
-    fontSize: 13,
-    textAlign: 'center',
+  themeOptionActive: {
+    borderColor: '#28C2FF',
+    backgroundColor: '#1E3E52',
   },
-  googleEmpty: {
-    alignItems: 'center',
-    gap: 14,
-    paddingVertical: 10,
-    width: '100%',
-  },
-  googleEmptyText: {
-    color: '#D1E6F3',
-    fontSize: 13,
-    textAlign: 'center',
-    lineHeight: 18,
-    width: '100%',
-  },
-  googleLoginBtn: {
-    backgroundColor: '#28C2FF',
-    paddingVertical: 12,
-    paddingHorizontal: 12,
-    borderRadius: 10,
-    justifyContent: 'center',
-    alignItems: 'center',
-    width: '100%',
-  },
-  googleLoginBtnText: {
-    color: '#0F2C3D',
-    fontWeight: 'bold',
-    fontSize: 13,
-    textAlign: 'center',
+  themeOptionText: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#FFFFFF',
   },
 });
