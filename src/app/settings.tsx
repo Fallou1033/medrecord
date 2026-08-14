@@ -326,7 +326,7 @@ export default function SettingsScreen() {
 
       {/* 2. Liste Structurée des Menus dans un Conteneur Card Luxe */}
       <View style={styles.menuContainer}>
-        {/* Item 1: Profil du Praticien */}
+        {/* Item 1: Profil du Médecin */}
         <TouchableOpacity
           style={styles.menuCard}
           activeOpacity={0.7}
@@ -435,7 +435,7 @@ export default function SettingsScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* ================= MODAL 1: PROFIL DU PRATICIEN ================= */}
+      {/* ================= MODAL 1: PROFIL DU MÉDECIN ================= */}
       <Modal
         visible={activeModal === 'profile'}
         animationType="slide"
