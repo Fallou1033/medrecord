@@ -101,7 +101,7 @@ export default function CreateConsultationScreen() {
   const [conseils, setConseils] = useState('');
   const [dateControle, setDateControle] = useState(defaultControlDate);
 
-  const [allPatients, setAllPatients] = useState<Patient[]>([]);
+  const [allPatients, setAllPatients] = useState<any[]>([]);
   const [selectedPatientId, setSelectedPatientId] = useState<string>(patientId || '');
 
   useEffect(() => {
@@ -366,20 +366,64 @@ export default function CreateConsultationScreen() {
         style={styles.container}
       >
         <View style={styles.header}>
-          <Link href={`/patients/${patientId}`} asChild>
-            <TouchableOpacity style={styles.backButton}>
-              <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
-            </TouchableOpacity>
-          </Link>
+          <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+            <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+          </TouchableOpacity>
           <Text style={styles.title}>Nouvelle Visite</Text>
           <View style={styles.placeholder} />
         </View>
 
-        {patient && (
+        {patient ? (
           <View style={styles.patientBanner}>
             <Text style={styles.patientBannerName}>
-              Patient: {patient.prenom} {patient.nom.toUpperCase()} ({patient.numero_dossier})
+              Patient: {patient.prenom} {patient.nom?.toUpperCase()} ({patient.numero_dossier})
             </Text>
+          </View>
+        ) : (
+          <View style={styles.patientBanner}>
+            <Text style={{ color: '#8AC8F9', fontSize: 13, fontWeight: 'bold', marginBottom: 6 }}>
+              Sélectionner le patient pour cette consultation *
+            </Text>
+            {allPatients.length === 0 ? (
+              <View style={{ gap: 8 }}>
+                <Text style={{ color: '#FF6B6B', fontSize: 13 }}>Aucun patient disponible dans la base.</Text>
+                <TouchableOpacity
+                  style={{ backgroundColor: '#28C2FF', padding: 8, borderRadius: 6, alignItems: 'center' }}
+                  onPress={() => router.push('/patients/create')}
+                >
+                  <Text style={{ color: '#0F2C3D', fontWeight: 'bold' }}>+ Créer un nouveau patient</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                <View style={{ flexDirection: 'row', gap: 8 }}>
+                  {allPatients.map((p: any) => {
+                    const isSelected = ((patient as any)?.id || selectedPatientId) === p.id;
+                    return (
+                      <TouchableOpacity
+                        key={p.id}
+                        style={{
+                          backgroundColor: isSelected ? '#28C2FF' : '#1E3E52',
+                          paddingHorizontal: 12,
+                          paddingVertical: 8,
+                          borderRadius: 8,
+                          borderWidth: 1,
+                          borderColor: isSelected ? '#28C2FF' : '#2F5C77',
+                        }}
+                        onPress={() => {
+                          setSelectedPatientId(p.id);
+                          setPatient(p);
+                        }}
+                      >
+                        <Text style={{ color: isSelected ? '#0F2C3D' : '#FFFFFF', fontWeight: 'bold', fontSize: 12 }}>
+                          {p.prenom} {p.nom?.toUpperCase()} ({p.numero_dossier})
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </ScrollView>
+            )}
           </View>
         )}
 
