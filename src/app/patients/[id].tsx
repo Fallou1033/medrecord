@@ -102,6 +102,13 @@ export default function PatientDetailsScreen() {
   const [gynecoDDR, setGynecoDDR] = useState('');
   const [gynecoObs, setGynecoObs] = useState('');
 
+  // Modal extra states
+  const [modalNeant, setModalNeant] = useState(false);
+  const [modalTabacOui, setModalTabacOui] = useState(false);
+  const [modalTabacDetail, setModalTabacDetail] = useState('');
+  const [modalAlcoolOui, setModalAlcoolOui] = useState(false);
+  const [modalAlcoolDetail, setModalAlcoolDetail] = useState('');
+
   useEffect(() => {
     if (id) {
       loadStructuredTerrain(id);
@@ -442,36 +449,100 @@ export default function PatientDetailsScreen() {
   const handleAddAntecedent = async () => {
     let description = '';
 
-    if (antType === 'MEDICAL') {
-      if (!medPathologie.trim()) {
-        showAlert('Champ requis', 'Veuillez saisir l\'intitulé de la pathologie.');
-        return;
+    if (modalNeant) {
+      if (antType === 'MEDICAL') {
+        setNeantMedical(true);
+        saveTerrainState('neantMedical', true);
+        description = '✓ Néant (Aucun antécédent médical connu)';
+      } else if (antType === 'CHIRURGICAL') {
+        setNeantChirurgical(true);
+        saveTerrainState('neantChirurgical', true);
+        description = '✓ Néant (Aucun antécédent chirurgical connu)';
+      } else if (antType === 'ALLERGIE') {
+        setNeantAllergie(true);
+        saveTerrainState('neantAllergie', true);
+        description = '✓ Néant (Aucune allergie connue)';
+      } else if (antType === 'FAMILIAL') {
+        setNeantFamilial(true);
+        saveTerrainState('neantFamilial', true);
+        description = '✓ Néant (Aucun antécédent familial connu)';
+      } else if (antType === 'TABAGISME' || antType === 'ALCOOLISM') {
+        setNeantToxique(true);
+        saveTerrainState('neantToxique', true);
+        description = '✓ Néant (Aucune addiction / exposition toxique)';
+      } else if (antType === 'GYNECO_OBSTETRIQUE') {
+        setNeantGyneco(true);
+        saveTerrainState('neantGyneco', true);
+        description = '✓ Néant (Aucun antécédent gynéco-obstétrique)';
+      } else {
+        description = '✓ Néant';
       }
-      description = `${medPathologie.trim()}${medAnnee.trim() ? ` (${medAnnee.trim()})` : ''}`;
-    } else if (antType === 'CHIRURGICAL') {
-      if (!chirIntervention.trim()) {
-        showAlert('Champ requis', 'Veuillez saisir la nature de l\'intervention.');
-        return;
-      }
-      description = `Intervention: ${chirIntervention.trim()} | Indication: ${chirIndication.trim() || 'N/A'} | Année: ${chirAnnee.trim() || 'N/A'} | Établissement: ${chirEtablissement.trim() || 'N/A'} | Complications: ${chirComplications.trim() || 'Aucune'} | Obs: ${chirCommentaire.trim() || 'RAS'}`;
-    } else if (antType === 'ALLERGIE') {
-      if (!allergieSubstance.trim() || !allergieReaction.trim()) {
-        showAlert('Champs requis', 'Veuillez saisir la substance et le type de réaction.');
-        return;
-      }
-      description = `Substance: ${allergieSubstance.trim()} | Réaction: ${allergieReaction.trim()}`;
-    } else if (antType === 'GYNECO_OBSTETRIQUE') {
-      if (!gynecoGestePari.trim()) {
-        showAlert('Champ requis', 'Veuillez renseigner le geste/parité.');
-        return;
-      }
-      description = `Parité: ${gynecoGestePari.trim()} | DDR: ${gynecoDDR.trim() || 'N/A'} | Obs: ${gynecoObs.trim() || 'RAS'}`;
     } else {
-      if (!antDescription.trim()) {
-        showAlert('Champ requis', 'Veuillez remplir la description.');
-        return;
+      if (antType === 'MEDICAL') {
+        if (!medPathologie.trim()) {
+          showAlert('Champ requis', 'Veuillez saisir l\'intitulé de la pathologie.');
+          return;
+        }
+        description = `${medPathologie.trim()}${medAnnee.trim() ? ` (${medAnnee.trim()})` : ''}`;
+        setNeantMedical(false);
+        saveTerrainState('neantMedical', false);
+      } else if (antType === 'CHIRURGICAL') {
+        if (!chirIntervention.trim()) {
+          showAlert('Champ requis', 'Veuillez saisir la nature de l\'intervention.');
+          return;
+        }
+        description = `Intervention: ${chirIntervention.trim()} | Indication: ${chirIndication.trim() || 'N/A'} | Année: ${chirAnnee.trim() || 'N/A'} | Établissement: ${chirEtablissement.trim() || 'N/A'} | Complications: ${chirComplications.trim() || 'Aucune'} | Obs: ${chirCommentaire.trim() || 'RAS'}`;
+        setNeantChirurgical(false);
+        saveTerrainState('neantChirurgical', false);
+      } else if (antType === 'ALLERGIE') {
+        if (!allergieSubstance.trim() || !allergieReaction.trim()) {
+          showAlert('Champs requis', 'Veuillez saisir la substance et le type de réaction.');
+          return;
+        }
+        description = `Substance: ${allergieSubstance.trim()} | Réaction: ${allergieReaction.trim()}`;
+        setNeantAllergie(false);
+        saveTerrainState('neantAllergie', false);
+      } else if (antType === 'FAMILIAL') {
+        if (!antDescription.trim()) {
+          showAlert('Champ requis', 'Veuillez saisir la description des antécédents familiaux.');
+          return;
+        }
+        description = antDescription.trim();
+        setFamiliauxText(description);
+        saveTerrainState('familiauxText', description);
+        setNeantFamilial(false);
+        saveTerrainState('neantFamilial', false);
+      } else if (antType === 'TABAGISME') {
+        setNeantToxique(false);
+        saveTerrainState('neantToxique', false);
+        setTabagismeOui(modalTabacOui);
+        saveTerrainState('tabagismeOui', modalTabacOui);
+        setTabagismeDetail(modalTabacDetail);
+        saveTerrainState('tabagismeDetail', modalTabacDetail);
+        description = modalTabacOui ? `Tabagisme: Oui (${modalTabacDetail || 'Non précisé'})` : 'Tabagisme: Non';
+      } else if (antType === 'ALCOOLISM') {
+        setNeantToxique(false);
+        saveTerrainState('neantToxique', false);
+        setAlcoolismeOui(modalAlcoolOui);
+        saveTerrainState('alcoolismeOui', modalAlcoolOui);
+        setAlcoolismeDetail(modalAlcoolDetail);
+        saveTerrainState('alcoolismeDetail', modalAlcoolDetail);
+        description = modalAlcoolOui ? `Alcoolisme: Oui (${modalAlcoolDetail || 'Non précisé'})` : 'Alcoolisme: Non';
+      } else if (antType === 'GYNECO_OBSTETRIQUE') {
+        if (!gynecoGestePari.trim()) {
+          showAlert('Champ requis', 'Veuillez renseigner le geste/parité.');
+          return;
+        }
+        description = `Parité: ${gynecoGestePari.trim()} | DDR: ${gynecoDDR.trim() || 'N/A'} | Obs: ${gynecoObs.trim() || 'RAS'}`;
+        setNeantGyneco(false);
+        saveTerrainState('neantGyneco', false);
+      } else {
+        if (!antDescription.trim()) {
+          showAlert('Champ requis', 'Veuillez remplir la description.');
+          return;
+        }
+        description = antDescription.trim();
       }
-      description = antDescription.trim();
     }
 
     if (!user) return;
@@ -504,6 +575,7 @@ export default function PatientDetailsScreen() {
       setGynecoDDR('');
       setGynecoObs('');
       setAntDescription('');
+      setModalNeant(false);
       setModalVisible(false);
       showAlert('Succès', 'Antécédent enregistré avec succès.');
     } catch (error) {
@@ -1205,13 +1277,16 @@ export default function PatientDetailsScreen() {
             <Text style={styles.modalTitle}>Nouvel Antécédent</Text>
 
             <View style={styles.inputGroup}>
-              <Text style={styles.modalLabel}>Type d'antécédent</Text>
+              <Text style={styles.modalLabel}>Type d'antécédent *</Text>
               <View style={styles.typeSelector}>
                 {(
                   [
                     { type: 'MEDICAL', label: 'Médicaux' },
                     { type: 'CHIRURGICAL', label: 'Chirurgicaux' },
                     { type: 'ALLERGIE', label: 'Allergies' },
+                    { type: 'FAMILIAL', label: 'Familiaux' },
+                    { type: 'TABAGISME', label: 'Tabagisme' },
+                    { type: 'ALCOOLISM', label: 'Alcoolisme' },
                     ...(patient?.sexe === 'F' && age !== null && age > 15
                       ? [{ type: 'GYNECO_OBSTETRIQUE', label: 'Gynéco-Obstétricaux' }]
                       : []),
@@ -1222,7 +1297,10 @@ export default function PatientDetailsScreen() {
                     <TouchableOpacity
                       key={type}
                       style={[styles.typeBtn, isSel && styles.typeBtnActive]}
-                      onPress={() => setAntType(type)}
+                      onPress={() => {
+                        setAntType(type);
+                        setModalNeant(false);
+                      }}
                     >
                       <Text style={[styles.typeBtnText, isSel && styles.typeBtnTextActive]}>
                         {label}
@@ -1233,158 +1311,286 @@ export default function PatientDetailsScreen() {
               </View>
             </View>
 
+            {/* Quick Neant Option in Modal */}
+            <TouchableOpacity
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 8,
+                backgroundColor: modalNeant ? '#0F2C3D' : '#1A3344',
+                borderWidth: 1,
+                borderColor: modalNeant ? '#2ECC71' : '#2F5C77',
+                padding: 10,
+                borderRadius: 8,
+                marginVertical: 8,
+              }}
+              onPress={() => setModalNeant(!modalNeant)}
+            >
+              <Ionicons name={modalNeant ? "checkbox" : "square-outline"} size={20} color={modalNeant ? "#2ECC71" : "#8AC8F9"} />
+              <Text style={{ color: modalNeant ? "#2ECC71" : "#FFFFFF", fontSize: 13, fontWeight: 'bold' }}>
+                Déclarer Néant (Aucun antécédent pour cette catégorie)
+              </Text>
+            </TouchableOpacity>
+
             {/* Dynamic Form Fields per Type */}
-            {antType === 'MEDICAL' && (
-              <View style={{ gap: 10, marginTop: 12 }}>
-                <View style={styles.inputGroup}>
-                  <Text style={styles.modalLabel}>Intitulé de la pathologie *</Text>
-                  <TextInput
-                    style={styles.modalInputText}
-                    placeholder="Ex: Diabète de type 2, HTA, Asthme..."
-                    placeholderTextColor="#9ca3af"
-                    value={medPathologie}
-                    onChangeText={setMedPathologie}
-                  />
-                </View>
-                <View style={styles.inputGroup}>
-                  <Text style={styles.modalLabel}>Année de diagnostic</Text>
-                  <TextInput
-                    style={styles.modalInputText}
-                    placeholder="Ex: 2018"
-                    placeholderTextColor="#9ca3af"
-                    keyboardType="numeric"
-                    value={medAnnee}
-                    onChangeText={setMedAnnee}
-                  />
-                </View>
-              </View>
-            )}
+            {!modalNeant && (
+              <>
+                {antType === 'MEDICAL' && (
+                  <View style={{ gap: 10, marginTop: 4 }}>
+                    <View style={styles.inputGroup}>
+                      <Text style={styles.modalLabel}>Intitulé de la pathologie *</Text>
+                      <TextInput
+                        style={styles.modalInputText}
+                        placeholder="Ex: Diabète de type 2, HTA, Asthme..."
+                        placeholderTextColor="#9ca3af"
+                        value={medPathologie}
+                        onChangeText={setMedPathologie}
+                      />
+                    </View>
+                    <View style={styles.inputGroup}>
+                      <Text style={styles.modalLabel}>Année de diagnostic</Text>
+                      <TextInput
+                        style={styles.modalInputText}
+                        placeholder="Ex: 2018"
+                        placeholderTextColor="#9ca3af"
+                        keyboardType="numeric"
+                        value={medAnnee}
+                        onChangeText={setMedAnnee}
+                      />
+                    </View>
+                  </View>
+                )}
 
-            {antType === 'CHIRURGICAL' && (
-              <ScrollView style={{ maxHeight: 300, marginTop: 12 }}>
-                <View style={{ gap: 8 }}>
-                  <View style={styles.inputGroup}>
-                    <Text style={styles.modalLabel}>1. Nature de l'intervention *</Text>
-                    <TextInput
-                      style={styles.modalInputText}
-                      placeholder="Ex: Appendicectomie, Cholécystectomie..."
-                      placeholderTextColor="#9ca3af"
-                      value={chirIntervention}
-                      onChangeText={setChirIntervention}
-                    />
-                  </View>
-                  <View style={styles.inputGroup}>
-                    <Text style={styles.modalLabel}>2. Indication</Text>
-                    <TextInput
-                      style={styles.modalInputText}
-                      placeholder="Ex: Appendicite aiguë..."
-                      placeholderTextColor="#9ca3af"
-                      value={chirIndication}
-                      onChangeText={setChirIndication}
-                    />
-                  </View>
-                  <View style={styles.inputGroup}>
-                    <Text style={styles.modalLabel}>3. Année / Date</Text>
-                    <TextInput
-                      style={styles.modalInputText}
-                      placeholder="Ex: 2019"
-                      placeholderTextColor="#9ca3af"
-                      value={chirAnnee}
-                      onChangeText={setChirAnnee}
-                    />
-                  </View>
-                  <View style={styles.inputGroup}>
-                    <Text style={styles.modalLabel}>4. Établissement</Text>
-                    <TextInput
-                      style={styles.modalInputText}
-                      placeholder="Ex: Hôpital Principal..."
-                      placeholderTextColor="#9ca3af"
-                      value={chirEtablissement}
-                      onChangeText={setChirEtablissement}
-                    />
-                  </View>
-                  <View style={styles.inputGroup}>
-                    <Text style={styles.modalLabel}>5. Complications</Text>
-                    <TextInput
-                      style={styles.modalInputText}
-                      placeholder="Ex: Aucune, Hématome post-op..."
-                      placeholderTextColor="#9ca3af"
-                      value={chirComplications}
-                      onChangeText={setChirComplications}
-                    />
-                  </View>
-                  <View style={styles.inputGroup}>
-                    <Text style={styles.modalLabel}>6. Commentaire / Observations</Text>
-                    <TextInput
-                      style={styles.modalInputText}
-                      placeholder="Ex: Cœlioscopie sans incident..."
-                      placeholderTextColor="#9ca3af"
-                      value={chirCommentaire}
-                      onChangeText={setChirCommentaire}
-                    />
-                  </View>
-                </View>
-              </ScrollView>
-            )}
+                {antType === 'CHIRURGICAL' && (
+                  <ScrollView style={{ maxHeight: 260, marginTop: 4 }}>
+                    <View style={{ gap: 8 }}>
+                      <View style={styles.inputGroup}>
+                        <Text style={styles.modalLabel}>1. Nature de l'intervention *</Text>
+                        <TextInput
+                          style={styles.modalInputText}
+                          placeholder="Ex: Appendicectomie, Cholécystectomie..."
+                          placeholderTextColor="#9ca3af"
+                          value={chirIntervention}
+                          onChangeText={setChirIntervention}
+                        />
+                      </View>
+                      <View style={styles.inputGroup}>
+                        <Text style={styles.modalLabel}>2. Indication</Text>
+                        <TextInput
+                          style={styles.modalInputText}
+                          placeholder="Ex: Appendicite aiguë..."
+                          placeholderTextColor="#9ca3af"
+                          value={chirIndication}
+                          onChangeText={setChirIndication}
+                        />
+                      </View>
+                      <View style={styles.inputGroup}>
+                        <Text style={styles.modalLabel}>3. Année / Date</Text>
+                        <TextInput
+                          style={styles.modalInputText}
+                          placeholder="Ex: 2019"
+                          placeholderTextColor="#9ca3af"
+                          value={chirAnnee}
+                          onChangeText={setChirAnnee}
+                        />
+                      </View>
+                      <View style={styles.inputGroup}>
+                        <Text style={styles.modalLabel}>4. Établissement</Text>
+                        <TextInput
+                          style={styles.modalInputText}
+                          placeholder="Ex: Hôpital Principal..."
+                          placeholderTextColor="#9ca3af"
+                          value={chirEtablissement}
+                          onChangeText={setChirEtablissement}
+                        />
+                      </View>
+                      <View style={styles.inputGroup}>
+                        <Text style={styles.modalLabel}>5. Complications éventuelles</Text>
+                        <TextInput
+                          style={styles.modalInputText}
+                          placeholder="Ex: Aucune, Hématome post-op..."
+                          placeholderTextColor="#9ca3af"
+                          value={chirComplications}
+                          onChangeText={setChirComplications}
+                        />
+                      </View>
+                      <View style={styles.inputGroup}>
+                        <Text style={styles.modalLabel}>6. Commentaire / Observations</Text>
+                        <TextInput
+                          style={styles.modalInputText}
+                          placeholder="Ex: Cœlioscopie sans incident..."
+                          placeholderTextColor="#9ca3af"
+                          value={chirCommentaire}
+                          onChangeText={setChirCommentaire}
+                        />
+                      </View>
+                    </View>
+                  </ScrollView>
+                )}
 
-            {antType === 'ALLERGIE' && (
-              <View style={{ gap: 10, marginTop: 12 }}>
-                <View style={styles.inputGroup}>
-                  <Text style={styles.modalLabel}>Substance / Médicament *</Text>
-                  <TextInput
-                    style={styles.modalInputText}
-                    placeholder="Ex: Pénicilline, Aspirine, Arachides..."
-                    placeholderTextColor="#9ca3af"
-                    value={allergieSubstance}
-                    onChangeText={setAllergieSubstance}
-                  />
-                </View>
-                <View style={styles.inputGroup}>
-                  <Text style={styles.modalLabel}>Type de réaction *</Text>
-                  <TextInput
-                    style={styles.modalInputText}
-                    placeholder="Ex: Urticaire, Choc anaphylactique, Œdème de Quincke..."
-                    placeholderTextColor="#9ca3af"
-                    value={allergieReaction}
-                    onChangeText={setAllergieReaction}
-                  />
-                </View>
-              </View>
-            )}
+                {antType === 'ALLERGIE' && (
+                  <View style={{ gap: 10, marginTop: 4 }}>
+                    <View style={styles.inputGroup}>
+                      <Text style={styles.modalLabel}>Substance / Médicament *</Text>
+                      <TextInput
+                        style={styles.modalInputText}
+                        placeholder="Ex: Pénicilline, Aspirine, Arachides..."
+                        placeholderTextColor="#9ca3af"
+                        value={allergieSubstance}
+                        onChangeText={setAllergieSubstance}
+                      />
+                    </View>
+                    <View style={styles.inputGroup}>
+                      <Text style={styles.modalLabel}>Type de réaction *</Text>
+                      <TextInput
+                        style={styles.modalInputText}
+                        placeholder="Ex: Urticaire, Choc anaphylactique, Œdème de Quincke..."
+                        placeholderTextColor="#9ca3af"
+                        value={allergieReaction}
+                        onChangeText={setAllergieReaction}
+                      />
+                    </View>
+                  </View>
+                )}
 
-            {antType === 'GYNECO_OBSTETRIQUE' && (
-              <View style={{ gap: 10, marginTop: 12 }}>
-                <View style={styles.inputGroup}>
-                  <Text style={styles.modalLabel}>Geste / Parité *</Text>
-                  <TextInput
-                    style={styles.modalInputText}
-                    placeholder="Ex: G3P2A1..."
-                    placeholderTextColor="#9ca3af"
-                    value={gynecoGestePari}
-                    onChangeText={setGynecoGestePari}
-                  />
-                </View>
-                <View style={styles.inputGroup}>
-                  <Text style={styles.modalLabel}>Date des Dernières Règles (DDR)</Text>
-                  <TextInput
-                    style={styles.modalInputText}
-                    placeholder="Ex: 12/05/2026..."
-                    placeholderTextColor="#9ca3af"
-                    value={gynecoDDR}
-                    onChangeText={setGynecoDDR}
-                  />
-                </View>
-                <View style={styles.inputGroup}>
-                  <Text style={styles.modalLabel}>Observations</Text>
-                  <TextInput
-                    style={styles.modalInputText}
-                    placeholder="Ex: Contraception orale..."
-                    placeholderTextColor="#9ca3af"
-                    value={gynecoObs}
-                    onChangeText={setGynecoObs}
-                  />
-                </View>
-              </View>
+                {antType === 'FAMILIAL' && (
+                  <View style={{ gap: 10, marginTop: 4 }}>
+                    <View style={styles.inputGroup}>
+                      <Text style={styles.modalLabel}>Description des Antécédents Familiaux *</Text>
+                      <TextInput
+                        style={styles.modalInput}
+                        placeholder="Ex: Père : HTA, Mère : Diabète de type 2, Frère : Asthme..."
+                        placeholderTextColor="#9ca3af"
+                        multiline
+                        numberOfLines={3}
+                        value={antDescription}
+                        onChangeText={setAntDescription}
+                      />
+                    </View>
+                  </View>
+                )}
+
+                {antType === 'TABAGISME' && (
+                  <View style={{ gap: 12, marginTop: 4 }}>
+                    <View style={styles.inputGroup}>
+                      <Text style={styles.modalLabel}>Le patient fume-t-il ? *</Text>
+                      <View style={{ flexDirection: 'row', gap: 12, marginTop: 4 }}>
+                        <TouchableOpacity
+                          style={[
+                            styles.toggleBtn,
+                            !modalTabacOui && { backgroundColor: '#334155', borderColor: '#94A3B8' },
+                            { flex: 1, alignItems: 'center', paddingVertical: 10 }
+                          ]}
+                          onPress={() => setModalTabacOui(false)}
+                        >
+                          <Text style={{ color: '#FFFFFF', fontWeight: 'bold' }}>Non</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[
+                            styles.toggleBtn,
+                            modalTabacOui && { backgroundColor: '#E67E22', borderColor: '#E67E22' },
+                            { flex: 1, alignItems: 'center', paddingVertical: 10 }
+                          ]}
+                          onPress={() => setModalTabacOui(true)}
+                        >
+                          <Text style={{ color: '#FFFFFF', fontWeight: 'bold' }}>Oui</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+
+                    {modalTabacOui && (
+                      <View style={styles.inputGroup}>
+                        <Text style={styles.modalLabel}>Durée / Quantité (Années/Mois ou Paquets-Années)</Text>
+                        <TextInput
+                          style={styles.modalInputText}
+                          placeholder="Ex: 15 paquets-années, fumeur depuis 10 ans..."
+                          placeholderTextColor="#9ca3af"
+                          value={modalTabacDetail}
+                          onChangeText={setModalTabacDetail}
+                        />
+                      </View>
+                    )}
+                  </View>
+                )}
+
+                {antType === 'ALCOOLISM' && (
+                  <View style={{ gap: 12, marginTop: 4 }}>
+                    <View style={styles.inputGroup}>
+                      <Text style={styles.modalLabel}>Consommation d'alcool ? *</Text>
+                      <View style={{ flexDirection: 'row', gap: 12, marginTop: 4 }}>
+                        <TouchableOpacity
+                          style={[
+                            styles.toggleBtn,
+                            !modalAlcoolOui && { backgroundColor: '#334155', borderColor: '#94A3B8' },
+                            { flex: 1, alignItems: 'center', paddingVertical: 10 }
+                          ]}
+                          onPress={() => setModalAlcoolOui(false)}
+                        >
+                          <Text style={{ color: '#FFFFFF', fontWeight: 'bold' }}>Non</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[
+                            styles.toggleBtn,
+                            modalAlcoolOui && { backgroundColor: '#E67E22', borderColor: '#E67E22' },
+                            { flex: 1, alignItems: 'center', paddingVertical: 10 }
+                          ]}
+                          onPress={() => setModalAlcoolOui(true)}
+                        >
+                          <Text style={{ color: '#FFFFFF', fontWeight: 'bold' }}>Oui</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+
+                    {modalAlcoolOui && (
+                      <View style={styles.inputGroup}>
+                        <Text style={styles.modalLabel}>Durée ou Fréquence de consommation</Text>
+                        <TextInput
+                          style={styles.modalInputText}
+                          placeholder="Ex: Occasionnel, 3 verres/semaine, depuis 5 ans..."
+                          placeholderTextColor="#9ca3af"
+                          value={modalAlcoolDetail}
+                          onChangeText={setModalAlcoolDetail}
+                        />
+                      </View>
+                    )}
+                  </View>
+                )}
+
+                {antType === 'GYNECO_OBSTETRIQUE' && (
+                  <View style={{ gap: 10, marginTop: 4 }}>
+                    <View style={styles.inputGroup}>
+                      <Text style={styles.modalLabel}>Geste / Parité *</Text>
+                      <TextInput
+                        style={styles.modalInputText}
+                        placeholder="Ex: G3P2A1..."
+                        placeholderTextColor="#9ca3af"
+                        value={gynecoGestePari}
+                        onChangeText={setGynecoGestePari}
+                      />
+                    </View>
+                    <View style={styles.inputGroup}>
+                      <Text style={styles.modalLabel}>Date des Dernières Règles (DDR)</Text>
+                      <TextInput
+                        style={styles.modalInputText}
+                        placeholder="Ex: 12/05/2026..."
+                        placeholderTextColor="#9ca3af"
+                        value={gynecoDDR}
+                        onChangeText={setGynecoDDR}
+                      />
+                    </View>
+                    <View style={styles.inputGroup}>
+                      <Text style={styles.modalLabel}>Observations</Text>
+                      <TextInput
+                        style={styles.modalInputText}
+                        placeholder="Ex: Contraception orale..."
+                        placeholderTextColor="#9ca3af"
+                        value={gynecoObs}
+                        onChangeText={setGynecoObs}
+                      />
+                    </View>
+                  </View>
+                )}
+              </>
             )}
 
             <View style={styles.modalButtons}>
