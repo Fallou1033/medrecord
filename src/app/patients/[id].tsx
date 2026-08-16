@@ -67,6 +67,98 @@ export default function PatientDetailsScreen() {
   const [antDescription, setAntDescription] = useState('');
   const [modalLoading, setModalLoading] = useState(false);
 
+  // Structured Terrain States
+  const [neantMedical, setNeantMedical] = useState(false);
+  const [neantChirurgical, setNeantChirurgical] = useState(false);
+  const [neantGyneco, setNeantGyneco] = useState(false);
+  const [neantFamilial, setNeantFamilial] = useState(false);
+  const [neantToxique, setNeantToxique] = useState(false);
+  const [neantAllergie, setNeantAllergie] = useState(false);
+
+  const [familiauxText, setFamiliauxText] = useState('');
+  const [tabagismeOui, setTabagismeOui] = useState(false);
+  const [tabagismeDetail, setTabagismeDetail] = useState('');
+  const [alcoolismeOui, setAlcoolismeOui] = useState(false);
+  const [alcoolismeDetail, setAlcoolismeDetail] = useState('');
+
+  // Form states for Medical
+  const [medPathologie, setMedPathologie] = useState('');
+  const [medAnnee, setMedAnnee] = useState('');
+
+  // Form states for Surgical (6 fields)
+  const [chirIntervention, setChirIntervention] = useState('');
+  const [chirIndication, setChirIndication] = useState('');
+  const [chirAnnee, setChirAnnee] = useState('');
+  const [chirEtablissement, setChirEtablissement] = useState('');
+  const [chirComplications, setChirComplications] = useState('');
+  const [chirCommentaire, setChirCommentaire] = useState('');
+
+  // Form states for Allergies (2 fields)
+  const [allergieSubstance, setAllergieSubstance] = useState('');
+  const [allergieReaction, setAllergieReaction] = useState('');
+
+  // Form states for Gyneco-Obstetrique
+  const [gynecoGestePari, setGynecoGestePari] = useState('');
+  const [gynecoDDR, setGynecoDDR] = useState('');
+  const [gynecoObs, setGynecoObs] = useState('');
+
+  useEffect(() => {
+    if (id) {
+      loadStructuredTerrain(id);
+    }
+  }, [id]);
+
+  const loadStructuredTerrain = async (patientId: string) => {
+    try {
+      let raw: string | null = null;
+      if (Platform.OS === 'web') {
+        raw = localStorage.getItem(`terrain_v2_${patientId}`);
+      } else {
+        const SecureStore = require('expo-secure-store');
+        raw = await SecureStore.getItemAsync(`terrain_v2_${patientId}`);
+      }
+      if (raw) {
+        const d = JSON.parse(raw);
+        setNeantMedical(!!d.neantMedical);
+        setNeantChirurgical(!!d.neantChirurgical);
+        setNeantGyneco(!!d.neantGyneco);
+        setNeantFamilial(!!d.neantFamilial);
+        setNeantToxique(!!d.neantToxique);
+        setNeantAllergie(!!d.neantAllergie);
+        setFamiliauxText(d.familiauxText || '');
+        setTabagismeOui(!!d.tabagismeOui);
+        setTabagismeDetail(d.tabagismeDetail || '');
+        setAlcoolismeOui(!!d.alcoolismeOui);
+        setAlcoolismeDetail(d.alcoolismeDetail || '');
+      }
+    } catch (e) {
+      console.error('Failed to load terrain:', e);
+    }
+  };
+
+  const saveTerrainState = async (key: string, value: any) => {
+    try {
+      let raw: string | null = null;
+      if (Platform.OS === 'web') {
+        raw = localStorage.getItem(`terrain_v2_${id}`);
+      } else {
+        const SecureStore = require('expo-secure-store');
+        raw = await SecureStore.getItemAsync(`terrain_v2_${id}`);
+      }
+      const existing = raw ? JSON.parse(raw) : {};
+      existing[key] = value;
+      const str = JSON.stringify(existing);
+      if (Platform.OS === 'web') {
+        localStorage.setItem(`terrain_v2_${id}`, str);
+      } else {
+        const SecureStore = require('expo-secure-store');
+        await SecureStore.setItemAsync(`terrain_v2_${id}`, str);
+      }
+    } catch (e) {
+      console.error('Failed to save terrain:', e);
+    }
+  };
+
   // Modal State for adding Vaccination
   const [modalVaccineVisible, setModalVaccineVisible] = useState(false);
   const [vaccineName, setVaccineName] = useState('');
@@ -348,9 +440,38 @@ export default function PatientDetailsScreen() {
   };
 
   const handleAddAntecedent = async () => {
-    if (!antDescription.trim()) {
-      showAlert('Erreur', 'Veuillez saisir une description pour l\'antécédent.');
-      return;
+    let description = '';
+
+    if (antType === 'MEDICAL') {
+      if (!medPathologie.trim()) {
+        showAlert('Champ requis', 'Veuillez saisir l\'intitulé de la pathologie.');
+        return;
+      }
+      description = `${medPathologie.trim()}${medAnnee.trim() ? ` (${medAnnee.trim()})` : ''}`;
+    } else if (antType === 'CHIRURGICAL') {
+      if (!chirIntervention.trim()) {
+        showAlert('Champ requis', 'Veuillez saisir la nature de l\'intervention.');
+        return;
+      }
+      description = `Intervention: ${chirIntervention.trim()} | Indication: ${chirIndication.trim() || 'N/A'} | Année: ${chirAnnee.trim() || 'N/A'} | Établissement: ${chirEtablissement.trim() || 'N/A'} | Complications: ${chirComplications.trim() || 'Aucune'} | Obs: ${chirCommentaire.trim() || 'RAS'}`;
+    } else if (antType === 'ALLERGIE') {
+      if (!allergieSubstance.trim() || !allergieReaction.trim()) {
+        showAlert('Champs requis', 'Veuillez saisir la substance et le type de réaction.');
+        return;
+      }
+      description = `Substance: ${allergieSubstance.trim()} | Réaction: ${allergieReaction.trim()}`;
+    } else if (antType === 'GYNECO_OBSTETRIQUE') {
+      if (!gynecoGestePari.trim()) {
+        showAlert('Champ requis', 'Veuillez renseigner le geste/parité.');
+        return;
+      }
+      description = `Parité: ${gynecoGestePari.trim()} | DDR: ${gynecoDDR.trim() || 'N/A'} | Obs: ${gynecoObs.trim() || 'RAS'}`;
+    } else {
+      if (!antDescription.trim()) {
+        showAlert('Champ requis', 'Veuillez remplir la description.');
+        return;
+      }
+      description = antDescription.trim();
     }
 
     if (!user) return;
@@ -361,18 +482,30 @@ export default function PatientDetailsScreen() {
         {
           patient_id: id,
           type: antType,
-          description: antDescription.trim(),
+          description,
         },
         user.id
       );
 
-      // Reload antecedents
       const ant = await getAntecedentsByPatient(id);
       setAntecedents(ant);
-      
+
+      setMedPathologie('');
+      setMedAnnee('');
+      setChirIntervention('');
+      setChirIndication('');
+      setChirAnnee('');
+      setChirEtablissement('');
+      setChirComplications('');
+      setChirCommentaire('');
+      setAllergieSubstance('');
+      setAllergieReaction('');
+      setGynecoGestePari('');
+      setGynecoDDR('');
+      setGynecoObs('');
       setAntDescription('');
       setModalVisible(false);
-      showAlert('Succès', 'Antécédent ajouté avec succès.');
+      showAlert('Succès', 'Antécédent enregistré avec succès.');
     } catch (error) {
       console.error('Failed to add antecedent:', error);
       showAlert('Erreur', "Impossible d'enregistrer l'antécédent.");
@@ -580,37 +713,322 @@ export default function PatientDetailsScreen() {
           </View>
         )}
 
-        {/* TAB 2: MEDICAL HISTORY (ANTECEDENTS) */}
+        {/* TAB 2: ANTECEDENTS ET TERRAIN */}
         {activeTab === 'antecedents' && (
           <View style={styles.infoContainer}>
             <View style={styles.tabHeader}>
-              <Text style={styles.sectionTitle}>Antécédents Médicaux</Text>
+              <Text style={styles.sectionTitle}>Antécédents et Terrain</Text>
               <TouchableOpacity style={styles.actionButton} onPress={() => setModalVisible(true)}>
                 <Ionicons name="add-circle" size={20} color="#0F2C3D" />
-                <Text style={styles.actionButtonText}>Ajouter</Text>
+                <Text style={styles.actionButtonText}>+ Ajouter un antécédent</Text>
               </TouchableOpacity>
             </View>
 
-            {antecedents.length === 0 ? (
-              <View style={styles.emptyCard}>
-                <Ionicons name="medical-outline" size={40} color="#2F5C77" />
-                <Text style={styles.emptyCardText}>Aucun antécédent médical enregistré</Text>
+            {/* 1. Antécédents Médicaux */}
+            <View style={styles.card}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <Ionicons name="medical-outline" size={20} color="#28C2FF" />
+                  <Text style={styles.cardTitle}>Antécédents Médicaux</Text>
+                </View>
+                <TouchableOpacity
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
+                  onPress={() => {
+                    const val = !neantMedical;
+                    setNeantMedical(val);
+                    saveTerrainState('neantMedical', val);
+                  }}
+                >
+                  <Ionicons name={neantMedical ? "checkbox" : "square-outline"} size={20} color={neantMedical ? "#2ECC71" : "#8AC8F9"} />
+                  <Text style={{ color: neantMedical ? "#2ECC71" : "#8AC8F9", fontSize: 13, fontWeight: 'bold' }}>Néant</Text>
+                </TouchableOpacity>
               </View>
-            ) : (
-              <View style={styles.historyList}>
-                {antecedents.map((item) => (
-                  <View key={item.id} style={styles.historyItem}>
-                    <View style={styles.historyHeader}>
-                      <View style={styles.typeBadge}>
-                        <Text style={styles.typeBadgeText}>{item.type}</Text>
-                      </View>
-                      <Text style={styles.historyDate}>{formatDateFR(item.created_at)}</Text>
+
+              {neantMedical ? (
+                <View style={styles.neantBadge}>
+                  <Text style={styles.neantBadgeText}>✓ Néant (Aucun antécédent médical connu)</Text>
+                </View>
+              ) : (
+                antecedents.filter(a => a.type === 'MEDICAL').length === 0 ? (
+                  <Text style={styles.emptySubText}>Aucun antécédent médical renseigné. Cliquez sur "+ Ajouter" pour en ajouter un.</Text>
+                ) : (
+                  antecedents.filter(a => a.type === 'MEDICAL').map(a => (
+                    <View key={a.id} style={styles.antListItem}>
+                      <Ionicons name="fitness-outline" size={16} color="#28C2FF" />
+                      <Text style={styles.antListText}>{a.description}</Text>
                     </View>
-                    <Text style={styles.historyDesc}>{item.description}</Text>
+                  ))
+                )
+              )}
+            </View>
+
+            {/* 2. Antécédents Chirurgicaux (6 champs détaillés) */}
+            <View style={styles.card}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <Ionicons name="cut-outline" size={20} color="#8AC8F9" />
+                  <Text style={styles.cardTitle}>Antécédents Chirurgicaux</Text>
+                </View>
+                <TouchableOpacity
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
+                  onPress={() => {
+                    const val = !neantChirurgical;
+                    setNeantChirurgical(val);
+                    saveTerrainState('neantChirurgical', val);
+                  }}
+                >
+                  <Ionicons name={neantChirurgical ? "checkbox" : "square-outline"} size={20} color={neantChirurgical ? "#2ECC71" : "#8AC8F9"} />
+                  <Text style={{ color: neantChirurgical ? "#2ECC71" : "#8AC8F9", fontSize: 13, fontWeight: 'bold' }}>Néant</Text>
+                </TouchableOpacity>
+              </View>
+
+              {neantChirurgical ? (
+                <View style={styles.neantBadge}>
+                  <Text style={styles.neantBadgeText}>✓ Néant (Aucun antécédent chirurgical connu)</Text>
+                </View>
+              ) : (
+                antecedents.filter(a => a.type === 'CHIRURGICAL').length === 0 ? (
+                  <Text style={styles.emptySubText}>Aucun antécédent chirurgical renseigné. Cliquez sur "+ Ajouter" pour saisir une intervention.</Text>
+                ) : (
+                  antecedents.filter(a => a.type === 'CHIRURGICAL').map(a => (
+                    <View key={a.id} style={styles.antListItem}>
+                      <Ionicons name="bandage-outline" size={16} color="#8AC8F9" />
+                      <Text style={styles.antListText}>{a.description}</Text>
+                    </View>
+                  ))
+                )
+              )}
+            </View>
+
+            {/* 3. Antécédents Gynéco-Obstétricaux (Conditionnel: Sexe F ET Age > 15) */}
+            {patient.sexe === 'F' && age !== null && age > 15 && (
+              <View style={styles.card}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <Ionicons name="woman-outline" size={20} color="#FF6B6B" />
+                    <Text style={styles.cardTitle}>Antécédents Gynéco-Obstétricaux</Text>
                   </View>
-                ))}
+                  <TouchableOpacity
+                    style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
+                    onPress={() => {
+                      const val = !neantGyneco;
+                      setNeantGyneco(val);
+                      saveTerrainState('neantGyneco', val);
+                    }}
+                  >
+                    <Ionicons name={neantGyneco ? "checkbox" : "square-outline"} size={20} color={neantGyneco ? "#2ECC71" : "#8AC8F9"} />
+                    <Text style={{ color: neantGyneco ? "#2ECC71" : "#8AC8F9", fontSize: 13, fontWeight: 'bold' }}>Néant</Text>
+                  </TouchableOpacity>
+                </View>
+
+                {neantGyneco ? (
+                  <View style={styles.neantBadge}>
+                    <Text style={styles.neantBadgeText}>✓ Néant (Aucun antécédent gynéco-obstétrique)</Text>
+                  </View>
+                ) : (
+                  antecedents.filter(a => a.type === 'GYNECO_OBSTETRIQUE').length === 0 ? (
+                    <Text style={styles.emptySubText}>Aucun antécédent gynéco-obstétrique renseigné.</Text>
+                  ) : (
+                    antecedents.filter(a => a.type === 'GYNECO_OBSTETRIQUE').map(a => (
+                      <View key={a.id} style={styles.antListItem}>
+                        <Ionicons name="rose-outline" size={16} color="#FF6B6B" />
+                        <Text style={styles.antListText}>{a.description}</Text>
+                      </View>
+                    ))
+                  )
+                )}
               </View>
             )}
+
+            {/* 4. Antécédents Familiaux */}
+            <View style={styles.card}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <Ionicons name="people-outline" size={20} color="#FFD700" />
+                  <Text style={styles.cardTitle}>Antécédents Familiaux</Text>
+                </View>
+                <TouchableOpacity
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
+                  onPress={() => {
+                    const val = !neantFamilial;
+                    setNeantFamilial(val);
+                    saveTerrainState('neantFamilial', val);
+                  }}
+                >
+                  <Ionicons name={neantFamilial ? "checkbox" : "square-outline"} size={20} color={neantFamilial ? "#2ECC71" : "#8AC8F9"} />
+                  <Text style={{ color: neantFamilial ? "#2ECC71" : "#8AC8F9", fontSize: 13, fontWeight: 'bold' }}>Néant</Text>
+                </TouchableOpacity>
+              </View>
+
+              {neantFamilial ? (
+                <View style={styles.neantBadge}>
+                  <Text style={styles.neantBadgeText}>✓ Néant (Aucun antécédent familial connu)</Text>
+                </View>
+              ) : (
+                <View style={{ gap: 8 }}>
+                  <TextInput
+                    style={styles.textArea}
+                    placeholder="Saisissez les antécédents familiaux (ex: Père: HTA, Mère: Diabète...)"
+                    placeholderTextColor="#94A3B8"
+                    multiline
+                    numberOfLines={3}
+                    value={familiauxText}
+                    onChangeText={(txt) => {
+                      setFamiliauxText(txt);
+                      saveTerrainState('familiauxText', txt);
+                    }}
+                  />
+                  <Text style={{ color: '#8AC8F9', fontSize: 11 }}>Saisie libre • Sauvegarde automatique</Text>
+                </View>
+              )}
+            </View>
+
+            {/* 5. Terrain & Addictions (Toxiques) */}
+            <View style={styles.card}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <Ionicons name="flame-outline" size={20} color="#E67E22" />
+                  <Text style={styles.cardTitle}>Terrain & Toxiques (Habitudes de vie)</Text>
+                </View>
+                <TouchableOpacity
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
+                  onPress={() => {
+                    const val = !neantToxique;
+                    setNeantToxique(val);
+                    saveTerrainState('neantToxique', val);
+                  }}
+                >
+                  <Ionicons name={neantToxique ? "checkbox" : "square-outline"} size={20} color={neantToxique ? "#2ECC71" : "#8AC8F9"} />
+                  <Text style={{ color: neantToxique ? "#2ECC71" : "#8AC8F9", fontSize: 13, fontWeight: 'bold' }}>Néant</Text>
+                </TouchableOpacity>
+              </View>
+
+              {neantToxique ? (
+                <View style={styles.neantBadge}>
+                  <Text style={styles.neantBadgeText}>✓ Néant (Aucune addiction / exposition toxique)</Text>
+                </View>
+              ) : (
+                <View style={{ gap: 16 }}>
+                  {/* Tabagisme */}
+                  <View style={styles.toxicBlock}>
+                    <View style={styles.toxicRow}>
+                      <Text style={styles.toxicLabel}>Tabagisme :</Text>
+                      <View style={{ flexDirection: 'row', gap: 8 }}>
+                        <TouchableOpacity
+                          style={[styles.toggleBtn, !tabagismeOui && styles.toggleBtnActiveNo]}
+                          onPress={() => {
+                            setTabagismeOui(false);
+                            saveTerrainState('tabagismeOui', false);
+                          }}
+                        >
+                          <Text style={styles.toggleBtnText}>Non</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[styles.toggleBtn, tabagismeOui && styles.toggleBtnActiveYes]}
+                          onPress={() => {
+                            setTabagismeOui(true);
+                            saveTerrainState('tabagismeOui', true);
+                          }}
+                        >
+                          <Text style={styles.toggleBtnText}>Oui</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+
+                    {tabagismeOui && (
+                      <TextInput
+                        style={styles.toxicInput}
+                        placeholder="Précisez le nombre d'années, mois ou paquets-années (ex: 15 paquets-années)..."
+                        placeholderTextColor="#94A3B8"
+                        value={tabagismeDetail}
+                        onChangeText={(txt) => {
+                          setTabagismeDetail(txt);
+                          saveTerrainState('tabagismeDetail', txt);
+                        }}
+                      />
+                    )}
+                  </View>
+
+                  {/* Alcoolisme */}
+                  <View style={styles.toxicBlock}>
+                    <View style={styles.toxicRow}>
+                      <Text style={styles.toxicLabel}>Alcoolisme :</Text>
+                      <View style={{ flexDirection: 'row', gap: 8 }}>
+                        <TouchableOpacity
+                          style={[styles.toggleBtn, !alcoolismeOui && styles.toggleBtnActiveNo]}
+                          onPress={() => {
+                            setAlcoolismeOui(false);
+                            saveTerrainState('alcoolismeOui', false);
+                          }}
+                        >
+                          <Text style={styles.toggleBtnText}>Non</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[styles.toggleBtn, alcoolismeOui && styles.toggleBtnActiveYes]}
+                          onPress={() => {
+                            setAlcoolismeOui(true);
+                            saveTerrainState('alcoolismeOui', true);
+                          }}
+                        >
+                          <Text style={styles.toggleBtnText}>Oui</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+
+                    {alcoolismeOui && (
+                      <TextInput
+                        style={styles.toxicInput}
+                        placeholder="Précisez la durée ou la fréquence (ex: Occasionnel, 3 verres/semaine)..."
+                        placeholderTextColor="#94A3B8"
+                        value={alcoolismeDetail}
+                        onChangeText={(txt) => {
+                          setAlcoolismeDetail(txt);
+                          saveTerrainState('alcoolismeDetail', txt);
+                        }}
+                      />
+                    )}
+                  </View>
+                </View>
+              )}
+            </View>
+
+            {/* 6. Allergies Détaillées (Substance + Réaction) */}
+            <View style={styles.card}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <Ionicons name="warning-outline" size={20} color="#FF6B6B" />
+                  <Text style={styles.cardTitle}>Allergies Détaillées</Text>
+                </View>
+                <TouchableOpacity
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
+                  onPress={() => {
+                    const val = !neantAllergie;
+                    setNeantAllergie(val);
+                    saveTerrainState('neantAllergie', val);
+                  }}
+                >
+                  <Ionicons name={neantAllergie ? "checkbox" : "square-outline"} size={20} color={neantAllergie ? "#2ECC71" : "#8AC8F9"} />
+                  <Text style={{ color: neantAllergie ? "#2ECC71" : "#8AC8F9", fontSize: 13, fontWeight: 'bold' }}>Néant</Text>
+                </TouchableOpacity>
+              </View>
+
+              {neantAllergie ? (
+                <View style={styles.neantBadge}>
+                  <Text style={styles.neantBadgeText}>✓ Néant (Aucune allergie connue)</Text>
+                </View>
+              ) : (
+                antecedents.filter(a => a.type === 'ALLERGIE').length === 0 ? (
+                  <Text style={styles.emptySubText}>Aucune allergie renseignée. Cliquez sur "+ Ajouter" (sélectionnez type Allergie).</Text>
+                ) : (
+                  antecedents.filter(a => a.type === 'ALLERGIE').map(a => (
+                    <View key={a.id} style={styles.antListItem}>
+                      <Ionicons name="alert-circle-outline" size={16} color="#FF6B6B" />
+                      <Text style={styles.antListText}>{a.description}</Text>
+                    </View>
+                  ))
+                )
+              )}
+            </View>
           </View>
         )}
 
@@ -815,18 +1233,159 @@ export default function PatientDetailsScreen() {
               </View>
             </View>
 
-            <View style={styles.inputGroup}>
-              <Text style={styles.modalLabel}>Description de l'antécédent *</Text>
-              <TextInput
-                style={styles.modalInput}
-                placeholder="Ex: Asthme depuis l'enfance, Allergie à la pénicilline..."
-                placeholderTextColor="#9ca3af"
-                multiline
-                numberOfLines={4}
-                value={antDescription}
-                onChangeText={setAntDescription}
-              />
-            </View>
+            {/* Dynamic Form Fields per Type */}
+            {antType === 'MEDICAL' && (
+              <View style={{ gap: 10, marginTop: 12 }}>
+                <View style={styles.inputGroup}>
+                  <Text style={styles.modalLabel}>Intitulé de la pathologie *</Text>
+                  <TextInput
+                    style={styles.modalInputText}
+                    placeholder="Ex: Diabète de type 2, HTA, Asthme..."
+                    placeholderTextColor="#9ca3af"
+                    value={medPathologie}
+                    onChangeText={setMedPathologie}
+                  />
+                </View>
+                <View style={styles.inputGroup}>
+                  <Text style={styles.modalLabel}>Année de diagnostic</Text>
+                  <TextInput
+                    style={styles.modalInputText}
+                    placeholder="Ex: 2018"
+                    placeholderTextColor="#9ca3af"
+                    keyboardType="numeric"
+                    value={medAnnee}
+                    onChangeText={setMedAnnee}
+                  />
+                </View>
+              </View>
+            )}
+
+            {antType === 'CHIRURGICAL' && (
+              <ScrollView style={{ maxHeight: 300, marginTop: 12 }}>
+                <View style={{ gap: 8 }}>
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.modalLabel}>1. Nature de l'intervention *</Text>
+                    <TextInput
+                      style={styles.modalInputText}
+                      placeholder="Ex: Appendicectomie, Cholécystectomie..."
+                      placeholderTextColor="#9ca3af"
+                      value={chirIntervention}
+                      onChangeText={setChirIntervention}
+                    />
+                  </View>
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.modalLabel}>2. Indication</Text>
+                    <TextInput
+                      style={styles.modalInputText}
+                      placeholder="Ex: Appendicite aiguë..."
+                      placeholderTextColor="#9ca3af"
+                      value={chirIndication}
+                      onChangeText={setChirIndication}
+                    />
+                  </View>
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.modalLabel}>3. Année / Date</Text>
+                    <TextInput
+                      style={styles.modalInputText}
+                      placeholder="Ex: 2019"
+                      placeholderTextColor="#9ca3af"
+                      value={chirAnnee}
+                      onChangeText={setChirAnnee}
+                    />
+                  </View>
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.modalLabel}>4. Établissement</Text>
+                    <TextInput
+                      style={styles.modalInputText}
+                      placeholder="Ex: Hôpital Principal..."
+                      placeholderTextColor="#9ca3af"
+                      value={chirEtablissement}
+                      onChangeText={setChirEtablissement}
+                    />
+                  </View>
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.modalLabel}>5. Complications</Text>
+                    <TextInput
+                      style={styles.modalInputText}
+                      placeholder="Ex: Aucune, Hématome post-op..."
+                      placeholderTextColor="#9ca3af"
+                      value={chirComplications}
+                      onChangeText={setChirComplications}
+                    />
+                  </View>
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.modalLabel}>6. Commentaire / Observations</Text>
+                    <TextInput
+                      style={styles.modalInputText}
+                      placeholder="Ex: Cœlioscopie sans incident..."
+                      placeholderTextColor="#9ca3af"
+                      value={chirCommentaire}
+                      onChangeText={setChirCommentaire}
+                    />
+                  </View>
+                </View>
+              </ScrollView>
+            )}
+
+            {antType === 'ALLERGIE' && (
+              <View style={{ gap: 10, marginTop: 12 }}>
+                <View style={styles.inputGroup}>
+                  <Text style={styles.modalLabel}>Substance / Médicament *</Text>
+                  <TextInput
+                    style={styles.modalInputText}
+                    placeholder="Ex: Pénicilline, Aspirine, Arachides..."
+                    placeholderTextColor="#9ca3af"
+                    value={allergieSubstance}
+                    onChangeText={setAllergieSubstance}
+                  />
+                </View>
+                <View style={styles.inputGroup}>
+                  <Text style={styles.modalLabel}>Type de réaction *</Text>
+                  <TextInput
+                    style={styles.modalInputText}
+                    placeholder="Ex: Urticaire, Choc anaphylactique, Œdème de Quincke..."
+                    placeholderTextColor="#9ca3af"
+                    value={allergieReaction}
+                    onChangeText={setAllergieReaction}
+                  />
+                </View>
+              </View>
+            )}
+
+            {antType === 'GYNECO_OBSTETRIQUE' && (
+              <View style={{ gap: 10, marginTop: 12 }}>
+                <View style={styles.inputGroup}>
+                  <Text style={styles.modalLabel}>Geste / Parité *</Text>
+                  <TextInput
+                    style={styles.modalInputText}
+                    placeholder="Ex: G3P2A1..."
+                    placeholderTextColor="#9ca3af"
+                    value={gynecoGestePari}
+                    onChangeText={setGynecoGestePari}
+                  />
+                </View>
+                <View style={styles.inputGroup}>
+                  <Text style={styles.modalLabel}>Date des Dernières Règles (DDR)</Text>
+                  <TextInput
+                    style={styles.modalInputText}
+                    placeholder="Ex: 12/05/2026..."
+                    placeholderTextColor="#9ca3af"
+                    value={gynecoDDR}
+                    onChangeText={setGynecoDDR}
+                  />
+                </View>
+                <View style={styles.inputGroup}>
+                  <Text style={styles.modalLabel}>Observations</Text>
+                  <TextInput
+                    style={styles.modalInputText}
+                    placeholder="Ex: Contraception orale..."
+                    placeholderTextColor="#9ca3af"
+                    value={gynecoObs}
+                    onChangeText={setGynecoObs}
+                  />
+                </View>
+              </View>
+            )}
 
             <View style={styles.modalButtons}>
               <TouchableOpacity
@@ -1605,5 +2164,103 @@ const styles = StyleSheet.create({
   docFolderCount: {
     color: '#8AC8F9',
     fontSize: 11,
+  },
+  cardTitle: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  neantBadge: {
+    backgroundColor: '#0F2C3D',
+    borderWidth: 1,
+    borderColor: '#2ECC71',
+    borderRadius: 8,
+    padding: 10,
+  },
+  neantBadgeText: {
+    color: '#2ECC71',
+    fontSize: 13,
+    fontWeight: 'bold',
+  },
+  emptySubText: {
+    color: '#94A3B8',
+    fontSize: 13,
+    fontStyle: 'italic',
+  },
+  antListItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: '#0F2C3D',
+    padding: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#2F5C77',
+    marginBottom: 6,
+  },
+  antListText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    flex: 1,
+  },
+  textArea: {
+    backgroundColor: '#0F2C3D',
+    borderColor: '#2F5C77',
+    borderWidth: 1,
+    borderRadius: 8,
+    color: '#FFFFFF',
+    padding: 10,
+    fontSize: 14,
+    textAlignVertical: 'top',
+  },
+  toxicBlock: {
+    backgroundColor: '#0F2C3D',
+    padding: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#2F5C77',
+    gap: 8,
+  },
+  toxicRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  toxicLabel: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
+  toggleBtn: {
+    paddingHorizontal: 16,
+    paddingVertical: 6,
+    borderRadius: 6,
+    backgroundColor: '#1E3E52',
+    borderWidth: 1,
+    borderColor: '#2F5C77',
+  },
+  toggleBtnActiveNo: {
+    backgroundColor: '#334155',
+    borderColor: '#94A3B8',
+  },
+  toggleBtnActiveYes: {
+    backgroundColor: '#E67E22',
+    borderColor: '#E67E22',
+  },
+  toggleBtnText: {
+    color: '#FFFFFF',
+    fontWeight: 'bold',
+    fontSize: 12,
+  },
+  toxicInput: {
+    backgroundColor: '#1E3E52',
+    borderColor: '#2F5C77',
+    borderWidth: 1,
+    borderRadius: 8,
+    color: '#FFFFFF',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    fontSize: 13,
+    marginTop: 4,
   },
 });
