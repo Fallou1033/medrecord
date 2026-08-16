@@ -15,7 +15,7 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, useRouter, Link } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { createConsultation, getPatientById, Patient } from '../../database/SQLiteDatabaseManager';
+import { createConsultation, getPatientById, getPatients, Patient } from '../../database/SQLiteDatabaseManager';
 import { calculateIMC } from '../../utils/helpers';
 import { useSecurity } from '../../security/SecurityContext';
 import DatePickerDOB from '../../components/DatePickerDOB';
@@ -61,11 +61,32 @@ export default function CreateConsultationScreen() {
   const [dateControle, setDateControle] = useState(''); // Format: YYYY-MM-DD
   const [loading, setLoading] = useState(false);
 
+  const [allPatients, setAllPatients] = useState<Patient[]>([]);
+  const [selectedPatientId, setSelectedPatientId] = useState<string>(patientId || '');
+
   useEffect(() => {
     if (patientId) {
-      loadPatient();
+      loadPatient(patientId);
+    } else {
+      loadAllPatients();
     }
   }, [patientId]);
+
+  const loadAllPatients = async () => {
+    setLoadingPatient(true);
+    try {
+      const list = await getPatients();
+      setAllPatients(list);
+      if (list.length > 0) {
+        setSelectedPatientId(list[0].id);
+        setPatient(list[0]);
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoadingPatient(false);
+    }
+  };
 
   // Calculate IMC in real-time when weight or height changes
   useEffect(() => {
@@ -79,16 +100,18 @@ export default function CreateConsultationScreen() {
     }
   }, [poids, taille]);
 
-  const loadPatient = async () => {
+  const loadPatient = async (targetId?: string) => {
+    const idToLoad = targetId || patientId || selectedPatientId;
+    if (!idToLoad) {
+      setLoadingPatient(false);
+      return;
+    }
     setLoadingPatient(true);
     try {
-      const p = await getPatientById(patientId);
-      if (!p) {
-        showAlert('Erreur', 'Patient non trouvé');
-        router.back();
-        return;
+      const p = await getPatientById(idToLoad);
+      if (p) {
+        setPatient(p);
       }
-      setPatient(p);
     } catch (err) {
       console.error(err);
     } finally {
