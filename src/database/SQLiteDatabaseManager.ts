@@ -478,6 +478,33 @@ export async function getConsultationsByPatient(patientId: string): Promise<Cons
   return result;
 }
 
+export async function getConsultations(): Promise<Consultation[]> {
+  const db = await getDatabase();
+  const rows = (await db.getAllAsync('SELECT * FROM consultations ORDER BY date DESC;')) as any[];
+  const result: Consultation[] = [];
+
+  for (const row of rows) {
+    result.push({
+      id: row.id,
+      patient_id: row.patient_id,
+      medecin_id: row.medecin_id,
+      date: row.date,
+      motif: (await decryptData(row.motif)) || '',
+      histoire_maladie: await decryptData(row.histoire_maladie),
+      examen_clinique: await decryptData(row.examen_clinique),
+      diagnostic: await decryptData(row.diagnostic),
+      traitement: await decryptData(row.traitement),
+      conseils: await decryptData(row.conseils),
+      date_controle: row.date_controle,
+      created_at: row.created_at,
+      updated_at: row.updated_at,
+      is_synced: row.is_synced === 1,
+    });
+  }
+
+  return result;
+}
+
 // ============================================================================
 // ORDONNANCES OPERATIONS
 // ============================================================================

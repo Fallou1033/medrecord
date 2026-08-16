@@ -39,6 +39,9 @@ export default function AppTabs() {
           <TabTrigger name="rendezvous" href="/rendezvous" asChild>
             <TabButton>Rendez-vous</TabButton>
           </TabTrigger>
+          <TabTrigger name="statistiques" href="/statistiques" asChild>
+            <TabButton>Statistiques</TabButton>
+          </TabTrigger>
           <TabTrigger name="settings" href="/settings" asChild>
             <TabButton>Paramètres</TabButton>
           </TabTrigger>

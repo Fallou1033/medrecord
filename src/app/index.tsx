@@ -10,6 +10,7 @@ import {
   StatusBar,
   Alert,
   Platform,
+  TextInput,
 } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -53,6 +54,8 @@ export default function DashboardScreen() {
   const [recents, setRecents] = useState<any[]>(() => dashboardCache?.recents || []);
   const [loading, setLoading] = useState<boolean>(!dashboardCache);
   const [syncing, setSyncing] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedPreviewPatient, setSelectedPreviewPatient] = useState<any | null>(null);
 
   useFocusEffect(
     useCallback(() => {
@@ -297,36 +300,101 @@ export default function DashboardScreen() {
         </View>
       </View>
 
+      {/* Quick Action Bar (Search & Shortcuts) */}
+      <View style={styles.quickActionBar}>
+        <View style={styles.searchBarBox}>
+          <Ionicons name="search" size={18} color="#8AC8F9" />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="🔍 Rechercher un patient (nom, téléphone)..."
+            placeholderTextColor="#94A3B8"
+            value={searchQuery}
+            onChangeText={(txt: string) => {
+              setSearchQuery(txt);
+              if (txt.trim().length > 1) {
+                router.push(`/patients?search=${encodeURIComponent(txt.trim())}`);
+              }
+            }}
+          />
+        </View>
+        <View style={styles.quickShortcutsRow}>
+          <TouchableOpacity style={styles.shortcutBtnPrimary} onPress={() => router.push('/patients/create')}>
+            <Ionicons name="person-add" size={15} color="#0F2C3D" />
+            <Text style={styles.shortcutBtnPrimaryText}>+ Nouveau patient</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.shortcutBtnSecondary} onPress={() => router.push('/consultations')}>
+            <Ionicons name="medical" size={15} color="#28C2FF" />
+            <Text style={styles.shortcutBtnSecondaryText}>+ Nouvelle consultation</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
       <ScrollView contentContainerStyle={styles.scrollContent}>
-        {/* Recents Patients */}
+        {/* Recents Patients with Preview Card Interaction */}
         {recents.length > 0 && (
           <View style={styles.recentsContainer}>
             <Text style={styles.recentsTitle}>Dossiers Récents</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.recentsScroll}>
-              {recents.map((item) => (
-                <TouchableOpacity
-                  key={item.id}
-                  style={styles.recentItem}
-                  onPress={() => router.push(`/patients/${item.id}`)}
-                >
-                  <View style={styles.recentAvatar}>
-                    <Text style={styles.recentAvatarText}>
-                      {item.prenom[0] || ''}{item.nom[0] || ''}
+              {recents.map((item) => {
+                const isSelected = selectedPreviewPatient?.id === item.id;
+                return (
+                  <TouchableOpacity
+                    key={item.id}
+                    style={[styles.recentItem, isSelected && styles.recentItemSelected]}
+                    onPress={() => {
+                      if (isSelected) {
+                        router.push(`/patients/${item.id}`);
+                      } else {
+                        setSelectedPreviewPatient(item);
+                      }
+                    }}
+                  >
+                    <View style={[styles.recentAvatar, isSelected && { borderColor: '#28C2FF', borderWidth: 2 }]}>
+                      <Text style={styles.recentAvatarText}>
+                        {item.prenom ? item.prenom[0] : ''}{item.nom ? item.nom[0] : ''}
+                      </Text>
+                    </View>
+                    <Text style={styles.recentName} numberOfLines={1}>
+                      {item.prenom} {item.nom ? item.nom.toUpperCase() : ''}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+
+            {/* Instant Preview Card */}
+            {selectedPreviewPatient && (
+              <View style={styles.previewCard}>
+                <View style={styles.previewHeader}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                    <Ionicons name="person-circle-outline" size={24} color="#28C2FF" />
+                    <Text style={styles.previewTitle}>
+                      {selectedPreviewPatient.prenom} {selectedPreviewPatient.nom?.toUpperCase()} · {selectedPreviewPatient.sexe}
                     </Text>
                   </View>
-                  <Text style={styles.recentName} numberOfLines={1}>
-                    {item.prenom} {item.nom.toUpperCase()}
-                  </Text>
+                  <TouchableOpacity onPress={() => setSelectedPreviewPatient(null)}>
+                    <Ionicons name="close" size={18} color="#8AC8F9" />
+                  </TouchableOpacity>
+                </View>
+                <Text style={styles.previewSubtitle}>
+                  {selectedPreviewPatient.telephone ? `📞 ${selectedPreviewPatient.telephone}` : 'Pas de téléphone'}
+                  {selectedPreviewPatient.adresse ? `  |  📍 ${selectedPreviewPatient.adresse}` : ''}
+                </Text>
+                <TouchableOpacity
+                  style={styles.openPatientBtn}
+                  onPress={() => router.push(`/patients/${selectedPreviewPatient.id}`)}
+                >
+                  <Text style={styles.openPatientBtnText}>Ouvrir la fiche patient complète →</Text>
                 </TouchableOpacity>
-              ))}
-            </ScrollView>
+              </View>
+            )}
           </View>
         )}
 
-        {/* Favorites Patients */}
+        {/* Pinned Dossiers (Formerly Favorites) */}
         {favorites.length > 0 && (
           <View style={styles.recentsContainer}>
-            <Text style={styles.recentsTitle}>Dossiers Épinglés (Favoris)</Text>
+            <Text style={styles.recentsTitle}>Dossiers épinglés</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.recentsScroll}>
               {favorites.map((item) => (
                 <TouchableOpacity
@@ -335,13 +403,13 @@ export default function DashboardScreen() {
                   onPress={() => router.push(`/patients/${item.id}`)}
                 >
                   <View style={[styles.recentAvatar, styles.favAvatar]}>
-                    <Ionicons name="star" size={10} color="#FFD700" style={styles.favStar} />
+                    <Ionicons name="pin" size={10} color="#FFD700" style={styles.favStar} />
                     <Text style={styles.recentAvatarText}>
-                      {item.prenom[0] || ''}{item.nom[0] || ''}
+                      {item.prenom ? item.prenom[0] : ''}{item.nom ? item.nom[0] : ''}
                     </Text>
                   </View>
                   <Text style={styles.recentName} numberOfLines={1}>
-                    {item.prenom} {item.nom.toUpperCase()}
+                    {item.prenom} {item.nom ? item.nom.toUpperCase() : ''}
                   </Text>
                 </TouchableOpacity>
               ))}
@@ -349,7 +417,7 @@ export default function DashboardScreen() {
           </View>
         )}
 
-        {/* Statistics Grid */}
+        {/* Operational Statistics Cards */}
         <View style={styles.statsGrid}>
           <View style={styles.statCard}>
             <Ionicons name="people" size={24} color="#28C2FF" style={styles.statIcon} />
@@ -366,41 +434,6 @@ export default function DashboardScreen() {
             <Text style={styles.statNumber}>{stats.nouveauxMois}</Text>
             <Text style={styles.statLabel}>Nouveaux ce mois</Text>
           </View>
-        </View>
-
-        {/* Gender Distribution Card */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Démographie Patients</Text>
-          <View style={styles.genderRow}>
-            <Text style={styles.genderLabel}>Hommes ({stats.patientsM})</Text>
-            <Text style={styles.genderLabel}>Femmes ({stats.patientsF})</Text>
-          </View>
-          <View style={styles.progressBarBg}>
-            <View style={[styles.progressBarM, { width: `${mPercentage}%` }]} />
-            <View style={[styles.progressBarF, { width: `${fPercentage}%` }]} />
-          </View>
-          <View style={styles.genderRow}>
-            <Text style={[styles.genderPct, { color: '#8AC8F9' }]}>{mPercentage}%</Text>
-            <Text style={[styles.genderPct, { color: '#FFB2C9' }]}>{fPercentage}%</Text>
-          </View>
-        </View>
-
-        {/* Top Diagnostics Card */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Pathologies Fréquentes</Text>
-          {stats.topPathologies.length === 0 ? (
-            <Text style={styles.emptyCardText}>Aucun diagnostic enregistré pour le moment.</Text>
-          ) : (
-            stats.topPathologies.map((item, index) => (
-              <View key={item.name} style={styles.pathologyRow}>
-                <View style={styles.pathologyLeft}>
-                  <Text style={styles.pathologyRank}>#{index + 1}</Text>
-                  <Text style={styles.pathologyName} numberOfLines={1}>{item.name}</Text>
-                </View>
-                <Text style={styles.pathologyCount}>{item.count} cas</Text>
-              </View>
-            ))
-          )}
         </View>
 
         {/* Today's Agenda */}
@@ -735,5 +768,107 @@ const styles = StyleSheet.create({
     backgroundColor: '#1E3E52',
     borderRadius: 6,
     padding: 1,
+  },
+  recentItemSelected: {
+    opacity: 0.9,
+  },
+  quickActionBar: {
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    backgroundColor: '#0F2C3D',
+    gap: 10,
+  },
+  searchBarBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#1E3E52',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: '#2F5C77',
+    gap: 8,
+  },
+  searchInput: {
+    flex: 1,
+    color: '#FFFFFF',
+    fontSize: 13,
+    padding: 0,
+  },
+  quickShortcutsRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  shortcutBtnPrimary: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#28C2FF',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    gap: 6,
+  },
+  shortcutBtnPrimaryText: {
+    color: '#0F2C3D',
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  shortcutBtnSecondary: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#1E3E52',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#28C2FF',
+    gap: 6,
+  },
+  shortcutBtnSecondaryText: {
+    color: '#28C2FF',
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  previewCard: {
+    marginTop: 14,
+    backgroundColor: '#0F2C3D',
+    borderRadius: 10,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#28C2FF',
+    gap: 6,
+  },
+  previewHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  previewTitle: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: 'bold',
+  },
+  previewSubtitle: {
+    color: '#8AC8F9',
+    fontSize: 12,
+  },
+  openPatientBtn: {
+    marginTop: 4,
+    alignSelf: 'flex-start',
+    backgroundColor: '#1E3E52',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#2F5C77',
+  },
+  openPatientBtnText: {
+    color: '#28C2FF',
+    fontSize: 11,
+    fontWeight: 'bold',
   },
 });

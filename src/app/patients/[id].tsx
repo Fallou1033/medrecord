@@ -33,7 +33,7 @@ import { useSecurity } from '../../security/SecurityContext';
 import { writeAuditLog, getDatabase } from '../../database/db';
 import DatePickerDOB from '../../components/DatePickerDOB';
 
-type SubTab = 'info' | 'antecedents' | 'consultations' | 'vaccinations';
+type SubTab = 'info' | 'antecedents' | 'consultations' | 'documents' | 'vaccinations';
 
 export default function PatientDetailsScreen() {
   const router = useRouter();
@@ -489,13 +489,14 @@ export default function PatientDetailsScreen() {
         <View style={styles.tabBar}>
           {(
             (age !== null && age < 15)
-              ? ['info', 'antecedents', 'consultations', 'vaccinations']
-              : ['info', 'antecedents', 'consultations']
+              ? ['info', 'antecedents', 'consultations', 'documents', 'vaccinations']
+              : ['info', 'antecedents', 'consultations', 'documents']
           ).map((tab) => {
-            let label = 'Infos';
-            if (tab === 'antecedents') label = 'Antécédents';
-            if (tab === 'consultations') label = 'Visites';
-            if (tab === 'vaccinations') label = 'Vaccins (Pédiatrie)';
+            let label = 'Résumé';
+            if (tab === 'antecedents') label = 'Antécédents & Terrain';
+            if (tab === 'consultations') label = 'Consultations';
+            if (tab === 'documents') label = 'Documents';
+            if (tab === 'vaccinations') label = 'Vaccins';
 
             const isActive = activeTab === tab;
             return (
@@ -658,7 +659,85 @@ export default function PatientDetailsScreen() {
           </View>
         )}
 
-        {/* TAB 4: VACCINATIONS */}
+        {/* TAB 4: DOCUMENTS & PARACLINIQUE */}
+        {activeTab === 'documents' && (
+          <View style={styles.infoContainer}>
+            {/* Paraclinique Module */}
+            <View style={styles.card}>
+              <View style={styles.tabHeader}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <Ionicons name="flask-outline" size={20} color="#28C2FF" />
+                  <Text style={styles.sectionTitle}>Examens Paracliniques</Text>
+                </View>
+              </View>
+
+              <View style={styles.paracliniqueGrid}>
+                {['Radiographie', 'Scanner', 'NFS', 'Ionogramme', 'Autres'].map((category) => (
+                  <View key={category} style={styles.paracliniqueCard}>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <Text style={styles.paracliniqueCatTitle}>{category}</Text>
+                      <TouchableOpacity
+                        style={styles.uploadBtn}
+                        onPress={() => {
+                          if (Platform.OS === 'web') {
+                            alert(`Ajout d'examen ${category} : Veuillez sélectionner le fichier (Photo/PDF).`);
+                          } else {
+                            Alert.alert('Upload Document', `Sélectionnez le fichier pour ${category}`);
+                          }
+                        }}
+                      >
+                        <Ionicons name="cloud-upload-outline" size={14} color="#0F2C3D" />
+                        <Text style={styles.uploadBtnText}>Upload Photo/PDF</Text>
+                      </TouchableOpacity>
+                    </View>
+                    <Text style={styles.paracliniqueHint}>Champs obligatoires : Date & Compte-rendu</Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+
+            {/* Classified Document Manager */}
+            <View style={styles.card}>
+              <View style={styles.tabHeader}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <Ionicons name="folder-open-outline" size={20} color="#28C2FF" />
+                  <Text style={styles.sectionTitle}>Gestionnaire de Documents Classés</Text>
+                </View>
+              </View>
+
+              <View style={styles.docCategoriesGrid}>
+                {[
+                  { name: 'Biologie', icon: 'medical-outline', color: '#28C2FF' },
+                  { name: 'Radiographies', icon: 'body-outline', color: '#8AC8F9' },
+                  { name: 'Scanner', icon: 'hardware-chip-outline', color: '#E67E22' },
+                  { name: 'ECG', icon: 'pulse-outline', color: '#FF6B6B' },
+                  { name: 'Comptes rendus', icon: 'document-text-outline', color: '#2ECC71' },
+                  { name: 'Photos cliniques', icon: 'camera-outline', color: '#FFD700' },
+                  { name: 'Certificats', icon: 'ribbon-outline', color: '#9B59B6' },
+                  { name: 'Ordonnances', icon: 'receipt-outline', color: '#1ABC9C' },
+                ].map((docCat) => (
+                  <TouchableOpacity
+                    key={docCat.name}
+                    style={styles.docFolderCard}
+                    onPress={() => {
+                      if (Platform.OS === 'web') {
+                        alert(`Dossier ${docCat.name} : Aucun document archivé pour l'instant.`);
+                      } else {
+                        Alert.alert(docCat.name, 'Aucun document archivé.');
+                      }
+                    }}
+                  >
+                    <Ionicons name={docCat.icon as any} size={24} color={docCat.color} />
+                    <Text style={styles.docFolderName}>{docCat.name}</Text>
+                    <Text style={styles.docFolderCount}>0 fichier(s)</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+          </View>
+        )}
+
+        {/* TAB 5: VACCINATIONS (Pédiatrie < 15 ans) */}
         {activeTab === 'vaccinations' && (
           <View style={styles.infoContainer}>
             <View style={styles.tabHeader}>
@@ -1017,6 +1096,14 @@ const styles = StyleSheet.create({
     color: '#8AC8F9',
     marginTop: 12,
     fontSize: 14,
+  },
+  card: {
+    backgroundColor: '#1E3E52',
+    borderRadius: 15,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#2F5C77',
+    marginBottom: 16,
   },
   header: {
     backgroundColor: '#1E3E52',
@@ -1457,5 +1544,66 @@ const styles = StyleSheet.create({
     color: '#0F2C3D',
     fontSize: 13,
     fontWeight: 'bold',
+  },
+  paracliniqueGrid: {
+    gap: 10,
+    marginTop: 6,
+  },
+  paracliniqueCard: {
+    backgroundColor: '#0F2C3D',
+    borderRadius: 10,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#2F5C77',
+    gap: 6,
+  },
+  paracliniqueCatTitle: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
+  uploadBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#28C2FF',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 6,
+    gap: 4,
+  },
+  uploadBtnText: {
+    color: '#0F2C3D',
+    fontSize: 11,
+    fontWeight: 'bold',
+  },
+  paracliniqueHint: {
+    color: '#8AC8F9',
+    fontSize: 11,
+  },
+  docCategoriesGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+    marginTop: 6,
+  },
+  docFolderCard: {
+    width: '48%',
+    backgroundColor: '#0F2C3D',
+    borderRadius: 12,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: '#2F5C77',
+    alignItems: 'center',
+    gap: 6,
+  },
+  docFolderName: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: 'bold',
+    textAlign: 'center',
+  },
+  docFolderCount: {
+    color: '#8AC8F9',
+    fontSize: 11,
   },
 });

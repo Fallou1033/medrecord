@@ -73,6 +73,8 @@ export default function CreatePatientScreen() {
   const [prenom, setPrenom] = useState('');
   const [sexe, setSexe] = useState<'M' | 'F'>('M');
   const [dateNaissance, setDateNaissance] = useState(''); // Format: YYYY-MM-DD
+  const [dateNaissanceMode, setDateNaissanceMode] = useState<'DOB' | 'AGE'>('DOB');
+  const [ageSaisi, setAgeSaisi] = useState('');
   const [telephone, setTelephone] = useState('');
   const [adresse, setAdresse] = useState('');
   const [profession, setProfession] = useState('');
@@ -290,11 +292,84 @@ export default function CreatePatientScreen() {
             </View>
           </View>
 
-          <DatePickerDOB
-            value={dateNaissance}
-            onChange={setDateNaissance}
-            label="Date de naissance (facultatif)"
-          />
+          {/* Mode de saisie de l'âge / Date de Naissance */}
+          <View style={styles.inputGroup}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+              <Text style={styles.label}>Âge / Date de naissance</Text>
+              <View style={{ flexDirection: 'row', gap: 6 }}>
+                <TouchableOpacity
+                  style={{
+                    backgroundColor: dateNaissanceMode === 'DOB' ? '#28C2FF' : '#1E3E52',
+                    paddingHorizontal: 10,
+                    paddingVertical: 4,
+                    borderRadius: 6,
+                  }}
+                  onPress={() => setDateNaissanceMode('DOB')}
+                >
+                  <Text style={{ color: dateNaissanceMode === 'DOB' ? '#0F2C3D' : '#8AC8F9', fontSize: 11, fontWeight: 'bold' }}>
+                    📅 Date de naissance
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={{
+                    backgroundColor: dateNaissanceMode === 'AGE' ? '#28C2FF' : '#1E3E52',
+                    paddingHorizontal: 10,
+                    paddingVertical: 4,
+                    borderRadius: 6,
+                  }}
+                  onPress={() => setDateNaissanceMode('AGE')}
+                >
+                  <Text style={{ color: dateNaissanceMode === 'AGE' ? '#0F2C3D' : '#8AC8F9', fontSize: 11, fontWeight: 'bold' }}>
+                    🔢 Âge (en années)
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {dateNaissanceMode === 'DOB' ? (
+              <DatePickerDOB
+                value={dateNaissance}
+                onChange={(val) => {
+                  setDateNaissance(val);
+                  if (val && val.length === 10) {
+                    const birthYear = parseInt(val.split('-')[0], 10);
+                    if (!isNaN(birthYear)) {
+                      const calculatedAge = new Date().getFullYear() - birthYear;
+                      setAgeSaisi(calculatedAge > 0 ? String(calculatedAge) : '');
+                    }
+                  }
+                }}
+                label="Sélectionner la Date de Naissance"
+              />
+            ) : (
+              <View>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Saisir l'âge direct (ex: 35)"
+                  placeholderTextColor="#9ca3af"
+                  value={ageSaisi}
+                  onChangeText={(txt) => {
+                    const nums = txt.replace(/\D/g, '').slice(0, 3);
+                    setAgeSaisi(nums);
+                    if (nums) {
+                      const ageNum = parseInt(nums, 10);
+                      const estimatedYear = new Date().getFullYear() - ageNum;
+                      setDateNaissance(`${estimatedYear}-01-01`);
+                    } else {
+                      setDateNaissance('');
+                    }
+                  }}
+                  keyboardType="number-pad"
+                  maxLength={3}
+                />
+                {ageSaisi ? (
+                  <Text style={{ fontSize: 11, color: '#28C2FF', marginTop: 4 }}>
+                    Estimé à l'année de naissance : {new Date().getFullYear() - parseInt(ageSaisi, 10)}
+                  </Text>
+                ) : null}
+              </View>
+            )}
+          </View>
 
           <Text style={styles.sectionTitle}>Coordonnées & Médical</Text>
 
