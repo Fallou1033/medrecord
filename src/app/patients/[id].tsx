@@ -25,6 +25,7 @@ import {
   getVaccinationsByPatient,
   addVaccination,
   getExamensParacliniquesByPatient,
+  addExamenParaclinique,
   deleteExamenParaclinique,
   Patient,
   Antecedent,
@@ -67,6 +68,16 @@ export default function PatientDetailsScreen() {
   const [isFavorite, setIsFavorite] = useState(false);
   const [aiSummary, setAiSummary] = useState<string>('');
   const [aiSummaryLoading, setAiSummaryLoading] = useState(false);
+  // Modal State for Paraclinique
+  const [modalParacliniqueVisible, setModalParacliniqueVisible] = useState(false);
+  const [paraCategorie, setParaCategorie] = useState<'Radiographie' | 'Scanner' | 'NFS' | 'Ionogramme' | 'Autres'>('Radiographie');
+  const [paraIntituleAutre, setParaIntituleAutre] = useState('');
+  const [paraDate, setParaDate] = useState(new Date().toISOString().split('T')[0]);
+  const [paraCompteRendu, setParaCompteRendu] = useState('');
+  const [paraFichierUrl, setParaFichierUrl] = useState<string | null>(null);
+  const [paraFichierNom, setParaFichierNom] = useState<string | null>(null);
+  const [paraFichierType, setParaFichierType] = useState<'image' | 'pdf' | 'other' | null>(null);
+  const [paraLoading, setParaLoading] = useState(false);
 
   // Modal State for adding Antecedent
   const [modalVisible, setModalVisible] = useState(false);
@@ -638,6 +649,52 @@ export default function PatientDetailsScreen() {
     }
   };
 
+  const handleAddExamenParaclinique = async () => {
+    if (paraCategorie === 'Autres' && !paraIntituleAutre.trim()) {
+      showAlert('Champ requis', 'Veuillez préciser l\'intitulé de l\'examen.');
+      return;
+    }
+    if (!paraCompteRendu.trim()) {
+      showAlert('Champ requis', 'Veuillez saisir le compte-rendu ou les conclusions.');
+      return;
+    }
+
+    if (!user) return;
+
+    setParaLoading(true);
+    try {
+      await addExamenParaclinique(
+        {
+          patient_id: id,
+          categorie: paraCategorie,
+          intitule_autre: paraCategorie === 'Autres' ? paraIntituleAutre.trim() : null,
+          date_examen: paraDate,
+          compte_rendu: paraCompteRendu.trim(),
+          fichier_url: paraFichierUrl,
+          fichier_nom: paraFichierNom,
+          fichier_type: paraFichierType,
+        },
+        user.id
+      );
+
+      const updated = await getExamensParacliniquesByPatient(id);
+      setExamensParacliniques(updated);
+
+      setParaIntituleAutre('');
+      setParaCompteRendu('');
+      setParaFichierUrl(null);
+      setParaFichierNom(null);
+      setParaFichierType(null);
+      setModalParacliniqueVisible(false);
+      showAlert('Succès', 'Examen paraclinique enregistré avec succès.');
+    } catch (err) {
+      console.error(err);
+      showAlert('Erreur', "Impossible d'enregistrer l'examen paraclinique.");
+    } finally {
+      setParaLoading(false);
+    }
+  };
+
   if (loading) {
     return (
       <View style={styles.centerContainer}>
@@ -1165,12 +1222,10 @@ export default function PatientDetailsScreen() {
           <View style={styles.infoContainer}>
             <View style={styles.tabHeader}>
               <Text style={[styles.sectionTitle, { flex: 1, marginRight: 8 }]} numberOfLines={1}>Examens Paracliniques</Text>
-              <Link href={`/patients/paraclinique_create?patientId=${id}`} asChild>
-                <TouchableOpacity style={styles.actionButton}>
-                  <Ionicons name="flask" size={16} color="#0F2C3D" />
-                  <Text style={styles.actionButtonText}>+ Examen Paraclinique</Text>
-                </TouchableOpacity>
-              </Link>
+              <TouchableOpacity style={styles.actionButton} onPress={() => setModalParacliniqueVisible(true)}>
+                <Ionicons name="flask" size={16} color="#0F2C3D" />
+                <Text style={styles.actionButtonText}>+ Examen Paraclinique</Text>
+              </TouchableOpacity>
             </View>
 
             {/* Category Filter Pills */}
@@ -1993,6 +2048,171 @@ export default function PatientDetailsScreen() {
               >
                 <Text style={[styles.modalSubmitText, { color: '#0F2C3D' }]}>
                   {editLoading ? 'Enregistrement...' : 'Sauvegarder les modifications'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Add Paraclinique Modal */}
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={modalParacliniqueVisible}
+        onRequestClose={() => setModalParacliniqueVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { maxHeight: '90%' }]}>
+            <Text style={styles.modalTitle}>Nouvel Examen Paraclinique</Text>
+
+            <ScrollView contentContainerStyle={{ gap: 12 }}>
+              {/* Category */}
+              <View style={styles.inputGroup}>
+                <Text style={styles.modalLabel}>1. Catégorie d'examen *</Text>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+                  {['Radiographie', 'Scanner', 'NFS', 'Ionogramme', 'Autres'].map((cat) => {
+                    const isSel = paraCategorie === cat;
+                    return (
+                      <TouchableOpacity
+                        key={cat}
+                        style={[styles.typeBtn, isSel && styles.typeBtnActive]}
+                        onPress={() => setParaCategorie(cat as any)}
+                      >
+                        <Text style={[styles.typeBtnText, isSel && styles.typeBtnTextActive]}>{cat}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </View>
+
+              {paraCategorie === 'Autres' && (
+                <View style={styles.inputGroup}>
+                  <Text style={styles.modalLabel}>Intitulé de l'examen *</Text>
+                  <TextInput
+                    style={styles.modalInputText}
+                    placeholder="Ex: Échographie, ECG, IRM..."
+                    placeholderTextColor="#9ca3af"
+                    value={paraIntituleAutre}
+                    onChangeText={setParaIntituleAutre}
+                  />
+                </View>
+              )}
+
+              {/* Date */}
+              <View style={styles.inputGroup}>
+                <DatePickerDOB
+                  label="2. Date de l'examen *"
+                  value={paraDate}
+                  onChange={setParaDate}
+                />
+              </View>
+
+              {/* Compte Rendu */}
+              <View style={styles.inputGroup}>
+                <Text style={styles.modalLabel}>3. Compte-Rendu / Conclusion *</Text>
+                <TextInput
+                  style={styles.modalInput}
+                  placeholder="Saisissez les résultats ou les conclusions..."
+                  placeholderTextColor="#9ca3af"
+                  multiline
+                  numberOfLines={4}
+                  value={paraCompteRendu}
+                  onChangeText={setParaCompteRendu}
+                />
+              </View>
+
+              {/* File Upload */}
+              <View style={styles.inputGroup}>
+                <Text style={styles.modalLabel}>4. Pièce jointe (Photo / PDF)</Text>
+                <View style={{ flexDirection: 'row', gap: 8 }}>
+                  <TouchableOpacity
+                    style={[styles.actionButton, { flex: 1, justifyContent: 'center' }]}
+                    onPress={async () => {
+                      if (Platform.OS === 'web') {
+                        const input = document.createElement('input');
+                        input.type = 'file';
+                        input.accept = 'image/*,application/pdf';
+                        input.onchange = (e: any) => {
+                          const file = e.target.files[0];
+                          if (file) {
+                            const reader = new FileReader();
+                            reader.onload = (ev: any) => {
+                              setParaFichierUrl(ev.target.result);
+                              setParaFichierNom(file.name);
+                              setParaFichierType(file.type.includes('pdf') ? 'pdf' : 'image');
+                            };
+                            reader.readAsDataURL(file);
+                          }
+                        };
+                        input.click();
+                      } else {
+                        const DocumentPicker = require('expo-document-picker');
+                        const res = await DocumentPicker.getDocumentAsync({ type: ['image/*', 'application/pdf'] });
+                        if (!res.canceled && res.assets && res.assets.length > 0) {
+                          const asset = res.assets[0];
+                          setParaFichierUrl(asset.uri);
+                          setParaFichierNom(asset.name);
+                          setParaFichierType(asset.mimeType?.includes('pdf') ? 'pdf' : 'image');
+                        }
+                      }
+                    }}
+                  >
+                    <Ionicons name="document-attach-outline" size={16} color="#0F2C3D" />
+                    <Text style={styles.actionButtonText}>Importer Fichier</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[styles.actionButton, { backgroundColor: '#8AC8F9', flex: 1, justifyContent: 'center' }]}
+                    onPress={async () => {
+                      const ImagePicker = require('expo-image-picker');
+                      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+                      if (perm.granted) {
+                        const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.8, base64: Platform.OS === 'web' });
+                        if (!res.canceled && res.assets && res.assets.length > 0) {
+                          const asset = res.assets[0];
+                          const uri = asset.base64 ? `data:image/jpeg;base64,${asset.base64}` : asset.uri;
+                          setParaFichierUrl(uri);
+                          setParaFichierNom(`Photo_${paraCategorie}_${Date.now()}.jpg`);
+                          setParaFichierType('image');
+                        }
+                      }
+                    }}
+                  >
+                    <Ionicons name="camera-outline" size={16} color="#0F2C3D" />
+                    <Text style={styles.actionButtonText}>Photo</Text>
+                  </TouchableOpacity>
+                </View>
+
+                {paraFichierUrl && (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#0F2C3D', padding: 8, borderRadius: 6, marginTop: 8 }}>
+                    <Ionicons name={paraFichierType === 'pdf' ? "document-text" : "image"} size={20} color="#28C2FF" />
+                    <Text style={{ color: '#FFFFFF', fontSize: 12, flex: 1 }} numberOfLines={1}>
+                      {paraFichierNom || 'Fichier joint prêt'}
+                    </Text>
+                    <TouchableOpacity onPress={() => { setParaFichierUrl(null); setParaFichierNom(null); setParaFichierType(null); }}>
+                      <Ionicons name="close-circle" size={18} color="#FF6B6B" />
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </View>
+            </ScrollView>
+
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={styles.modalCancel}
+                onPress={() => setModalParacliniqueVisible(false)}
+                disabled={paraLoading}
+              >
+                <Text style={styles.modalCancelText}>Annuler</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.modalSubmit}
+                onPress={handleAddExamenParaclinique}
+                disabled={paraLoading}
+              >
+                <Text style={styles.modalSubmitText}>
+                  {paraLoading ? 'Enregistrement...' : 'Enregistrer'}
                 </Text>
               </TouchableOpacity>
             </View>
