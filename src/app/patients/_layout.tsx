@@ -10,6 +10,7 @@ export default function PatientsLayout() {
       <Stack.Screen name="consultation_create" />
       <Stack.Screen name="consultation_details" />
       <Stack.Screen name="ordonnance_create" />
+      <Stack.Screen name="paraclinique_create" />
     </Stack>
   );
 }

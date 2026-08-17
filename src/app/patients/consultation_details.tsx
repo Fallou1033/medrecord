@@ -301,13 +301,21 @@ export default function ConsultationDetailsScreen() {
         <View style={styles.card}>
           <View style={styles.cardHeaderFlex}>
             <Text style={styles.cardTitleNoMargin}>Examens & Pièces Jointes</Text>
-            <TouchableOpacity
-              style={styles.smallAddButton}
-              onPress={() => setModalExamVisible(true)}
-            >
-              <Ionicons name="attach-outline" size={16} color="#0F2C3D" />
-              <Text style={styles.smallAddButtonText}>Joindre</Text>
-            </TouchableOpacity>
+            <View style={{ flexDirection: 'row', gap: 6 }}>
+              <Link href={`/patients/paraclinique_create?patientId=${consultation.patient_id}&consultationId=${consultation.id}`} asChild>
+                <TouchableOpacity style={[styles.smallAddButton, { backgroundColor: '#28C2FF' }]}>
+                  <Ionicons name="flask-outline" size={16} color="#0F2C3D" />
+                  <Text style={styles.smallAddButtonText}>+ Paraclinique</Text>
+                </TouchableOpacity>
+              </Link>
+              <TouchableOpacity
+                style={styles.smallAddButton}
+                onPress={() => setModalExamVisible(true)}
+              >
+                <Ionicons name="attach-outline" size={16} color="#0F2C3D" />
+                <Text style={styles.smallAddButtonText}>Joindre</Text>
+              </TouchableOpacity>
+            </View>
           </View>
 
           {examens.length === 0 ? (

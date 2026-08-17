@@ -1,3 +1,4 @@
+import { Platform } from 'react-native';
 import { getDatabase, generateUUID, generatePatientFolderNumber, writeAuditLog } from './db';
 import { encryptData, decryptData } from '../security/encryption';
 
@@ -828,4 +829,126 @@ export async function getExamensByConsultation(consultationId: string): Promise<
     updated_at: row.updated_at,
     is_synced: row.is_synced === 1,
   }));
+}
+
+// ============================================================================
+// EXAMENS PARACLINIQUES OPERATIONS
+// ============================================================================
+
+export interface ExamenParaclinique {
+  id: string;
+  patient_id: string;
+  consultation_id?: string | null;
+  categorie: 'Radiographie' | 'Scanner' | 'NFS' | 'Ionogramme' | 'Autres';
+  intitule_autre?: string | null;
+  date_examen: string;
+  compte_rendu: string;
+  fichier_url?: string | null;
+  fichier_nom?: string | null;
+  fichier_type?: 'image' | 'pdf' | 'other' | string | null;
+  created_at: string;
+  updated_at: string;
+  is_synced?: boolean;
+}
+
+export async function addExamenParaclinique(
+  examen: Omit<ExamenParaclinique, 'id' | 'created_at' | 'updated_at' | 'is_synced'>,
+  userId: string
+): Promise<ExamenParaclinique> {
+  const db = await getDatabase();
+  const id = generateUUID();
+
+  const encCompteRendu = (await encryptData(examen.compte_rendu))!;
+
+  if (Platform.OS === 'web') {
+    const raw = localStorage.getItem(`paraclinique_${examen.patient_id}`);
+    const list: ExamenParaclinique[] = raw ? JSON.parse(raw) : [];
+    const newExam: ExamenParaclinique = {
+      ...examen,
+      id,
+      compte_rendu: examen.compte_rendu,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      is_synced: false,
+    };
+    list.unshift(newExam);
+    localStorage.setItem(`paraclinique_${examen.patient_id}`, JSON.stringify(list));
+  } else {
+    await db.runAsync(
+      `INSERT INTO examens_paracliniques (id, patient_id, consultation_id, categorie, intitule_autre, date_examen, compte_rendu, fichier_url, fichier_nom, fichier_type, is_synced) 
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0);`,
+      [
+        id,
+        examen.patient_id,
+        examen.consultation_id || null,
+        examen.categorie,
+        examen.intitule_autre || null,
+        examen.date_examen,
+        encCompteRendu,
+        examen.fichier_url || null,
+        examen.fichier_nom || null,
+        examen.fichier_type || null,
+      ]
+    );
+  }
+
+  await writeAuditLog(userId, 'CREATE', 'examens_paracliniques', id, `Ajout d'un examen paraclinique (${examen.categorie})`);
+
+  return {
+    ...examen,
+    id,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    is_synced: false,
+  };
+}
+
+export async function getExamensParacliniquesByPatient(patientId: string): Promise<ExamenParaclinique[]> {
+  if (Platform.OS === 'web') {
+    const raw = localStorage.getItem(`paraclinique_${patientId}`);
+    if (raw) {
+      return JSON.parse(raw);
+    }
+    return [];
+  }
+  const db = await getDatabase();
+  const rows = (await db.getAllAsync(
+    'SELECT * FROM examens_paracliniques WHERE patient_id = ? ORDER BY date_examen DESC, created_at DESC;',
+    [patientId]
+  )) as any[];
+
+  const result: ExamenParaclinique[] = [];
+  for (const row of rows) {
+    result.push({
+      id: row.id,
+      patient_id: row.patient_id,
+      consultation_id: row.consultation_id,
+      categorie: row.categorie,
+      intitule_autre: row.intitule_autre,
+      date_examen: row.date_examen,
+      compte_rendu: (await decryptData(row.compte_rendu)) || '',
+      fichier_url: row.fichier_url,
+      fichier_nom: row.fichier_nom,
+      fichier_type: row.fichier_type,
+      created_at: row.created_at,
+      updated_at: row.updated_at,
+      is_synced: row.is_synced === 1,
+    });
+  }
+  return result;
+}
+
+export async function deleteExamenParaclinique(id: string, patientId: string, userId: string): Promise<void> {
+  if (Platform.OS === 'web') {
+    const raw = localStorage.getItem(`paraclinique_${patientId}`);
+    if (raw) {
+      const list: ExamenParaclinique[] = JSON.parse(raw);
+      const filtered = list.filter((item) => item.id !== id);
+      localStorage.setItem(`paraclinique_${patientId}`, JSON.stringify(filtered));
+    }
+  } else {
+    const db = await getDatabase();
+    await db.runAsync('DELETE FROM examens_paracliniques WHERE id = ?;', [id]);
+  }
+  await writeAuditLog(userId, 'DELETE', 'examens_paracliniques', id, `Suppression d'un examen paraclinique`);
 }

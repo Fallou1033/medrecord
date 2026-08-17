@@ -397,6 +397,24 @@ export async function initDatabase(): Promise<void> {
       description TEXT,
       date TEXT DEFAULT CURRENT_TIMESTAMP NOT NULL
     );
+
+    -- 12. Table Examens Paracliniques
+    CREATE TABLE IF NOT EXISTS examens_paracliniques (
+      id TEXT PRIMARY KEY,
+      patient_id TEXT NOT NULL,
+      consultation_id TEXT,
+      categorie TEXT NOT NULL,
+      intitule_autre TEXT,
+      date_examen TEXT NOT NULL,
+      compte_rendu TEXT NOT NULL,
+      fichier_url TEXT,
+      fichier_nom TEXT,
+      fichier_type TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP NOT NULL,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP NOT NULL,
+      is_synced INTEGER DEFAULT 0,
+      FOREIGN KEY (patient_id) REFERENCES patients(id) ON DELETE CASCADE
+    );
   `);
   
   // Migration: Add telephone column to utilisateurs if not present

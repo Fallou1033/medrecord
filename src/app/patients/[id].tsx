@@ -12,6 +12,7 @@ import {
   SafeAreaView,
   Platform,
   StatusBar,
+  Image,
 } from 'react-native';
 import { useLocalSearchParams, useRouter, Link } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -23,17 +24,20 @@ import {
   getConsultationsByPatient,
   getVaccinationsByPatient,
   addVaccination,
+  getExamensParacliniquesByPatient,
+  deleteExamenParaclinique,
   Patient,
   Antecedent,
   Consultation,
   Vaccination,
+  ExamenParaclinique,
 } from '../../database/SQLiteDatabaseManager';
 import { calculateAge, formatDateFR } from '../../utils/helpers';
 import { useSecurity } from '../../security/SecurityContext';
 import { writeAuditLog, getDatabase } from '../../database/db';
 import DatePickerDOB from '../../components/DatePickerDOB';
 
-type SubTab = 'info' | 'antecedents' | 'consultations' | 'documents' | 'vaccinations';
+type SubTab = 'info' | 'consultations' | 'paraclinique' | 'antecedents' | 'documents' | 'vaccinations';
 
 export default function PatientDetailsScreen() {
   const router = useRouter();
@@ -55,6 +59,9 @@ export default function PatientDetailsScreen() {
   const [antecedents, setAntecedents] = useState<Antecedent[]>([]);
   const [consultations, setConsultations] = useState<Consultation[]>([]);
   const [vaccinations, setVaccinations] = useState<Vaccination[]>([]);
+  const [examensParacliniques, setExamensParacliniques] = useState<ExamenParaclinique[]>([]);
+  const [paraFilterCategory, setParaFilterCategory] = useState<string>('TOUS');
+  const [selectedImagePreview, setSelectedImagePreview] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<SubTab>('info');
   const [loading, setLoading] = useState(true);
   const [isFavorite, setIsFavorite] = useState(false);
@@ -321,6 +328,9 @@ export default function PatientDetailsScreen() {
 
       const vacs = await getVaccinationsByPatient(id);
       setVaccinations(vacs);
+
+      const para = await getExamensParacliniquesByPatient(id);
+      setExamensParacliniques(para);
 
       // Audit read file
       if (user) {
@@ -694,12 +704,13 @@ export default function PatientDetailsScreen() {
         <View style={styles.tabBar}>
           {(
             (age !== null && age < 15)
-              ? ['info', 'antecedents', 'consultations', 'documents', 'vaccinations']
-              : ['info', 'antecedents', 'consultations', 'documents']
+              ? ['info', 'consultations', 'paraclinique', 'antecedents', 'documents', 'vaccinations']
+              : ['info', 'consultations', 'paraclinique', 'antecedents', 'documents']
           ).map((tab) => {
             let label = 'Résumé';
-            if (tab === 'antecedents') label = 'Antécédents & Terrain';
             if (tab === 'consultations') label = 'Consultations';
+            if (tab === 'paraclinique') label = 'Paraclinique';
+            if (tab === 'antecedents') label = 'Antécédents & Terrain';
             if (tab === 'documents') label = 'Documents';
             if (tab === 'vaccinations') label = 'Vaccins';
 
@@ -1144,6 +1155,161 @@ export default function PatientDetailsScreen() {
                     </TouchableOpacity>
                   </Link>
                 ))}
+              </View>
+            )}
+          </View>
+        )}
+
+        {/* TAB 4: EXAMENS PARACLINIQUES (Positionné juste après Consultation) */}
+        {activeTab === 'paraclinique' && (
+          <View style={styles.infoContainer}>
+            <View style={styles.tabHeader}>
+              <Text style={[styles.sectionTitle, { flex: 1, marginRight: 8 }]} numberOfLines={1}>Examens Paracliniques</Text>
+              <Link href={`/patients/paraclinique_create?patientId=${id}`} asChild>
+                <TouchableOpacity style={styles.actionButton}>
+                  <Ionicons name="flask" size={16} color="#0F2C3D" />
+                  <Text style={styles.actionButtonText}>+ Examen Paraclinique</Text>
+                </TouchableOpacity>
+              </Link>
+            </View>
+
+            {/* Category Filter Pills */}
+            <View style={{ marginBottom: 14 }}>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+                {['TOUS', 'Radiographie', 'Scanner', 'NFS', 'Ionogramme', 'Autres'].map((cat) => {
+                  const isSel = paraFilterCategory === cat;
+                  return (
+                    <TouchableOpacity
+                      key={cat}
+                      style={{
+                        paddingHorizontal: 12,
+                        paddingVertical: 6,
+                        borderRadius: 20,
+                        backgroundColor: isSel ? '#28C2FF' : '#1E3E52',
+                        borderWidth: 1,
+                        borderColor: isSel ? '#28C2FF' : '#2F5C77',
+                      }}
+                      onPress={() => setParaFilterCategory(cat)}
+                    >
+                      <Text style={{ color: isSel ? '#0F2C3D' : '#8AC8F9', fontSize: 12, fontWeight: isSel ? 'bold' : '500' }}>
+                        {cat === 'TOUS' ? 'Tous les examens' : cat}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+            </View>
+
+            {/* Paraclinical Exams Chronological List */}
+            {examensParacliniques.length === 0 ? (
+              <View style={styles.emptyCard}>
+                <Ionicons name="flask-outline" size={44} color="#2F5C77" />
+                <Text style={styles.emptyCardText}>Aucun examen paraclinique enregistré pour ce patient.</Text>
+                <Link href={`/patients/paraclinique_create?patientId=${id}`} asChild>
+                  <TouchableOpacity style={[styles.actionButton, { marginTop: 12 }]}>
+                    <Ionicons name="add-circle-outline" size={16} color="#0F2C3D" />
+                    <Text style={styles.actionButtonText}>Ajouter le 1er Examen</Text>
+                  </TouchableOpacity>
+                </Link>
+              </View>
+            ) : (
+              <View style={{ gap: 12 }}>
+                {examensParacliniques
+                  .filter(item => paraFilterCategory === 'TOUS' || item.categorie === paraFilterCategory)
+                  .map((item) => {
+                    let catIcon = 'flask-outline';
+                    let catColor = '#28C2FF';
+                    if (item.categorie === 'Radiographie') { catIcon = 'camera-outline'; catColor = '#8AC8F9'; }
+                    if (item.categorie === 'Scanner') { catIcon = 'body-outline'; catColor = '#FFD700'; }
+                    if (item.categorie === 'NFS') { catIcon = 'fitness-outline'; catColor = '#FF6B6B'; }
+                    if (item.categorie === 'Ionogramme') { catIcon = 'flask-outline'; catColor = '#2ECC71'; }
+                    if (item.categorie === 'Autres') { catIcon = 'ellipsis-horizontal-circle-outline'; catColor = '#E67E22'; }
+
+                    return (
+                      <View key={item.id} style={styles.card}>
+                        {/* Card Header */}
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                            <View style={{ backgroundColor: '#0F2C3D', padding: 6, borderRadius: 8, borderWidth: 1, borderColor: '#2F5C77' }}>
+                              <Ionicons name={catIcon as any} size={18} color={catColor} />
+                            </View>
+                            <View>
+                              <Text style={styles.cardTitle}>
+                                {item.categorie} {item.intitule_autre ? `• ${item.intitule_autre}` : ''}
+                              </Text>
+                              <Text style={{ color: '#8AC8F9', fontSize: 12 }}>Examen du : {formatDateFR(item.date_examen)}</Text>
+                            </View>
+                          </View>
+                          <TouchableOpacity
+                            onPress={() => {
+                              showAlert('Confirmation', 'Voulez-vous vraiment supprimer cet examen paraclinique ?', [
+                                {
+                                  text: 'Supprimer',
+                                  onPress: async () => {
+                                    if (user) {
+                                      await deleteExamenParaclinique(item.id, id, user.id);
+                                      const updated = await getExamensParacliniquesByPatient(id);
+                                      setExamensParacliniques(updated);
+                                    }
+                                  },
+                                },
+                                { text: 'Annuler' },
+                              ]);
+                            }}
+                            style={{ padding: 4 }}
+                          >
+                            <Ionicons name="trash-outline" size={18} color="#FF6B6B" />
+                          </TouchableOpacity>
+                        </View>
+
+                        {/* Compte Rendu Text Box */}
+                        <View style={{ backgroundColor: '#0F2C3D', padding: 12, borderRadius: 8, borderWidth: 1, borderColor: '#2F5C77', marginTop: 4 }}>
+                          <Text style={{ color: '#8AC8F9', fontSize: 11, fontWeight: 'bold', textTransform: 'uppercase', marginBottom: 4 }}>
+                            Compte-Rendu / Conclusion :
+                          </Text>
+                          <Text style={{ color: '#FFFFFF', fontSize: 14, lineHeight: 20 }}>
+                            {item.compte_rendu}
+                          </Text>
+                        </View>
+
+                        {/* Attachment Box */}
+                        {item.fichier_url && (
+                          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#0F2C3D', padding: 10, borderRadius: 8, borderWidth: 1, borderColor: '#2F5C77', marginTop: 8 }}>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 }}>
+                              <Ionicons name={item.fichier_type === 'pdf' ? "document-text" : "image"} size={24} color="#28C2FF" />
+                              <View style={{ flex: 1 }}>
+                                <Text style={{ color: '#FFFFFF', fontSize: 13, fontWeight: 'bold' }} numberOfLines={1}>
+                                  {item.fichier_nom || 'Pièce jointe de l\'examen'}
+                                </Text>
+                                <Text style={{ color: '#8AC8F9', fontSize: 11 }}>
+                                  {item.fichier_type === 'pdf' ? 'Document PDF' : 'Photo / Image'}
+                                </Text>
+                              </View>
+                            </View>
+
+                            <TouchableOpacity
+                              style={{ backgroundColor: '#28C2FF', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 6 }}
+                              onPress={() => {
+                                if (item.fichier_url) {
+                                  if (item.fichier_type === 'image' || item.fichier_url.startsWith('data:image')) {
+                                    setSelectedImagePreview(item.fichier_url);
+                                  } else {
+                                    if (Platform.OS === 'web') {
+                                      window.open(item.fichier_url, '_blank');
+                                    } else {
+                                      showAlert('Document PDF', `Fichier : ${item.fichier_nom}`);
+                                    }
+                                  }
+                                }
+                              }}
+                            >
+                              <Text style={{ color: '#0F2C3D', fontSize: 12, fontWeight: 'bold' }}>Visualiser</Text>
+                            </TouchableOpacity>
+                          </View>
+                        )}
+                      </View>
+                    );
+                  })}
               </View>
             )}
           </View>
@@ -1831,6 +1997,29 @@ export default function PatientDetailsScreen() {
               </TouchableOpacity>
             </View>
           </View>
+        </View>
+      </Modal>
+
+      {/* Image Preview Modal */}
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={!!selectedImagePreview}
+        onRequestClose={() => setSelectedImagePreview(null)}
+      >
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.9)', justifyContent: 'center', alignItems: 'center', padding: 20 }}>
+          <TouchableOpacity
+            style={{ position: 'absolute', top: 40, right: 20, zIndex: 10, padding: 10 }}
+            onPress={() => setSelectedImagePreview(null)}
+          >
+            <Ionicons name="close-circle" size={36} color="#FFFFFF" />
+          </TouchableOpacity>
+          {selectedImagePreview && (
+            <Image
+              source={{ uri: selectedImagePreview }}
+              style={{ width: '100%', height: '80%', resizeMode: 'contain', borderRadius: 12 }}
+            />
+          )}
         </View>
       </Modal>
     </SafeAreaView>
