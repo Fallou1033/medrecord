@@ -904,38 +904,46 @@ export async function addExamenParaclinique(
 }
 
 export async function getExamensParacliniquesByPatient(patientId: string): Promise<ExamenParaclinique[]> {
-  if (Platform.OS === 'web') {
-    const raw = localStorage.getItem(`paraclinique_${patientId}`);
-    if (raw) {
-      return JSON.parse(raw);
+  try {
+    if (Platform.OS === 'web') {
+      const raw = localStorage.getItem(`paraclinique_${patientId}`);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        return Array.isArray(parsed) ? parsed : [];
+      }
+      return [];
     }
+    const db = await getDatabase();
+    const rows = (await db.getAllAsync(
+      'SELECT * FROM examens_paracliniques WHERE patient_id = ? ORDER BY date_examen DESC, created_at DESC;',
+      [patientId]
+    )) as any[];
+
+    if (!rows || !Array.isArray(rows)) return [];
+
+    const result: ExamenParaclinique[] = [];
+    for (const row of rows) {
+      result.push({
+        id: row.id,
+        patient_id: row.patient_id,
+        consultation_id: row.consultation_id,
+        categorie: row.categorie,
+        intitule_autre: row.intitule_autre,
+        date_examen: row.date_examen,
+        compte_rendu: (await decryptData(row.compte_rendu)) || '',
+        fichier_url: row.fichier_url,
+        fichier_nom: row.fichier_nom,
+        fichier_type: row.fichier_type,
+        created_at: row.created_at,
+        updated_at: row.updated_at,
+        is_synced: row.is_synced === 1,
+      });
+    }
+    return result;
+  } catch (error) {
+    console.error('Error fetching paraclinical exams:', error);
     return [];
   }
-  const db = await getDatabase();
-  const rows = (await db.getAllAsync(
-    'SELECT * FROM examens_paracliniques WHERE patient_id = ? ORDER BY date_examen DESC, created_at DESC;',
-    [patientId]
-  )) as any[];
-
-  const result: ExamenParaclinique[] = [];
-  for (const row of rows) {
-    result.push({
-      id: row.id,
-      patient_id: row.patient_id,
-      consultation_id: row.consultation_id,
-      categorie: row.categorie,
-      intitule_autre: row.intitule_autre,
-      date_examen: row.date_examen,
-      compte_rendu: (await decryptData(row.compte_rendu)) || '',
-      fichier_url: row.fichier_url,
-      fichier_nom: row.fichier_nom,
-      fichier_type: row.fichier_type,
-      created_at: row.created_at,
-      updated_at: row.updated_at,
-      is_synced: row.is_synced === 1,
-    });
-  }
-  return result;
 }
 
 export async function deleteExamenParaclinique(id: string, patientId: string, userId: string): Promise<void> {

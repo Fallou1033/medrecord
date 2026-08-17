@@ -1256,32 +1256,30 @@ export default function PatientDetailsScreen() {
             </View>
 
             {/* Paraclinical Exams Chronological List */}
-            {examensParacliniques.length === 0 ? (
+            {(!examensParacliniques || examensParacliniques.length === 0) ? (
               <View style={styles.emptyCard}>
                 <Ionicons name="flask-outline" size={44} color="#2F5C77" />
                 <Text style={styles.emptyCardText}>Aucun examen paraclinique enregistré pour ce patient.</Text>
-                <Link href={`/patients/paraclinique_create?patientId=${id}`} asChild>
-                  <TouchableOpacity style={[styles.actionButton, { marginTop: 12 }]}>
-                    <Ionicons name="add-circle-outline" size={16} color="#0F2C3D" />
-                    <Text style={styles.actionButtonText}>Ajouter le 1er Examen</Text>
-                  </TouchableOpacity>
-                </Link>
+                <TouchableOpacity style={[styles.actionButton, { marginTop: 12 }]} onPress={() => setModalParacliniqueVisible(true)}>
+                  <Ionicons name="add-circle-outline" size={16} color="#0F2C3D" />
+                  <Text style={styles.actionButtonText}>Ajouter le 1er Examen</Text>
+                </TouchableOpacity>
               </View>
             ) : (
               <View style={{ gap: 12 }}>
-                {examensParacliniques
-                  .filter(item => paraFilterCategory === 'TOUS' || item.categorie === paraFilterCategory)
+                {(examensParacliniques || [])
+                  .filter(item => item && (paraFilterCategory === 'TOUS' || item.categorie === paraFilterCategory))
                   .map((item) => {
                     let catIcon = 'flask-outline';
                     let catColor = '#28C2FF';
-                    if (item.categorie === 'Radiographie') { catIcon = 'camera-outline'; catColor = '#8AC8F9'; }
-                    if (item.categorie === 'Scanner') { catIcon = 'body-outline'; catColor = '#FFD700'; }
-                    if (item.categorie === 'NFS') { catIcon = 'fitness-outline'; catColor = '#FF6B6B'; }
-                    if (item.categorie === 'Ionogramme') { catIcon = 'flask-outline'; catColor = '#2ECC71'; }
-                    if (item.categorie === 'Autres') { catIcon = 'ellipsis-horizontal-circle-outline'; catColor = '#E67E22'; }
+                    if (item?.categorie === 'Radiographie') { catIcon = 'camera-outline'; catColor = '#8AC8F9'; }
+                    if (item?.categorie === 'Scanner') { catIcon = 'body-outline'; catColor = '#FFD700'; }
+                    if (item?.categorie === 'NFS') { catIcon = 'fitness-outline'; catColor = '#FF6B6B'; }
+                    if (item?.categorie === 'Ionogramme') { catIcon = 'flask-outline'; catColor = '#2ECC71'; }
+                    if (item?.categorie === 'Autres') { catIcon = 'ellipsis-horizontal-circle-outline'; catColor = '#E67E22'; }
 
                     return (
-                      <View key={item.id} style={styles.card}>
+                      <View key={item?.id || Math.random().toString()} style={styles.card}>
                         {/* Card Header */}
                         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
@@ -1290,13 +1288,14 @@ export default function PatientDetailsScreen() {
                             </View>
                             <View>
                               <Text style={styles.cardTitle}>
-                                {item.categorie} {item.intitule_autre ? `• ${item.intitule_autre}` : ''}
+                                {item?.categorie || 'Examen'} {item?.intitule_autre ? `• ${item.intitule_autre}` : ''}
                               </Text>
-                              <Text style={{ color: '#8AC8F9', fontSize: 12 }}>Examen du : {formatDateFR(item.date_examen)}</Text>
+                              <Text style={{ color: '#8AC8F9', fontSize: 12 }}>Examen du : {formatDateFR(item?.date_examen || '')}</Text>
                             </View>
                           </View>
                           <TouchableOpacity
                             onPress={() => {
+                              if (!item?.id) return;
                               showAlert('Confirmation', 'Voulez-vous vraiment supprimer cet examen paraclinique ?', [
                                 {
                                   text: 'Supprimer',
@@ -1304,7 +1303,7 @@ export default function PatientDetailsScreen() {
                                     if (user) {
                                       await deleteExamenParaclinique(item.id, id, user.id);
                                       const updated = await getExamensParacliniquesByPatient(id);
-                                      setExamensParacliniques(updated);
+                                      setExamensParacliniques(updated || []);
                                     }
                                   },
                                 },
@@ -1323,7 +1322,7 @@ export default function PatientDetailsScreen() {
                             Compte-Rendu / Conclusion :
                           </Text>
                           <Text style={{ color: '#FFFFFF', fontSize: 14, lineHeight: 20 }}>
-                            {item.compte_rendu}
+                            {item?.compte_rendu || 'Aucun compte-rendu renseigné.'}
                           </Text>
                         </View>
 
