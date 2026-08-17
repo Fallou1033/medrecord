@@ -149,6 +149,24 @@ export default function SetupSecurityScreen() {
       return;
     }
 
+    const isEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim().toLowerCase());
+    if (!isEmailValid) {
+      showAlert('Email invalide', 'Veuillez saisir une adresse e-mail valide (ex: dr.diop@cabinet.sn).');
+      return;
+    }
+
+    const cleanPhone = telephone.trim().replace(/[\s\-\(\)\+]/g, '');
+    const isPhoneValid = /^[0-9]{8,15}$/.test(cleanPhone);
+    if (!isPhoneValid) {
+      showAlert('Téléphone invalide', 'Veuillez saisir un numéro de téléphone valide.');
+      return;
+    }
+
+    if (nom.trim().length < 2 || prenom.trim().length < 2 || /^([a-zA-Z0-9])\1{4,}$/.test(nom.trim()) || /^([a-zA-Z0-9])\1{4,}$/.test(prenom.trim())) {
+      showAlert('Nom ou Prénom invalide', 'Veuillez saisir un prénom et un nom de famille valides.');
+      return;
+    }
+
     const isEmailAvailable = await validateEmailUniqueness(email);
     if (!isEmailAvailable) {
       showAlert('Adresse email indisponible', 'Cette adresse email est déjà utilisée.');

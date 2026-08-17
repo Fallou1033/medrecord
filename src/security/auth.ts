@@ -107,11 +107,20 @@ export async function checkEmailExists(email: string, currentUserId?: string): P
 }
 
 /**
- * Checks if a PIN code has been set up on this device.
+ * Checks if a PIN code and valid user session have been set up on this device.
  */
 export async function isPinSetup(): Promise<boolean> {
   const hash = await secureStoreGetItem(PIN_HASH_KEY);
-  return !!hash;
+  const activeUserId = await secureStoreGetItem(ACTIVE_USER_ID_KEY);
+  if (!hash || !activeUserId) return false;
+
+  try {
+    const db = await getDatabase();
+    const user = await db.getFirstAsync('SELECT id FROM utilisateurs WHERE id = ?;', [activeUserId]);
+    return Boolean(user);
+  } catch (e) {
+    return false;
+  }
 }
 
 export function cleanRawName(str: string | null | undefined): string {
@@ -394,48 +403,15 @@ export async function authenticateBiometric(): Promise<boolean> {
 export async function getActiveUserProfile(): Promise<UserProfile | null> {
   try {
     const userId = await secureStoreGetItem(ACTIVE_USER_ID_KEY);
+    if (!userId) return null;
+
     const db = await getDatabase();
-    
-    let user = userId ? (await db.getFirstAsync(
+    const user = (await db.getFirstAsync(
       'SELECT id, email, nom, prenom, telephone, role, biometrie_active FROM utilisateurs WHERE id = ?;',
       [userId]
-    )) as any : null;
+    )) as any;
 
-    if (!user) {
-      // Si la session est orpheline (ex: crash précédent), on récupère le premier utilisateur existant
-      user = (await db.getFirstAsync('SELECT * FROM utilisateurs LIMIT 1;')) as any;
-      if (user) {
-        await secureStoreSetItem(ACTIVE_USER_ID_KEY, user.id);
-      }
-    }
-
-    if (!user) {
-      // S'il n'y a aucun utilisateur mais qu'un PIN est configuré, on recrée un profil médecin par défaut
-      const defaultId = generateUUID();
-      const defaultEmail = 'bamba.diop@medrecord.sn';
-      const defaultNom = 'Diop';
-      const defaultPrenom = 'Mohamadou Bamba';
-      const defaultTelephone = '+221 77 123 4567';
-      const hash = await secureStoreGetItem(PIN_HASH_KEY);
-      
-      await db.runAsync(
-        `INSERT INTO utilisateurs (id, email, nom, prenom, telephone, role, pin_hash, biometrie_active) 
-         VALUES (?, ?, ?, ?, ?, ?, ?, 0);`,
-        [defaultId, defaultEmail, defaultNom, defaultPrenom, defaultTelephone, 'MEDECIN', hash]
-      );
-      
-      await secureStoreSetItem(ACTIVE_USER_ID_KEY, defaultId);
-      
-      return {
-        id: defaultId,
-        email: defaultEmail,
-        nom: defaultNom,
-        prenom: defaultPrenom,
-        telephone: defaultTelephone,
-        role: 'MEDECIN',
-        biometrie_active: false
-      };
-    }
+    if (!user) return null;
 
     if (user) {
       const cleanedNom = cleanRawName(user.nom);
