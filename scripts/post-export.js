@@ -121,6 +121,22 @@ function fixHtmlFile(filePath) {
         }
       }
     </style>
+    <script>
+      window.addEventListener('error', function(e) {
+        console.error('MedRecord Runtime Error:', e.error || e.message);
+        var root = document.getElementById('root');
+        if (root && (!root.innerHTML || root.innerHTML.trim() === '')) {
+          root.innerHTML = '<div style="background:#0F2C3D;color:#28C2FF;height:100vh;display:flex;flex-direction:column;justify-content:center;align-items:center;padding:24px;font-family:sans-serif;text-align:center;"><h1 style="font-size:24px;margin-bottom:12px;">MedRecord</h1><p style="color:#FFFFFF;font-size:15px;margin-bottom:16px;">Chargement des composants en cours...</p><button onclick="localStorage.clear();window.location.reload();" style="background:#28C2FF;color:#0F2C3D;border:none;padding:12px 24px;border-radius:8px;font-weight:bold;cursor:pointer;">Réinitialiser & Recharger</button></div>';
+        }
+      });
+      window.addEventListener('unhandledrejection', function(e) {
+        console.error('MedRecord Unhandled Promise:', e.reason);
+        var root = document.getElementById('root');
+        if (root && (!root.innerHTML || root.innerHTML.trim() === '')) {
+          root.innerHTML = '<div style="background:#0F2C3D;color:#28C2FF;height:100vh;display:flex;flex-direction:column;justify-content:center;align-items:center;padding:24px;font-family:sans-serif;text-align:center;"><h1 style="font-size:24px;margin-bottom:12px;">MedRecord</h1><p style="color:#FFFFFF;font-size:15px;margin-bottom:16px;">Reconnexion et initialisation de la page...</p><button onclick="localStorage.clear();window.location.reload();" style="background:#28C2FF;color:#0F2C3D;border:none;padding:12px 24px;border-radius:8px;font-weight:bold;cursor:pointer;">Réinitialiser & Recharger</button></div>';
+        }
+      });
+    </script>
     `;
     html = html.replace('<head>', `<head>${cacheMeta}`);
   }
@@ -144,9 +160,29 @@ function fixHtmlFile(filePath) {
   fs.writeFileSync(filePath, html, 'utf8');
 }
 
+// 4. Replace _expo references inside all exported JS and CSS bundles
+function replaceInBundleFiles(dir) {
+  if (!fs.existsSync(dir)) return;
+  const entries = fs.readdirSync(dir, { withFileTypes: true });
+  entries.forEach(entry => {
+    const fullPath = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      replaceInBundleFiles(fullPath);
+    } else if (entry.isFile() && (entry.name.endsWith('.js') || entry.name.endsWith('.css') || entry.name.endsWith('.json'))) {
+      let content = fs.readFileSync(fullPath, 'utf8');
+      if (content.includes('_expo/')) {
+        content = content.replace(/_expo\//g, 'expo_assets/');
+        fs.writeFileSync(fullPath, content, 'utf8');
+      }
+    }
+  });
+}
+
+replaceInBundleFiles(newExpoDir);
+
 fixHtmlFile(indexPath);
 fixHtmlFile(notFoundPath);
 
 // Ensure .nojekyll exists
 fs.writeFileSync(path.join(distDir, '.nojekyll'), '# nojekyll');
-console.log('Post-export fix completed: Base64 embedded icon fonts & relative paths updated.');
+console.log('Post-export fix completed: Base64 embedded icon fonts, bundle paths & fail-safe scripts updated.');
