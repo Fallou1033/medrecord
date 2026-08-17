@@ -150,14 +150,22 @@ class WebErrorBoundary extends React.Component<{ children: React.ReactNode }, { 
       return (
         <View style={{ flex: 1, backgroundColor: '#0F2C3D', justifyContent: 'center', alignItems: 'center', padding: 24 }}>
           <Text style={{ color: '#28C2FF', fontSize: 24, fontWeight: 'bold', marginBottom: 12 }}>MedRecord</Text>
-          <Text style={{ color: '#FFFFFF', fontSize: 16, textAlign: 'center', marginBottom: 24 }}>
-            Chargement de l'application MedRecord...
+          <Text style={{ color: '#FFFFFF', fontSize: 15, textAlign: 'center', marginBottom: 8 }}>
+            Une vérification ou mise à jour a eu lieu.
+          </Text>
+          <Text style={{ color: '#8AC8F9', fontSize: 12, textAlign: 'center', marginBottom: 20 }}>
+            {this.state.error?.message || 'Chargement de l\'application...'}
           </Text>
           <TouchableOpacity
             style={{ backgroundColor: '#28C2FF', paddingVertical: 12, paddingHorizontal: 24, borderRadius: 10 }}
-            onPress={() => this.setState({ hasError: false })}
+            onPress={() => {
+              this.setState({ hasError: false, error: null });
+              if (typeof window !== 'undefined') {
+                window.location.reload();
+              }
+            }}
           >
-            <Text style={{ color: '#0F2C3D', fontWeight: 'bold' }}>Recharger</Text>
+            <Text style={{ color: '#0F2C3D', fontWeight: 'bold' }}>Recharger l'application</Text>
           </TouchableOpacity>
         </View>
       );

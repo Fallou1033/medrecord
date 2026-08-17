@@ -908,8 +908,14 @@ export async function getExamensParacliniquesByPatient(patientId: string): Promi
     if (Platform.OS === 'web') {
       const raw = localStorage.getItem(`paraclinique_${patientId}`);
       if (raw) {
-        const parsed = JSON.parse(raw);
-        return Array.isArray(parsed) ? parsed : [];
+        try {
+          const parsed = JSON.parse(raw);
+          return Array.isArray(parsed) ? parsed : [];
+        } catch (parseErr) {
+          console.warn('MedRecord: Corrupt localStorage paraclinique data detected, purging key...', parseErr);
+          localStorage.removeItem(`paraclinique_${patientId}`);
+          return [];
+        }
       }
       return [];
     }
