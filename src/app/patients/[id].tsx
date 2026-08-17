@@ -827,8 +827,27 @@ export default function PatientDetailsScreen() {
         {/* TAB 1: INFORMATION PROFILE */}
         {activeTab === 'info' && (
           <View style={styles.infoContainer}>
-            {/* AI Summary Section */}
-            <View style={styles.aiSummaryCard}>
+            {/* 1. Fiche Administrative */}
+            <View style={styles.tabHeader}>
+              <Text style={[styles.sectionTitle, { flex: 1, marginRight: 8 }]} numberOfLines={1}>Fiche Administrative</Text>
+              <Link href={`/patients/certificat_create?patientId=${id}`} asChild>
+                <TouchableOpacity style={styles.actionButton}>
+                  <Ionicons name="document-text" size={16} color="#0F2C3D" />
+                  <Text style={styles.actionButtonText}>+ Certificat</Text>
+                </TouchableOpacity>
+              </Link>
+            </View>
+            <View style={styles.infoCard}>
+              <InfoRow label="Groupe Sanguin" value={patient.groupe_sanguin || 'Non spécifié'} valueColor={patient.groupe_sanguin ? '#FF6B6B' : undefined} />
+              <InfoRow label="Téléphone" value={patient.telephone || 'Aucun'} />
+              <InfoRow label="Adresse" value={patient.adresse || 'Non renseignée'} />
+              <InfoRow label="Profession" value={patient.profession || 'Non renseignée'} />
+              <InfoRow label="Personne à prévenir" value={patient.personne_prevenir || 'Non renseignée'} />
+              <InfoRow label="Date de création" value={formatDateFR(patient.created_at)} />
+            </View>
+
+            {/* 2. Synthèse Clinique de l'IA (Positionnée directement en-dessous de la Fiche administrative) */}
+            <View style={[styles.aiSummaryCard, { marginTop: 16 }]}>
               <View style={styles.aiSummaryHeader}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                   <Ionicons name="sparkles-outline" size={18} color="#28C2FF" />
@@ -867,24 +886,6 @@ export default function PatientDetailsScreen() {
                   </TouchableOpacity>
                 </View>
               )}
-            </View>
-
-            <View style={styles.tabHeader}>
-              <Text style={[styles.sectionTitle, { flex: 1, marginRight: 8 }]} numberOfLines={1}>Fiche Administrative</Text>
-              <Link href={`/patients/certificat_create?patientId=${id}`} asChild>
-                <TouchableOpacity style={styles.actionButton}>
-                  <Ionicons name="document-text" size={16} color="#0F2C3D" />
-                  <Text style={styles.actionButtonText}>+ Certificat</Text>
-                </TouchableOpacity>
-              </Link>
-            </View>
-            <View style={styles.infoCard}>
-              <InfoRow label="Groupe Sanguin" value={patient.groupe_sanguin || 'Non spécifié'} valueColor={patient.groupe_sanguin ? '#FF6B6B' : undefined} />
-              <InfoRow label="Téléphone" value={patient.telephone || 'Aucun'} />
-              <InfoRow label="Adresse" value={patient.adresse || 'Non renseignée'} />
-              <InfoRow label="Profession" value={patient.profession || 'Non renseignée'} />
-              <InfoRow label="Personne à prévenir" value={patient.personne_prevenir || 'Non renseignée'} />
-              <InfoRow label="Date de création" value={formatDateFR(patient.created_at)} />
             </View>
           </View>
         )}
