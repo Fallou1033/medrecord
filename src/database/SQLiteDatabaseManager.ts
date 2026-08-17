@@ -18,6 +18,7 @@ export interface Patient {
   profession: string | null;
   personne_prevenir: string | null;
   groupe_sanguin: string | null;
+  source_groupe_sanguin?: 'BIOLOGIQUE' | 'DECLARE' | null;
   photo_url: string | null;
   created_at: string;
   updated_at: string;
@@ -143,8 +144,8 @@ export async function createPatient(
     `INSERT INTO patients (
       id, numero_dossier, nom, prenom, sexe, date_naissance, 
       telephone, adresse, profession, personne_prevenir, 
-      groupe_sanguin, photo_url, is_synced
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0);`,
+      groupe_sanguin, source_groupe_sanguin, photo_url, is_synced
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0);`,
     [
       id,
       numero_dossier,
@@ -156,7 +157,8 @@ export async function createPatient(
       encAdresse,
       encProfession,
       encPersonnePrevenir,
-      patient.groupe_sanguin,
+      patient.groupe_sanguin || 'Inconnu',
+      patient.source_groupe_sanguin || 'DECLARE',
       patient.photo_url,
     ]
   );
@@ -190,7 +192,8 @@ export async function getPatients(): Promise<Patient[]> {
       adresse: await decryptData(row.adresse),
       profession: await decryptData(row.profession),
       personne_prevenir: await decryptData(row.personne_prevenir),
-      groupe_sanguin: row.groupe_sanguin,
+      groupe_sanguin: row.groupe_sanguin || 'Inconnu',
+      source_groupe_sanguin: row.source_groupe_sanguin || 'DECLARE',
       photo_url: row.photo_url,
       created_at: row.created_at,
       updated_at: row.updated_at,
@@ -217,7 +220,8 @@ export async function getPatientById(id: string): Promise<Patient | null> {
     adresse: await decryptData(row.adresse),
     profession: await decryptData(row.profession),
     personne_prevenir: await decryptData(row.personne_prevenir),
-    groupe_sanguin: row.groupe_sanguin,
+    groupe_sanguin: row.groupe_sanguin || 'Inconnu',
+    source_groupe_sanguin: row.source_groupe_sanguin || 'DECLARE',
     photo_url: row.photo_url,
     created_at: row.created_at,
     updated_at: row.updated_at,
@@ -269,6 +273,10 @@ export async function updatePatient(
   if (updates.groupe_sanguin !== undefined) {
     fields.push('groupe_sanguin = ?');
     params.push(updates.groupe_sanguin);
+  }
+  if (updates.source_groupe_sanguin !== undefined) {
+    fields.push('source_groupe_sanguin = ?');
+    params.push(updates.source_groupe_sanguin);
   }
   if (updates.photo_url !== undefined) {
     fields.push('photo_url = ?');

@@ -237,7 +237,8 @@ export default function PatientDetailsScreen() {
   const [editAdresse, setEditAdresse] = useState('');
   const [editProfession, setEditProfession] = useState('');
   const [editPersonnePrevenir, setEditPersonnePrevenir] = useState('');
-  const [editGroupeSanguin, setEditGroupeSanguin] = useState<string | null>(null);
+  const [editGroupeSanguin, setEditGroupeSanguin] = useState<string | null>('Inconnu');
+  const [editSourceGroupeSanguin, setEditSourceGroupeSanguin] = useState<'BIOLOGIQUE' | 'DECLARE'>('DECLARE');
   const [editLoading, setEditLoading] = useState(false);
 
   const openEditModal = () => {
@@ -250,7 +251,8 @@ export default function PatientDetailsScreen() {
     setEditAdresse(patient.adresse || '');
     setEditProfession(patient.profession || '');
     setEditPersonnePrevenir(patient.personne_prevenir || '');
-    setEditGroupeSanguin(patient.groupe_sanguin || null);
+    setEditGroupeSanguin(patient.groupe_sanguin || 'Inconnu');
+    setEditSourceGroupeSanguin(patient.source_groupe_sanguin || 'DECLARE');
     setEditModalVisible(true);
   };
 
@@ -282,7 +284,8 @@ export default function PatientDetailsScreen() {
           adresse: editAdresse.trim() || null,
           profession: editProfession.trim() || null,
           personne_prevenir: editPersonnePrevenir.trim() || null,
-          groupe_sanguin: editGroupeSanguin,
+          groupe_sanguin: editGroupeSanguin || 'Inconnu',
+          source_groupe_sanguin: editSourceGroupeSanguin,
         },
         user.id
       );
@@ -839,7 +842,45 @@ export default function PatientDetailsScreen() {
               </Link>
             </View>
             <View style={styles.infoCard}>
-              <InfoRow label="Groupe Sanguin" value={patient.groupe_sanguin || 'Non spécifié'} valueColor={patient.groupe_sanguin ? '#FF6B6B' : undefined} />
+              {/* Groupe Sanguin avec Traçabilité & Badge de Confiance */}
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#2F5C77' }}>
+                <Text style={{ color: '#8AC8F9', fontSize: 14 }}>Groupe Sanguin :</Text>
+                {(() => {
+                  const gs = patient.groupe_sanguin || 'Inconnu';
+                  const isSpecific = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'].includes(gs);
+                  const isBio = patient.source_groupe_sanguin === 'BIOLOGIQUE';
+
+                  if (!isSpecific) {
+                    return (
+                      <View style={{ backgroundColor: '#1E3E52', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6 }}>
+                        <Text style={{ color: '#8AC8F9', fontSize: 13, fontWeight: 'bold' }}>{gs}</Text>
+                      </View>
+                    );
+                  }
+
+                  return (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                      <Text style={{ color: '#FF6B6B', fontSize: 16, fontWeight: 'bold' }}>{gs}</Text>
+                      <View style={{
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        gap: 4,
+                        backgroundColor: isBio ? 'rgba(46, 204, 113, 0.15)' : 'rgba(255, 107, 107, 0.15)',
+                        paddingHorizontal: 8,
+                        paddingVertical: 4,
+                        borderRadius: 12,
+                        borderWidth: 1,
+                        borderColor: isBio ? '#2ECC71' : '#FF6B6B'
+                      }}>
+                        <Ionicons name={isBio ? "checkmark-circle" : "alert-circle"} size={14} color={isBio ? "#2ECC71" : "#FF6B6B"} />
+                        <Text style={{ color: isBio ? "#2ECC71" : "#FF6B6B", fontSize: 11, fontWeight: 'bold' }}>
+                          {isBio ? 'Résultat biologique (Vert)' : 'Déclaré par le patient (Rouge)'}
+                        </Text>
+                      </View>
+                    </View>
+                  );
+                })()}
+              </View>
               <InfoRow label="Téléphone" value={patient.telephone || 'Aucun'} />
               <InfoRow label="Adresse" value={patient.adresse || 'Non renseignée'} />
               <InfoRow label="Profession" value={patient.profession || 'Non renseignée'} />
@@ -2037,7 +2078,7 @@ export default function PatientDetailsScreen() {
               <View style={styles.inputGroup}>
                 <Text style={styles.modalLabel}>Groupe Sanguin</Text>
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
-                  {['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'].map((grp) => (
+                  {['Inconnu', 'Non renseigné', 'A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'].map((grp) => (
                     <TouchableOpacity
                       key={grp}
                       style={{
@@ -2048,7 +2089,7 @@ export default function PatientDetailsScreen() {
                         borderWidth: 1,
                         borderColor: editGroupeSanguin === grp ? '#FF6B6B' : '#2F5C77',
                       }}
-                      onPress={() => setEditGroupeSanguin(editGroupeSanguin === grp ? null : grp)}
+                      onPress={() => setEditGroupeSanguin(grp)}
                     >
                       <Text style={{ color: editGroupeSanguin === grp ? '#FFFFFF' : '#8AC8F9', fontWeight: 'bold', fontSize: 12 }}>
                         {grp}
@@ -2056,6 +2097,54 @@ export default function PatientDetailsScreen() {
                     </TouchableOpacity>
                   ))}
                 </View>
+
+                {/* Traçabilité / Source si Groupe Sanguin sélectionné */}
+                {editGroupeSanguin && ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'].includes(editGroupeSanguin) && (
+                  <View style={{ marginTop: 10, padding: 8, backgroundColor: '#0F2C3D', borderRadius: 8, borderWidth: 1, borderColor: '#2F5C77', gap: 6 }}>
+                    <Text style={{ color: '#8AC8F9', fontSize: 11, fontWeight: 'bold' }}>Source (Badge de Confiance) :</Text>
+                    <View style={{ flexDirection: 'row', gap: 6 }}>
+                      <TouchableOpacity
+                        style={{
+                          flex: 1,
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                          gap: 4,
+                          padding: 6,
+                          borderRadius: 6,
+                          backgroundColor: editSourceGroupeSanguin === 'BIOLOGIQUE' ? 'rgba(46, 204, 113, 0.2)' : '#1E3E52',
+                          borderWidth: 1,
+                          borderColor: editSourceGroupeSanguin === 'BIOLOGIQUE' ? '#2ECC71' : '#2F5C77',
+                        }}
+                        onPress={() => setEditSourceGroupeSanguin('BIOLOGIQUE')}
+                      >
+                        <Ionicons name="checkmark-circle" size={14} color="#2ECC71" />
+                        <Text style={{ color: '#2ECC71', fontSize: 10, fontWeight: 'bold' }}>
+                          Résultat biologique (Vert)
+                        </Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        style={{
+                          flex: 1,
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                          gap: 4,
+                          padding: 6,
+                          borderRadius: 6,
+                          backgroundColor: editSourceGroupeSanguin === 'DECLARE' ? 'rgba(255, 107, 107, 0.2)' : '#1E3E52',
+                          borderWidth: 1,
+                          borderColor: editSourceGroupeSanguin === 'DECLARE' ? '#FF6B6B' : '#2F5C77',
+                        }}
+                        onPress={() => setEditSourceGroupeSanguin('DECLARE')}
+                      >
+                        <Ionicons name="alert-circle" size={14} color="#FF6B6B" />
+                        <Text style={{ color: '#FF6B6B', fontSize: 10, fontWeight: 'bold' }}>
+                          Déclaré patient (Rouge)
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                )}
               </View>
             </ScrollView>
 

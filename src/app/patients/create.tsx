@@ -80,7 +80,8 @@ export default function CreatePatientScreen() {
   const [adresse, setAdresse] = useState('');
   const [profession, setProfession] = useState('');
   const [personnePrevenir, setPersonnePrevenir] = useState('');
-  const [groupeSanguin, setGroupeSanguin] = useState<string | null>(null);
+  const [groupeSanguin, setGroupeSanguin] = useState<string>('Inconnu');
+  const [sourceGroupeSanguin, setSourceGroupeSanguin] = useState<'BIOLOGIQUE' | 'DECLARE'>('DECLARE');
   const [loading, setLoading] = useState(false);
   const [hasRestoredDraft, setHasRestoredDraft] = useState(false);
 
@@ -143,7 +144,8 @@ export default function CreatePatientScreen() {
     setAdresse('');
     setProfession('');
     setPersonnePrevenir('');
-    setGroupeSanguin(null);
+    setGroupeSanguin('Inconnu');
+    setSourceGroupeSanguin('DECLARE');
     setHasRestoredDraft(false);
     await clearPatientDraft();
   };
@@ -191,7 +193,8 @@ export default function CreatePatientScreen() {
           adresse: adresse.trim() || null,
           profession: profession.trim() || null,
           personne_prevenir: personnePrevenir.trim() || null,
-          groupe_sanguin: (groupeSanguin as any) || null,
+          groupe_sanguin: groupeSanguin || 'Inconnu',
+          source_groupe_sanguin: sourceGroupeSanguin,
           photo_url: null, // Photo profile optional in V1
         },
         user.id
@@ -216,7 +219,8 @@ export default function CreatePatientScreen() {
     setSexe(g);
   };
 
-  const bloodGroups = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
+  const bloodGroups = ['Inconnu', 'Non renseigné', 'A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
+  const isSpecificBloodGroup = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'].includes(groupeSanguin);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -422,7 +426,7 @@ export default function CreatePatientScreen() {
                 <TouchableOpacity
                   key={group}
                   style={[styles.bloodBtn, groupeSanguin === group && styles.bloodBtnActive]}
-                  onPress={() => setGroupeSanguin(groupeSanguin === group ? null : group)}
+                  onPress={() => setGroupeSanguin(group)}
                 >
                   <Text style={[styles.bloodText, groupeSanguin === group && styles.bloodTextActive]}>
                     {group}
@@ -430,6 +434,56 @@ export default function CreatePatientScreen() {
                 </TouchableOpacity>
               ))}
             </View>
+
+            {/* Traçabilité & Source (Badge de Confiance) si Groupe Sanguin renseigné */}
+            {isSpecificBloodGroup && (
+              <View style={{ marginTop: 12, padding: 10, backgroundColor: '#1E3E52', borderRadius: 8, borderWidth: 1, borderColor: '#2F5C77', gap: 8 }}>
+                <Text style={{ color: '#8AC8F9', fontSize: 12, fontWeight: 'bold' }}>
+                  Source de l'Information (Badge de Confiance) * :
+                </Text>
+                <View style={{ flexDirection: 'row', gap: 8 }}>
+                  <TouchableOpacity
+                    style={{
+                      flex: 1,
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      gap: 6,
+                      padding: 8,
+                      borderRadius: 6,
+                      backgroundColor: sourceGroupeSanguin === 'BIOLOGIQUE' ? 'rgba(46, 204, 113, 0.2)' : '#0F2C3D',
+                      borderWidth: 1,
+                      borderColor: sourceGroupeSanguin === 'BIOLOGIQUE' ? '#2ECC71' : '#2F5C77',
+                    }}
+                    onPress={() => setSourceGroupeSanguin('BIOLOGIQUE')}
+                  >
+                    <Ionicons name="checkmark-circle" size={16} color="#2ECC71" />
+                    <Text style={{ color: '#2ECC71', fontSize: 11, fontWeight: 'bold' }}>
+                      Résultat biologique (Certifié)
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={{
+                      flex: 1,
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      gap: 6,
+                      padding: 8,
+                      borderRadius: 6,
+                      backgroundColor: sourceGroupeSanguin === 'DECLARE' ? 'rgba(255, 107, 107, 0.2)' : '#0F2C3D',
+                      borderWidth: 1,
+                      borderColor: sourceGroupeSanguin === 'DECLARE' ? '#FF6B6B' : '#2F5C77',
+                    }}
+                    onPress={() => setSourceGroupeSanguin('DECLARE')}
+                  >
+                    <Ionicons name="alert-circle" size={16} color="#FF6B6B" />
+                    <Text style={{ color: '#FF6B6B', fontSize: 11, fontWeight: 'bold' }}>
+                      Déclaré par le patient
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
           </View>
 
           <TouchableOpacity
