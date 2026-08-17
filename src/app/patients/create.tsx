@@ -419,20 +419,43 @@ export default function CreatePatientScreen() {
             />
           </View>
 
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Groupe Sanguin</Text>
-            <View style={styles.bloodContainer}>
-              {bloodGroups.map((group) => (
-                <TouchableOpacity
-                  key={group}
-                  style={[styles.bloodBtn, groupeSanguin === group && styles.bloodBtnActive]}
-                  onPress={() => setGroupeSanguin(group)}
-                >
-                  <Text style={[styles.bloodText, groupeSanguin === group && styles.bloodTextActive]}>
-                    {group}
-                  </Text>
-                </TouchableOpacity>
-              ))}
+          {/* SÉLECTEUR GROUPE SANGUIN COMPACT */}
+          <View style={{ gap: 6, width: '100%', maxWidth: 672, marginBottom: 16 }}>
+            <Text style={{ fontSize: 12, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.8, color: '#94A3B8' }}>
+              Groupe Sanguin
+            </Text>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
+              {bloodGroups.map((group) => {
+                const isSelected = groupeSanguin === group;
+                return (
+                  <TouchableOpacity
+                    key={group}
+                    style={{
+                      paddingHorizontal: 12,
+                      paddingVertical: 6,
+                      borderRadius: 8,
+                      backgroundColor: isSelected ? '#06B6D4' : 'rgba(30, 41, 59, 0.8)',
+                      borderWidth: 1,
+                      borderColor: isSelected ? '#22D3EE' : '#334155',
+                      alignSelf: 'flex-start',
+                      height: 32,
+                      justifyContent: 'center',
+                      alignItems: 'center',
+                    }}
+                    onPress={() => setGroupeSanguin(group)}
+                  >
+                    <Text
+                      style={{
+                        color: isSelected ? '#FFFFFF' : '#CBD5E1',
+                        fontSize: 12,
+                        fontWeight: isSelected ? '700' : '500',
+                      }}
+                    >
+                      {group}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
             </View>
 
             {/* Traçabilité & Source (Badge de Confiance) si Groupe Sanguin renseigné */}

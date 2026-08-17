@@ -2075,27 +2075,43 @@ export default function PatientDetailsScreen() {
                 />
               </View>
 
-              <View style={styles.inputGroup}>
-                <Text style={styles.modalLabel}>Groupe Sanguin</Text>
-                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
-                  {['Inconnu', 'Non renseigné', 'A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'].map((grp) => (
-                    <TouchableOpacity
-                      key={grp}
-                      style={{
-                        paddingHorizontal: 14,
-                        paddingVertical: 6,
-                        borderRadius: 20,
-                        backgroundColor: editGroupeSanguin === grp ? '#28C2FF' : '#0F2C3D',
-                        borderWidth: 1,
-                        borderColor: editGroupeSanguin === grp ? '#28C2FF' : '#2F5C77',
-                      }}
-                      onPress={() => setEditGroupeSanguin(grp)}
-                    >
-                      <Text style={{ color: editGroupeSanguin === grp ? '#0F2C3D' : '#8AC8F9', fontWeight: 'bold', fontSize: 12 }}>
-                        {grp}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
+              {/* SÉLECTEUR GROUPE SANGUIN COMPACT */}
+              <View style={{ gap: 6, width: '100%', marginBottom: 16 }}>
+                <Text style={{ fontSize: 12, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.8, color: '#94A3B8' }}>
+                  Groupe Sanguin
+                </Text>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
+                  {['Inconnu', 'Non renseigné', 'A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'].map((grp) => {
+                    const isSelected = editGroupeSanguin === grp;
+                    return (
+                      <TouchableOpacity
+                        key={grp}
+                        style={{
+                          paddingHorizontal: 12,
+                          paddingVertical: 6,
+                          borderRadius: 8,
+                          backgroundColor: isSelected ? '#06B6D4' : 'rgba(30, 41, 59, 0.8)',
+                          borderWidth: 1,
+                          borderColor: isSelected ? '#22D3EE' : '#334155',
+                          alignSelf: 'flex-start',
+                          height: 32,
+                          justifyContent: 'center',
+                          alignItems: 'center',
+                        }}
+                        onPress={() => setEditGroupeSanguin(grp)}
+                      >
+                        <Text
+                          style={{
+                            color: isSelected ? '#FFFFFF' : '#CBD5E1',
+                            fontSize: 12,
+                            fontWeight: isSelected ? '700' : '500',
+                          }}
+                        >
+                          {grp}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
                 </View>
 
                 {/* Traçabilité / Source si Groupe Sanguin sélectionné */}
