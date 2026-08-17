@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   Modal,
   Text,
+  Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -40,7 +41,7 @@ export default function SettingsScreen() {
   };
   const theme = useTheme();
   const { themeMode, setThemeMode } = useThemePreference();
-  const { user, setupSecurity } = useSecurity();
+  const { user, setupSecurity, logout } = useSecurity();
 
   // Active modal section: 'profile' | 'cabinet' | 'security' | 'backup' | 'theme' | 'about' | null
   const [activeModal, setActiveModal] = useState<string | null>(null);
@@ -418,7 +419,7 @@ export default function SettingsScreen() {
 
         {/* Item 6: À propos & Support */}
         <TouchableOpacity
-          style={styles.menuCardLast}
+          style={styles.menuCard}
           activeOpacity={0.7}
           onPress={() => setActiveModal('about')}
         >
@@ -432,6 +433,35 @@ export default function SettingsScreen() {
             </Text>
           </View>
           <Ionicons name="chevron-forward" size={20} color="#64748B" />
+        </TouchableOpacity>
+
+        {/* Item 7: Déconnexion */}
+        <TouchableOpacity
+          style={[styles.menuCardLast, { backgroundColor: 'rgba(255, 107, 107, 0.1)', borderColor: '#FF6B6B', marginTop: 12 }]}
+          activeOpacity={0.7}
+          onPress={() => {
+            if (Platform.OS === 'web') {
+              if (confirm('Voulez-vous vous déconnecter de ce cabinet ?')) {
+                logout();
+              }
+            } else {
+              Alert.alert('Déconnexion', 'Voulez-vous vous déconnecter de ce cabinet ?', [
+                { text: 'Annuler', style: 'cancel' },
+                { text: 'Déconnexion', style: 'destructive', onPress: logout }
+              ]);
+            }
+          }}
+        >
+          <View style={[styles.iconBadge, { backgroundColor: 'rgba(255, 107, 107, 0.2)' }]}>
+            <Ionicons name="log-out-outline" size={22} color="#FF6B6B" />
+          </View>
+          <View style={styles.menuTextGroup}>
+            <Text style={[styles.menuTitle, { color: '#FF6B6B' }]}>Se déconnecter du Cabinet</Text>
+            <Text style={styles.menuSubtitle}>
+              Réinitialiser la session locale et changer d'appareil / compte
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color="#FF6B6B" />
         </TouchableOpacity>
       </View>
 
