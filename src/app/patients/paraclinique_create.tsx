@@ -26,6 +26,7 @@ import {
 } from '../../database/SQLiteDatabaseManager';
 import { calculateAge, formatDateFR } from '../../utils/helpers';
 import { useSecurity } from '../../security/SecurityContext';
+import DatePickerDOB from '../../components/DatePickerDOB';
 
 type CategorieExamen = 'Radiographie' | 'Scanner' | 'NFS' | 'Ionogramme' | 'Autres';
 
@@ -316,13 +317,10 @@ export default function CreateParacliniqueScreen() {
 
           {/* 2. Date of Exam */}
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>2. Date de l'Examen *</Text>
-            <TextInput
-              style={styles.inputText}
-              placeholder="AAAA-MM-JJ (ex: 2026-08-17)"
-              placeholderTextColor="#94A3B8"
+            <DatePickerDOB
+              label="2. Date de l'Examen *"
               value={dateExamen}
-              onChangeText={setDateExamen}
+              onChange={setDateExamen}
             />
           </View>
 
