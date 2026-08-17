@@ -112,12 +112,18 @@ function CrossDeviceLoginView({ onSwitchToCreate }: { onSwitchToCreate: () => vo
     return () => clearInterval(interval);
   }, [lockoutTime]);
 
-  const handleLogin = async () => {
-    if (lockoutTime > 0) return;
+  const handleLogin = async (e?: any) => {
+    if (e && e.preventDefault) e.preventDefault();
+    if (lockoutTime > 0 || loading) return;
     setErrorMsg('');
     setHasAuthError(false);
 
-    if (!isEmail && !isPhone) {
+    const cleanId = identifier.trim().toLowerCase();
+    const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanId);
+    const cleanPhone = identifier.trim().replace(/[\s\-\(\)\+]/g, '');
+    const isPhone = /^[0-9]{8,15}$/.test(cleanPhone);
+
+    if (!identifier.trim() || (!isEmail && !isPhone)) {
       setHasAuthError(true);
       setErrorMsg('Veuillez vérifier votre adresse e-mail ou votre code PIN.');
       setPin('');
@@ -212,17 +218,18 @@ function CrossDeviceLoginView({ onSwitchToCreate }: { onSwitchToCreate: () => vo
         </View>
       )}
 
-      {/* Bouton de Connexion */}
+      {/* Bouton de Connexion (Touch Events Active Always) */}
       <TouchableOpacity
         style={[
           styles.button,
-          (!identifier.trim() || pin.length !== 4 || loading || lockoutTime > 0) && styles.buttonDisabled,
+          (loading || lockoutTime > 0) && styles.buttonDisabled,
         ]}
         onPress={handleLogin}
-        disabled={!identifier.trim() || pin.length !== 4 || loading || lockoutTime > 0}
+        disabled={loading || lockoutTime > 0}
+        activeOpacity={0.7}
       >
-        <Ionicons name="sync-outline" size={20} color={identifier.trim() && pin.length === 4 && lockoutTime === 0 ? "#0F172A" : "#64748B"} />
-        <Text style={[styles.buttonText, (!identifier.trim() || pin.length !== 4 || lockoutTime > 0) && styles.buttonTextDisabled]}>
+        <Ionicons name="sync-outline" size={20} color={loading || lockoutTime > 0 ? "#64748B" : "#0F172A"} />
+        <Text style={[styles.buttonText, (loading || lockoutTime > 0) && styles.buttonTextDisabled]}>
           {loading
             ? 'Connexion & Synchronisation...'
             : lockoutTime > 0

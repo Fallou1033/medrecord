@@ -208,6 +208,22 @@ export async function setupPIN(pin: string, nom: string, prenom: string, email: 
       console.warn('MedRecord: Failed to background-sync profile to Supabase:', supabaseErr);
     }
 
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('doctor_profile', JSON.stringify({
+          id: userId,
+          email,
+          nom: cleanNom,
+          prenom: cleanPrenom,
+          telephone,
+          role: 'MEDECIN',
+          pin_hash: pinHash
+        }));
+      } catch (e) {
+        console.warn('localStorage doctor_profile save warning:', e);
+      }
+    }
+
     return {
       id: userId,
       email,
@@ -257,7 +273,25 @@ export async function loginExistingUser(identifier: string, pin: string): Promis
     console.warn('MedRecord SQLite fetch warning:', dbErr);
   }
 
-  // 3. Search Supabase Cloud if not found in local SQLite
+  // 3. Search Web localStorage if not found in local SQLite
+  if (!userRow && Platform.OS === 'web' && typeof window !== 'undefined') {
+    try {
+      const savedProfileStr = localStorage.getItem('doctor_profile') || localStorage.getItem('medrecord_user');
+      if (savedProfileStr) {
+        const saved = JSON.parse(savedProfileStr);
+        if (
+          (saved.email && saved.email.toLowerCase() === cleanId) ||
+          (saved.telephone && saved.telephone.trim() === identifier.trim())
+        ) {
+          userRow = saved;
+        }
+      }
+    } catch (e) {
+      console.warn('MedRecord localStorage fetch warning:', e);
+    }
+  }
+
+  // 4. Search Supabase Cloud if not found in local SQLite / localStorage
   if (!userRow) {
     try {
       const { supabase } = require('../services/supabase');
