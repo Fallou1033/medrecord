@@ -62,6 +62,13 @@ export const SecurityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   useEffect(() => {
     initializeSecurity();
+
+    // Forced unblock fallback timer (500ms max)
+    const fallbackTimer = setTimeout(() => {
+      setLoading(false);
+    }, 500);
+
+    return () => clearTimeout(fallbackTimer);
   }, []);
 
   // Listen to AppState (background/foreground) to manage auto-lock

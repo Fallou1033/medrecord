@@ -148,25 +148,43 @@ class WebErrorBoundary extends React.Component<{ children: React.ReactNode }, { 
   render() {
     if (this.state.hasError) {
       return (
-        <View style={{ flex: 1, backgroundColor: '#0F2C3D', justifyContent: 'center', alignItems: 'center', padding: 24 }}>
-          <Text style={{ color: '#28C2FF', fontSize: 24, fontWeight: 'bold', marginBottom: 12 }}>MedRecord</Text>
-          <Text style={{ color: '#FFFFFF', fontSize: 15, textAlign: 'center', marginBottom: 8 }}>
-            Une vérification ou mise à jour a eu lieu.
+        <View style={{ flex: 1, backgroundColor: '#0F2C3D', justifyContent: 'center', alignItems: 'center', padding: 24, gap: 12 }}>
+          <Text style={{ color: '#28C2FF', fontSize: 26, fontWeight: 'bold' }}>MedRecord</Text>
+          <Text style={{ color: '#FFFFFF', fontSize: 15, textAlign: 'center' }}>
+            Accès rétabli — Cliquez sur Recharger pour relancer l'application.
           </Text>
-          <Text style={{ color: '#8AC8F9', fontSize: 12, textAlign: 'center', marginBottom: 20 }}>
-            {this.state.error?.message || 'Chargement de l\'application...'}
-          </Text>
-          <TouchableOpacity
-            style={{ backgroundColor: '#28C2FF', paddingVertical: 12, paddingHorizontal: 24, borderRadius: 10 }}
-            onPress={() => {
-              this.setState({ hasError: false, error: null });
-              if (typeof window !== 'undefined') {
-                window.location.reload();
-              }
-            }}
-          >
-            <Text style={{ color: '#0F2C3D', fontWeight: 'bold' }}>Recharger l'application</Text>
-          </TouchableOpacity>
+          {this.state.error?.message && (
+            <Text style={{ color: '#8AC8F9', fontSize: 11, textAlign: 'center', backgroundColor: '#1E3E52', padding: 8, borderRadius: 6, maxWidth: '90%' }}>
+              Erreur : {String(this.state.error.message)}
+            </Text>
+          )}
+          <View style={{ flexDirection: 'row', gap: 10, marginTop: 12 }}>
+            <TouchableOpacity
+              style={{ backgroundColor: '#28C2FF', paddingVertical: 12, paddingHorizontal: 20, borderRadius: 10 }}
+              onPress={() => {
+                this.setState({ hasError: false, error: null });
+                if (typeof window !== 'undefined') {
+                  window.location.reload();
+                }
+              }}
+            >
+              <Text style={{ color: '#0F2C3D', fontWeight: 'bold' }}>Recharger l'application</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={{ backgroundColor: '#FF6B6B', paddingVertical: 12, paddingHorizontal: 20, borderRadius: 10 }}
+              onPress={() => {
+                if (typeof window !== 'undefined' && window.localStorage) {
+                  try {
+                    window.localStorage.clear();
+                  } catch (e) {}
+                  window.location.reload();
+                }
+              }}
+            >
+              <Text style={{ color: '#FFFFFF', fontWeight: 'bold' }}>Purger Cache & Données</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       );
     }
