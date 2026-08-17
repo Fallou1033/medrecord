@@ -75,8 +75,14 @@ function OtpPinInput({ label, value, onChange, hasError }: OtpInputProps) {
   );
 }
 
-function CrossDeviceLoginView({ onSwitchToCreate }: { onSwitchToCreate: () => void }) {
-  const { loginUser } = useSecurity();
+export function CrossDeviceLoginView({
+  onSuccess,
+  onSwitchToCreate,
+}: {
+  onSuccess?: (docData: any) => void;
+  onSwitchToCreate: () => void;
+}) {
+  const { loginUser, user } = useSecurity();
   const [identifier, setIdentifier] = useState('');
   const [pin, setPin] = useState('');
   const [loading, setLoading] = useState(false);
@@ -118,11 +124,6 @@ function CrossDeviceLoginView({ onSwitchToCreate }: { onSwitchToCreate: () => vo
     setErrorMsg('');
     setHasAuthError(false);
 
-    const cleanId = identifier.trim().toLowerCase();
-    const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanId);
-    const cleanPhone = identifier.trim().replace(/[\s\-\(\)\+]/g, '');
-    const isPhone = /^[0-9]{8,15}$/.test(cleanPhone);
-
     if (!identifier.trim() || (!isEmail && !isPhone)) {
       setHasAuthError(true);
       setErrorMsg('Veuillez vérifier votre adresse e-mail ou votre code PIN.');
@@ -142,6 +143,16 @@ function CrossDeviceLoginView({ onSwitchToCreate }: { onSwitchToCreate: () => vo
       await loginUser(identifier.trim(), pin);
       setFailedAttempts(0);
       setHasAuthError(false);
+
+      const docData = user || { email: identifier.trim(), pin };
+      if (Platform.OS === 'web' && typeof window !== 'undefined') {
+        localStorage.setItem('medrecord_doctor', JSON.stringify(docData));
+        localStorage.setItem('medrecord_auth_token', 'true');
+      }
+
+      if (onSuccess) {
+        onSuccess(docData);
+      }
     } catch (err: any) {
       console.error(err);
       const nextFailed = failedAttempts + 1;
@@ -248,6 +259,70 @@ function CrossDeviceLoginView({ onSwitchToCreate }: { onSwitchToCreate: () => vo
   );
 }
 
+export function WelcomeGateway({
+  onNewDoctor,
+  onExistingDoctor,
+}: {
+  onNewDoctor: () => void;
+  onExistingDoctor: () => void;
+}) {
+  return (
+    <KeyboardAvoidingView
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      style={styles.container}
+    >
+      <ScrollView contentContainerStyle={styles.scrollContainer}>
+        <View style={styles.card}>
+          {/* Logo & Welcome Header */}
+          <View style={{ alignItems: 'center', marginBottom: 28 }}>
+            <View style={styles.mainLogoCircle}>
+              <Ionicons name="shield-checkmark" size={36} color="#28C2FF" />
+            </View>
+            <Text style={styles.mainTitle}>Bienvenue sur MedRecord</Text>
+            <Text style={styles.mainSubtitle}>
+              La solution médicale sécurisée pour la gestion de votre cabinet et des dossiers patients.
+            </Text>
+          </View>
+
+          {/* Action 1 : Créer mon cabinet */}
+          <TouchableOpacity
+            style={styles.primaryActionButton}
+            onPress={onNewDoctor}
+          >
+            <View style={styles.actionIconCircle}>
+              <Ionicons name="medical-outline" size={24} color="#0F172A" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.primaryActionTitle}>Créer mon cabinet</Text>
+              <Text style={styles.primaryActionSubtitle}>
+                Première installation / Configuration initiale de votre profil médecin et code PIN.
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color="#0F172A" />
+          </TouchableOpacity>
+
+          {/* Action 2 : Déjà inscrit ? Se connecter */}
+          <TouchableOpacity
+            style={styles.secondaryActionButton}
+            onPress={onExistingDoctor}
+          >
+            <View style={styles.secondaryActionIconCircle}>
+              <Ionicons name="phone-portrait-outline" size={24} color="#28C2FF" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.secondaryActionTitle}>Déjà inscrit ? Se connecter</Text>
+              <Text style={styles.secondaryActionSubtitle}>
+                Accès depuis un nouvel ordinateur, tablette ou téléphone avec synchronisation cloud.
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color="#28C2FF" />
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
+    </KeyboardAvoidingView>
+  );
+}
+
 export default function AuthGatewayScreen() {
   const [mode, setMode] = useState<'MODE_SELECTION' | 'CREATE_CABINET' | 'LOGIN_DEVICE'>('MODE_SELECTION');
 
@@ -287,59 +362,10 @@ export default function AuthGatewayScreen() {
   }
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      style={styles.container}
-    >
-      <ScrollView contentContainerStyle={styles.scrollContainer}>
-        <View style={styles.card}>
-          {/* Logo & Welcome Header */}
-          <View style={{ alignItems: 'center', marginBottom: 28 }}>
-            <View style={styles.mainLogoCircle}>
-              <Ionicons name="shield-checkmark" size={36} color="#28C2FF" />
-            </View>
-            <Text style={styles.mainTitle}>Bienvenue sur MedRecord</Text>
-            <Text style={styles.mainSubtitle}>
-              La solution médicale sécurisée pour la gestion de votre cabinet et des dossiers patients.
-            </Text>
-          </View>
-
-          {/* Action 1 : Créer mon cabinet */}
-          <TouchableOpacity
-            style={styles.primaryActionButton}
-            onPress={() => setMode('CREATE_CABINET')}
-          >
-            <View style={styles.actionIconCircle}>
-              <Ionicons name="medical-outline" size={24} color="#0F172A" />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.primaryActionTitle}>Créer mon cabinet</Text>
-              <Text style={styles.primaryActionSubtitle}>
-                Première installation / Configuration initiale de votre profil médecin et code PIN.
-              </Text>
-            </View>
-            <Ionicons name="chevron-forward" size={20} color="#0F172A" />
-          </TouchableOpacity>
-
-          {/* Action 2 : Déjà inscrit ? Se connecter */}
-          <TouchableOpacity
-            style={styles.secondaryActionButton}
-            onPress={() => setMode('LOGIN_DEVICE')}
-          >
-            <View style={styles.secondaryActionIconCircle}>
-              <Ionicons name="phone-portrait-outline" size={24} color="#28C2FF" />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.secondaryActionTitle}>Déjà inscrit ? Se connecter</Text>
-              <Text style={styles.secondaryActionSubtitle}>
-                Accès depuis un nouvel ordinateur, tablette ou téléphone avec synchronisation cloud.
-              </Text>
-            </View>
-            <Ionicons name="chevron-forward" size={20} color="#28C2FF" />
-          </TouchableOpacity>
-        </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+    <WelcomeGateway
+      onNewDoctor={() => setMode('CREATE_CABINET')}
+      onExistingDoctor={() => setMode('LOGIN_DEVICE')}
+    />
   );
 }
 
