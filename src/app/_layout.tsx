@@ -6,6 +6,7 @@ import { useFonts } from 'expo-font';
 import Ionicons from '@expo/vector-icons/Ionicons';
 
 import { SecurityProvider, useSecurity } from '../security/SecurityContext';
+import AuthGatewayScreen from '../components/AuthGatewayScreen';
 import SetupSecurityScreen from '../components/SetupSecurityScreen';
 import LockScreen from '../components/LockScreen';
 import { initDatabase } from '../database/db';
@@ -109,7 +110,7 @@ function MainAppContent() {
   }
 
   if (!isSetup) {
-    return <SetupSecurityScreen />;
+    return <AuthGatewayScreen />;
   }
 
   if (isLocked) {

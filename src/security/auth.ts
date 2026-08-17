@@ -215,6 +215,97 @@ export async function setupPIN(pin: string, nom: string, prenom: string, email: 
 }
 
 /**
+ * Log in an existing user on a new device (Cross-Device Access)
+ */
+export async function loginExistingUser(identifier: string, pin: string): Promise<UserProfile> {
+  const cleanId = identifier.trim().toLowerCase();
+  const db = await getDatabase();
+
+  // 1. Hash entered PIN
+  const pinHash = await Crypto.digestStringAsync(
+    Crypto.CryptoDigestAlgorithm.SHA256,
+    pin
+  );
+
+  // 2. Search local SQLite database by email or phone
+  let userRow: any = null;
+  try {
+    userRow = await db.getFirstAsync(
+      'SELECT * FROM utilisateurs WHERE LOWER(email) = ? OR telephone = ? LIMIT 1;',
+      [cleanId, identifier.trim()]
+    );
+  } catch (dbErr) {
+    console.warn('MedRecord SQLite fetch warning:', dbErr);
+  }
+
+  // 3. Search Supabase Cloud if not found in local SQLite
+  if (!userRow) {
+    try {
+      const { supabase } = require('../services/supabase');
+      if (supabase) {
+        const { data, error } = await supabase
+          .from('utilisateurs')
+          .select('*')
+          .or(`email.ilike.${cleanId},telephone.eq.${identifier.trim()}`)
+          .single();
+
+        if (data && !error) {
+          userRow = data;
+          await db.runAsync(
+            `INSERT OR REPLACE INTO utilisateurs (id, email, nom, prenom, telephone, role, pin_hash, biometrie_active) 
+             VALUES (?, ?, ?, ?, ?, ?, ?, 0);`,
+            [data.id, data.email, data.nom, data.prenom, data.telephone, data.role || 'MEDECIN', pinHash]
+          );
+        }
+      }
+    } catch (supabaseErr) {
+      console.warn('MedRecord Supabase Cloud Search warning:', supabaseErr);
+    }
+  }
+
+  if (!userRow) {
+    // If user profile not found, register new device profile session with identifier
+    const userId = generateUUID();
+    const fallbackNom = 'Docteur';
+    const fallbackPrenom = cleanId.split('@')[0] || 'Médecin';
+
+    await db.runAsync(
+      `INSERT OR REPLACE INTO utilisateurs (id, email, nom, prenom, telephone, role, pin_hash, biometrie_active) 
+       VALUES (?, ?, ?, ?, ?, ?, ?, 0);`,
+      [userId, cleanId, fallbackNom, fallbackPrenom, identifier.trim(), 'MEDECIN', pinHash]
+    );
+
+    userRow = {
+      id: userId,
+      email: cleanId,
+      nom: fallbackNom,
+      prenom: fallbackPrenom,
+      telephone: identifier.trim(),
+      role: 'MEDECIN',
+      pin_hash: pinHash,
+      biometrie_active: 0,
+    };
+  } else if (userRow.pin_hash && userRow.pin_hash !== pinHash) {
+    throw new Error('Code PIN d\'accès incorrect.');
+  }
+
+  // 4. Save PIN hash & Active User ID in secure store
+  await secureStoreSetItem(PIN_HASH_KEY, pinHash);
+  await secureStoreSetItem(ACTIVE_USER_ID_KEY, userRow.id);
+  await updateLastActiveTime();
+
+  return {
+    id: userRow.id,
+    email: userRow.email || cleanId,
+    nom: userRow.nom || 'Docteur',
+    prenom: userRow.prenom || 'Médecin',
+    telephone: userRow.telephone,
+    role: userRow.role || 'MEDECIN',
+    biometrie_active: Boolean(userRow.biometrie_active),
+  };
+}
+
+/**
  * Authenticates the user using their PIN code.
  */
 export async function verifyPIN(pin: string): Promise<boolean> {

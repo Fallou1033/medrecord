@@ -19,6 +19,7 @@ interface SecurityContextType {
   user: UserProfile | null;
   biometricsEnabled: boolean;
   loading: boolean;
+  loginUser: (identifier: string, pin: string) => Promise<void>;
   setupSecurity: (pin: string, nom: string, prenom: string, email: string, telephone?: string | null) => Promise<void>;
   unlockWithPin: (pin: string) => Promise<boolean>;
   unlockWithBiometrics: () => Promise<boolean>;
@@ -97,6 +98,23 @@ export const SecurityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     };
   }, []);
 
+  const loginUser = async (identifier: string, pin: string) => {
+    setLoading(true);
+    try {
+      const { loginExistingUser } = require('./auth');
+      const profile = await loginExistingUser(identifier, pin);
+      setUser(profile);
+      setIsSetup(true);
+      setIsLocked(false);
+      await updateLastActiveTime();
+    } catch (error) {
+      console.error('MedRecord: Failed cross-device login:', error);
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const setupSecurity = async (pin: string, nom: string, prenom: string, email: string, telephone?: string | null) => {
     setLoading(true);
     try {
@@ -150,6 +168,7 @@ export const SecurityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         user,
         biometricsEnabled,
         loading,
+        loginUser,
         setupSecurity,
         unlockWithPin,
         unlockWithBiometrics,
