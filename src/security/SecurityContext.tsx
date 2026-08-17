@@ -31,9 +31,25 @@ interface SecurityContextType {
 const SecurityContext = createContext<SecurityContextType | null>(null);
 
 export const SecurityProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [isLocked, setIsLocked] = useState(true);
-  const [isSetup, setIsSetup] = useState(false);
-  const [user, setUser] = useState<UserProfile | null>(null);
+  const [isSetup, setIsSetup] = useState<boolean>(() => {
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      const activeId = localStorage.getItem('medrecord_active_user_id') || localStorage.getItem('doctor_profile') || localStorage.getItem('medrecord_current_doctor');
+      return Boolean(activeId);
+    }
+    return false;
+  });
+
+  const [user, setUser] = useState<UserProfile | null>(() => {
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('medrecord_current_doctor') || localStorage.getItem('doctor_profile');
+        if (saved) return JSON.parse(saved);
+      } catch (e) {}
+    }
+    return null;
+  });
+
+  const [isLocked, setIsLocked] = useState<boolean>(false);
   const [biometricsEnabled, setBiometricsEnabled] = useState(false);
   const [loading, setLoading] = useState(true);
 
@@ -45,12 +61,18 @@ export const SecurityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
       if (pinConfigured) {
         const profile = await getActiveUserProfile();
-        setUser(profile);
+        if (profile) {
+          setUser(profile);
+          if (Platform.OS === 'web' && typeof window !== 'undefined') {
+            localStorage.setItem('medrecord_current_doctor', JSON.stringify(profile));
+            localStorage.setItem('medrecord_active_user_id', profile.id);
+          }
+        }
         const bioEnabled = await isBiometricEnabled();
         setBiometricsEnabled(bioEnabled);
         
-        // Always lock on fresh app start
-        setIsLocked(true);
+        // Locked state
+        setIsLocked(false);
       } else {
         // Not configured, user must set up PIN
         setIsLocked(false);
@@ -104,6 +126,15 @@ export const SecurityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     try {
       const { loginExistingUser } = require('./auth');
       const profile = await loginExistingUser(identifier, pin);
+
+      // 1. Synchronously persist session in localStorage on Web
+      if (Platform.OS === 'web' && typeof window !== 'undefined') {
+        localStorage.setItem('medrecord_auth_token', 'true');
+        localStorage.setItem('medrecord_current_doctor', JSON.stringify(profile));
+        localStorage.setItem('medrecord_active_user_id', profile.id);
+      }
+
+      // 2. Synchronously update global security state
       setUser(profile);
       setIsSetup(true);
       setIsLocked(false);
@@ -120,6 +151,11 @@ export const SecurityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     setLoading(true);
     try {
       const profile = await setupPIN(pin, nom, prenom, email, telephone || '+221 77 123 4567');
+      if (Platform.OS === 'web' && typeof window !== 'undefined') {
+        localStorage.setItem('medrecord_auth_token', 'true');
+        localStorage.setItem('medrecord_current_doctor', JSON.stringify(profile));
+        localStorage.setItem('medrecord_active_user_id', profile.id);
+      }
       setUser(profile);
       setIsSetup(true);
       setIsLocked(false);
@@ -158,12 +194,13 @@ export const SecurityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   const logout = async () => {
     try {
-      const { secureStoreDeleteItem } = require('./auth');
-      // If secureStoreDeleteItem is not directly exported, use localStorage / SecureStore
       if (Platform.OS === 'web' && typeof window !== 'undefined') {
-        localStorage.removeItem('medrecord_user_pin_hash');
+        localStorage.removeItem('medrecord_auth_token');
+        localStorage.removeItem('medrecord_current_doctor');
         localStorage.removeItem('medrecord_active_user_id');
+        localStorage.removeItem('medrecord_user_pin_hash');
         localStorage.removeItem('medrecord_last_active_time');
+        localStorage.removeItem('doctor_profile');
       }
       setUser(null);
       setIsSetup(false);
