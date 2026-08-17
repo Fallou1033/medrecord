@@ -18,9 +18,10 @@ interface OtpInputProps {
   label: string;
   value: string;
   onChange: (val: string) => void;
+  hasError?: boolean;
 }
 
-function OtpPinInput({ label, value, onChange }: OtpInputProps) {
+function OtpPinInput({ label, value, onChange, hasError }: OtpInputProps) {
   const inputsRef = useRef<(TextInput | null)[]>([]);
   const digits = Array.from({ length: 4 }, (_, i) => value[i] || '');
 
@@ -57,6 +58,7 @@ function OtpPinInput({ label, value, onChange }: OtpInputProps) {
               style={[
                 styles.otpBox,
                 isFilled && styles.otpBoxFilled,
+                hasError && { borderColor: '#FF6B6B', borderWidth: 2 },
               ]}
               value={digits[idx]}
               onChangeText={(txt) => handleChangeText(txt, idx)}
@@ -79,6 +81,7 @@ function CrossDeviceLoginView({ onSwitchToCreate }: { onSwitchToCreate: () => vo
   const [pin, setPin] = useState('');
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+  const [hasAuthError, setHasAuthError] = useState(false);
   const [failedAttempts, setFailedAttempts] = useState(0);
   const [lockoutTime, setLockoutTime] = useState(0);
 
@@ -98,6 +101,7 @@ function CrossDeviceLoginView({ onSwitchToCreate }: { onSwitchToCreate: () => vo
         if (prev <= 1) {
           clearInterval(interval);
           setErrorMsg('');
+          setHasAuthError(false);
           setFailedAttempts(0);
           return 0;
         }
@@ -108,27 +112,21 @@ function CrossDeviceLoginView({ onSwitchToCreate }: { onSwitchToCreate: () => vo
     return () => clearInterval(interval);
   }, [lockoutTime]);
 
-  const showAlert = (title: string, message: string) => {
-    setErrorMsg(message);
-    if (Platform.OS === 'web') {
-      // Inline red box is displayed, but show alert as fallback
-    } else {
-      Alert.alert(title, message);
-    }
-  };
-
   const handleLogin = async () => {
     if (lockoutTime > 0) return;
     setErrorMsg('');
+    setHasAuthError(false);
 
     if (!isEmail && !isPhone) {
-      setErrorMsg('Veuillez saisir une adresse e-mail ou un numéro de téléphone valide.');
+      setHasAuthError(true);
+      setErrorMsg('Veuillez vérifier votre adresse e-mail ou votre code PIN.');
       setPin('');
       return;
     }
 
     if (pin.length !== 4) {
-      setErrorMsg('Le code PIN d\'accès doit comporter exactement 4 chiffres.');
+      setHasAuthError(true);
+      setErrorMsg('Veuillez vérifier votre adresse e-mail ou votre code PIN.');
       setPin('');
       return;
     }
@@ -137,17 +135,19 @@ function CrossDeviceLoginView({ onSwitchToCreate }: { onSwitchToCreate: () => vo
     try {
       await loginUser(identifier.trim(), pin);
       setFailedAttempts(0);
+      setHasAuthError(false);
     } catch (err: any) {
       console.error(err);
       const nextFailed = failedAttempts + 1;
       setFailedAttempts(nextFailed);
-      setPin(''); // Automatically clear PIN boxes on failure
+      setPin(''); // Automatically clear 4-digit PIN boxes
+      setHasAuthError(true);
 
       if (nextFailed >= 5) {
         setLockoutTime(30);
         setErrorMsg('Trop d\'échecs consécutifs (5/5). Compte bloqué pendant 30 secondes.');
       } else {
-        setErrorMsg('Identifiant ou code PIN incorrect. Accès refusé.');
+        setErrorMsg('Veuillez vérifier votre adresse e-mail ou votre code PIN.');
       }
     } finally {
       setLoading(false);
@@ -166,26 +166,20 @@ function CrossDeviceLoginView({ onSwitchToCreate }: { onSwitchToCreate: () => vo
         </Text>
       </View>
 
-      {errorMsg !== '' && (
-        <View style={styles.errorBox}>
-          <Ionicons name="alert-circle-outline" size={18} color="#FF6B6B" />
-          <Text style={styles.errorBoxText}>{errorMsg}</Text>
-        </View>
-      )}
-
       {/* Saisie Identifiant (Email ou Téléphone) */}
       <View style={{ marginBottom: 16 }}>
         <Text style={styles.label}>Adresse Email ou Numéro de Téléphone *</Text>
         <TextInput
           style={[
             styles.input,
-            !isIdentifierValid && { borderColor: '#FF6B6B', borderWidth: 2 }
+            (!isIdentifierValid || hasAuthError) && { borderColor: '#FF6B6B', borderWidth: 2 }
           ]}
           placeholder="ex: dr.diop@cabinet.sn ou +221 77 123 45 67"
           value={identifier}
           onChangeText={(val) => {
             setIdentifier(val);
             if (errorMsg) setErrorMsg('');
+            if (hasAuthError) setHasAuthError(false);
           }}
           keyboardType="email-address"
           autoCapitalize="none"
@@ -202,20 +196,33 @@ function CrossDeviceLoginView({ onSwitchToCreate }: { onSwitchToCreate: () => vo
       <OtpPinInput
         label="Code PIN d'Accès (4 chiffres) *"
         value={pin}
-        onChange={setPin}
+        onChange={(val) => {
+          setPin(val);
+          if (errorMsg) setErrorMsg('');
+          if (hasAuthError) setHasAuthError(false);
+        }}
+        hasError={hasAuthError}
       />
+
+      {/* Message d'Erreur Rouge Explicite AU-DESSUS du Bouton d'Action */}
+      {errorMsg !== '' && (
+        <View style={[styles.errorBox, { marginBottom: 16 }]}>
+          <Ionicons name="alert-circle-outline" size={20} color="#FF6B6B" />
+          <Text style={[styles.errorBoxText, { fontWeight: 'bold' }]}>{errorMsg}</Text>
+        </View>
+      )}
 
       {/* Bouton de Connexion */}
       <TouchableOpacity
         style={[
           styles.button,
-          (!isEmail && !isPhone || pin.length !== 4 || loading || lockoutTime > 0) && styles.buttonDisabled,
+          (!identifier.trim() || pin.length !== 4 || loading || lockoutTime > 0) && styles.buttonDisabled,
         ]}
         onPress={handleLogin}
-        disabled={!isEmail && !isPhone || pin.length !== 4 || loading || lockoutTime > 0}
+        disabled={!identifier.trim() || pin.length !== 4 || loading || lockoutTime > 0}
       >
-        <Ionicons name="sync-outline" size={20} color={(isEmail || isPhone) && pin.length === 4 && lockoutTime === 0 ? "#0F172A" : "#64748B"} />
-        <Text style={[styles.buttonText, (!isEmail && !isPhone || pin.length !== 4 || lockoutTime > 0) && styles.buttonTextDisabled]}>
+        <Ionicons name="sync-outline" size={20} color={identifier.trim() && pin.length === 4 && lockoutTime === 0 ? "#0F172A" : "#64748B"} />
+        <Text style={[styles.buttonText, (!identifier.trim() || pin.length !== 4 || lockoutTime > 0) && styles.buttonTextDisabled]}>
           {loading
             ? 'Connexion & Synchronisation...'
             : lockoutTime > 0
