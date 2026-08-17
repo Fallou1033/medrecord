@@ -219,6 +219,16 @@ export async function setupPIN(pin: string, nom: string, prenom: string, email: 
  */
 export async function loginExistingUser(identifier: string, pin: string): Promise<UserProfile> {
   const cleanId = identifier.trim().toLowerCase();
+
+  // Validate format (Valid email or valid phone number with digits)
+  const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanId);
+  const cleanPhone = identifier.trim().replace(/[\s\-\(\)]/g, '');
+  const isPhone = /^\+?[0-9]{8,15}$/.test(cleanPhone);
+
+  if (!isEmail && !isPhone) {
+    throw new Error('Veuillez saisir une adresse e-mail ou un numéro de téléphone valide.');
+  }
+
   const db = await getDatabase();
 
   // 1. Hash entered PIN
@@ -254,7 +264,7 @@ export async function loginExistingUser(identifier: string, pin: string): Promis
           await db.runAsync(
             `INSERT OR REPLACE INTO utilisateurs (id, email, nom, prenom, telephone, role, pin_hash, biometrie_active) 
              VALUES (?, ?, ?, ?, ?, ?, ?, 0);`,
-            [data.id, data.email, data.nom, data.prenom, data.telephone, data.role || 'MEDECIN', pinHash]
+            [data.id, data.email, data.nom, data.prenom, data.telephone, data.role || 'MEDECIN', data.pin_hash || pinHash]
           );
         }
       }
@@ -263,33 +273,17 @@ export async function loginExistingUser(identifier: string, pin: string): Promis
     }
   }
 
+  // STRICT SECURITY CONTROL: No fallback mock account creation!
   if (!userRow) {
-    // If user profile not found, register new device profile session with identifier
-    const userId = generateUUID();
-    const fallbackNom = 'Docteur';
-    const fallbackPrenom = cleanId.split('@')[0] || 'Médecin';
-
-    await db.runAsync(
-      `INSERT OR REPLACE INTO utilisateurs (id, email, nom, prenom, telephone, role, pin_hash, biometrie_active) 
-       VALUES (?, ?, ?, ?, ?, ?, ?, 0);`,
-      [userId, cleanId, fallbackNom, fallbackPrenom, identifier.trim(), 'MEDECIN', pinHash]
-    );
-
-    userRow = {
-      id: userId,
-      email: cleanId,
-      nom: fallbackNom,
-      prenom: fallbackPrenom,
-      telephone: identifier.trim(),
-      role: 'MEDECIN',
-      pin_hash: pinHash,
-      biometrie_active: 0,
-    };
-  } else if (userRow.pin_hash && userRow.pin_hash !== pinHash) {
-    throw new Error('Code PIN d\'accès incorrect.');
+    throw new Error('Identifiant ou code PIN incorrect.');
   }
 
-  // 4. Save PIN hash & Active User ID in secure store
+  // STRICT PIN CONTROL: Compare PIN Hash with stored pin_hash
+  if (userRow.pin_hash && userRow.pin_hash !== pinHash) {
+    throw new Error('Identifiant ou code PIN incorrect.');
+  }
+
+  // Save PIN hash & Active User ID in secure store
   await secureStoreSetItem(PIN_HASH_KEY, pinHash);
   await secureStoreSetItem(ACTIVE_USER_ID_KEY, userRow.id);
   await updateLastActiveTime();

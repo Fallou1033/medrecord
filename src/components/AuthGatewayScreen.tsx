@@ -79,6 +79,26 @@ function CrossDeviceLoginView({ onSwitchToCreate }: { onSwitchToCreate: () => vo
   const [pin, setPin] = useState('');
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+  const [failedAttempts, setFailedAttempts] = useState(0);
+  const [lockoutTime, setLockoutTime] = useState(0);
+
+  // Lockout countdown timer
+  React.useEffect(() => {
+    if (lockoutTime <= 0) return;
+    const interval = setInterval(() => {
+      setLockoutTime((prev) => {
+        if (prev <= 1) {
+          clearInterval(interval);
+          setErrorMsg('');
+          setFailedAttempts(0);
+          return 0;
+        }
+        setErrorMsg(`Trop d'échecs consécutifs. Veuillez patienter ${prev - 1}s.`);
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [lockoutTime]);
 
   const showAlert = (title: string, message: string) => {
     setErrorMsg(message);
@@ -90,22 +110,51 @@ function CrossDeviceLoginView({ onSwitchToCreate }: { onSwitchToCreate: () => vo
   };
 
   const handleLogin = async () => {
+    if (lockoutTime > 0) return;
     setErrorMsg('');
-    if (!identifier.trim()) {
-      showAlert('Identifiant requis', 'Veuillez saisir votre adresse email ou votre numéro de téléphone.');
+
+    const cleanId = identifier.trim().toLowerCase();
+    const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanId);
+    const cleanPhone = identifier.trim().replace(/[\s\-\(\)]/g, '');
+    const isPhone = /^\+?[0-9]{8,15}$/.test(cleanPhone);
+
+    if (!isEmail && !isPhone) {
+      showAlert(
+        'Format d\'identifiant invalide',
+        'Veuillez saisir une adresse e-mail ou un numéro de téléphone valide.'
+      );
+      setPin('');
       return;
     }
+
     if (pin.length !== 4) {
       showAlert('Code PIN invalide', 'Le code PIN doit comporter 4 chiffres.');
+      setPin('');
       return;
     }
 
     setLoading(true);
     try {
       await loginUser(identifier.trim(), pin);
+      setFailedAttempts(0);
     } catch (err: any) {
       console.error(err);
-      showAlert('Échec de connexion', err.message || 'Impossible de se connecter sur cet appareil.');
+      const nextFailed = failedAttempts + 1;
+      setFailedAttempts(nextFailed);
+      setPin(''); // Automatically clear PIN boxes on failure
+
+      if (nextFailed >= 5) {
+        setLockoutTime(30);
+        showAlert(
+          'Compte temporairement bloqué',
+          'Trop d\'échecs consécutifs (5/5). Par sécurité, veuillez patienter 30 secondes.'
+        );
+      } else {
+        showAlert(
+          'Échec de connexion',
+          'Identifiant ou code PIN incorrect.'
+        );
+      }
     } finally {
       setLoading(false);
     }
@@ -158,14 +207,18 @@ function CrossDeviceLoginView({ onSwitchToCreate }: { onSwitchToCreate: () => vo
       <TouchableOpacity
         style={[
           styles.button,
-          (!identifier.trim() || pin.length !== 4 || loading) && styles.buttonDisabled,
+          (!identifier.trim() || pin.length !== 4 || loading || lockoutTime > 0) && styles.buttonDisabled,
         ]}
         onPress={handleLogin}
-        disabled={!identifier.trim() || pin.length !== 4 || loading}
+        disabled={!identifier.trim() || pin.length !== 4 || loading || lockoutTime > 0}
       >
-        <Ionicons name="sync-outline" size={20} color={identifier.trim() && pin.length === 4 ? "#0F172A" : "#64748B"} />
-        <Text style={[styles.buttonText, (!identifier.trim() || pin.length !== 4) && styles.buttonTextDisabled]}>
-          {loading ? 'Connexion & Synchronisation...' : 'Se connecter & Synchroniser mon Cabinet'}
+        <Ionicons name="sync-outline" size={20} color={identifier.trim() && pin.length === 4 && lockoutTime === 0 ? "#0F172A" : "#64748B"} />
+        <Text style={[styles.buttonText, (!identifier.trim() || pin.length !== 4 || lockoutTime > 0) && styles.buttonTextDisabled]}>
+          {loading
+            ? 'Connexion & Synchronisation...'
+            : lockoutTime > 0
+            ? `Bloqué (${lockoutTime}s)`
+            : 'Se connecter & Synchroniser mon Cabinet'}
         </Text>
       </TouchableOpacity>
 
