@@ -37,6 +37,7 @@ import { calculateAge, formatDateFR } from '../../utils/helpers';
 import { useSecurity } from '../../security/SecurityContext';
 import { writeAuditLog, getDatabase } from '../../database/db';
 import DatePickerDOB from '../../components/DatePickerDOB';
+import PhoneInputInternational from '../../components/PhoneInputInternational';
 
 type SubTab = 'info' | 'consultations' | 'paraclinique' | 'antecedents' | 'documents' | 'vaccinations';
 
@@ -1993,23 +1994,10 @@ export default function PatientDetailsScreen() {
               />
 
               <View style={styles.inputGroup}>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                  <Text style={styles.modalLabel}>Numéro de Téléphone</Text>
-                  <Text style={{ fontSize: 12, fontWeight: '600', color: editTelephone.length === 9 ? '#2ECC71' : '#28C2FF' }}>
-                    {editTelephone.length === 9 ? '✓ 9/9 chiffres (Complet)' : `${editTelephone.length}/9 chiffres`}
-                  </Text>
-                </View>
-                <TextInput
-                  style={[styles.modalInputText, editTelephone.length === 9 && { borderColor: '#2ECC71', borderWidth: 1.5 }]}
-                  placeholder="ex: 771234567"
-                  placeholderTextColor="#9ca3af"
+                <PhoneInputInternational
+                  label="Numéro de Téléphone"
                   value={editTelephone}
-                  onChangeText={(txt) => {
-                    const onlyNums = txt.replace(/\D/g, '').slice(0, 9);
-                    setEditTelephone(onlyNums);
-                  }}
-                  keyboardType="number-pad"
-                  maxLength={9}
+                  onChange={setEditTelephone}
                 />
               </View>
 

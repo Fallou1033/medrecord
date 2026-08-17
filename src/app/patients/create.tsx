@@ -18,6 +18,7 @@ import * as SecureStore from 'expo-secure-store';
 import { createPatient } from '../../database/SQLiteDatabaseManager';
 import { useSecurity } from '../../security/SecurityContext';
 import DatePickerDOB from '../../components/DatePickerDOB';
+import PhoneInputInternational from '../../components/PhoneInputInternational';
 
 const DRAFT_KEY = 'draft_new_patient';
 
@@ -374,23 +375,10 @@ export default function CreatePatientScreen() {
           <Text style={styles.sectionTitle}>Coordonnées & Médical</Text>
 
           <View style={styles.inputGroup}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-              <Text style={styles.label}>Numéro de Téléphone *</Text>
-              <Text style={{ fontSize: 12, fontWeight: '600', color: telephone.length === 9 ? '#2ECC71' : '#28C2FF' }}>
-                {telephone.length === 9 ? '✓ 9/9 chiffres (Complet)' : `${telephone.length}/9 chiffres`}
-              </Text>
-            </View>
-            <TextInput
-              style={[styles.input, telephone.length === 9 && { borderColor: '#2ECC71', borderWidth: 1.5 }]}
-              placeholder="Ex: 771234567"
-              placeholderTextColor="#9ca3af"
+            <PhoneInputInternational
+              label="Numéro de Téléphone"
               value={telephone}
-              onChangeText={(txt) => {
-                const onlyNums = txt.replace(/\D/g, '').slice(0, 9);
-                setTelephone(onlyNums);
-              }}
-              keyboardType="number-pad"
-              maxLength={9}
+              onChange={setTelephone}
             />
           </View>
 
