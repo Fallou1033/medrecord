@@ -2082,16 +2082,16 @@ export default function PatientDetailsScreen() {
                     <TouchableOpacity
                       key={grp}
                       style={{
-                        paddingHorizontal: 12,
+                        paddingHorizontal: 14,
                         paddingVertical: 6,
-                        borderRadius: 6,
-                        backgroundColor: editGroupeSanguin === grp ? '#FF6B6B' : '#0F2C3D',
+                        borderRadius: 20,
+                        backgroundColor: editGroupeSanguin === grp ? '#28C2FF' : '#0F2C3D',
                         borderWidth: 1,
-                        borderColor: editGroupeSanguin === grp ? '#FF6B6B' : '#2F5C77',
+                        borderColor: editGroupeSanguin === grp ? '#28C2FF' : '#2F5C77',
                       }}
                       onPress={() => setEditGroupeSanguin(grp)}
                     >
-                      <Text style={{ color: editGroupeSanguin === grp ? '#FFFFFF' : '#8AC8F9', fontWeight: 'bold', fontSize: 12 }}>
+                      <Text style={{ color: editGroupeSanguin === grp ? '#0F2C3D' : '#8AC8F9', fontWeight: 'bold', fontSize: 12 }}>
                         {grp}
                       </Text>
                     </TouchableOpacity>

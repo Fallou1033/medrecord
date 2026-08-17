@@ -641,14 +641,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
+    alignItems: 'center',
   },
   bloodBtn: {
-    width: '22%',
-    aspectRatio: 1.5,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
     backgroundColor: '#1E3E52',
     borderWidth: 1,
     borderColor: '#2F5C77',
-    borderRadius: 8,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -658,11 +659,12 @@ const styles = StyleSheet.create({
   },
   bloodText: {
     color: '#8AC8F9',
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: 'bold',
   },
   bloodTextActive: {
     color: '#0F2C3D',
+    fontWeight: 'bold',
   },
   submitButton: {
     backgroundColor: '#28C2FF',
