@@ -12,7 +12,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSecurity } from '../security/SecurityContext';
 
 export default function LockScreen() {
-  const { user, biometricsEnabled, unlockWithPin, unlockWithBiometrics } = useSecurity();
+  const { user, biometricsEnabled, unlockWithPin, unlockWithBiometrics, logout } = useSecurity();
   const [pin, setPin] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
   const [failedAttempts, setFailedAttempts] = useState(0);
@@ -167,6 +167,20 @@ export default function LockScreen() {
             <Ionicons name="backspace-outline" size={28} color="#D1E6F3" />
           </TouchableOpacity>
         </View>
+
+        {/* Option Déconnexion / Changer de cabinet */}
+        <TouchableOpacity
+          onPress={() => {
+            if (confirm('Voulez-vous vous déconnecter de ce cabinet ?')) {
+              logout();
+            }
+          }}
+          style={{ marginTop: 24, paddingVertical: 8, alignItems: 'center' }}
+        >
+          <Text style={{ color: '#FF6B6B', fontSize: 13, fontWeight: 'bold' }}>
+            🚪 Changer de compte / Se déconnecter
+          </Text>
+        </TouchableOpacity>
       </View>
     </SafeAreaView>
   );

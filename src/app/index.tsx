@@ -38,7 +38,7 @@ let dashboardCache: {
 
 export default function DashboardScreen() {
   const router = useRouter();
-  const { user, lock } = useSecurity();
+  const { user, lock, logout } = useSecurity();
 
   const [stats, setStats] = useState<Stats>(() => dashboardCache?.stats || {
     totalPatients: 0,
@@ -295,7 +295,28 @@ export default function DashboardScreen() {
             )}
           </TouchableOpacity>
           <TouchableOpacity style={styles.lockBtn} onPress={lock}>
-            <Ionicons name="lock-closed-outline" size={22} color="#FF6B6B" />
+            <Ionicons name="lock-closed-outline" size={22} color="#28C2FF" />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.lockBtn, { backgroundColor: 'rgba(255, 107, 107, 0.15)', borderColor: '#FF6B6B' }]}
+            onPress={() => {
+              if (Platform.OS === 'web') {
+                if (confirm('Voulez-vous vous déconnecter de votre cabinet ?')) {
+                  logout();
+                }
+              } else {
+                Alert.alert(
+                  'Déconnexion',
+                  'Voulez-vous vous déconnecter de votre cabinet ?',
+                  [
+                    { text: 'Annuler', style: 'cancel' },
+                    { text: 'Déconnexion', style: 'destructive', onPress: logout },
+                  ]
+                );
+              }
+            }}
+          >
+            <Ionicons name="log-out-outline" size={22} color="#FF6B6B" />
           </TouchableOpacity>
         </View>
       </View>

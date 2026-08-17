@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { AppState, AppStateStatus } from 'react-native';
+import { AppState, AppStateStatus, Platform } from 'react-native';
 import {
   isPinSetup,
   verifyPIN,
@@ -24,6 +24,7 @@ interface SecurityContextType {
   unlockWithPin: (pin: string) => Promise<boolean>;
   unlockWithBiometrics: () => Promise<boolean>;
   lock: () => void;
+  logout: () => Promise<void>;
   toggleBiometrics: (enabled: boolean) => Promise<void>;
 }
 
@@ -155,6 +156,26 @@ export const SecurityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     setIsLocked(true);
   };
 
+  const logout = async () => {
+    try {
+      const { secureStoreDeleteItem } = require('./auth');
+      // If secureStoreDeleteItem is not directly exported, use localStorage / SecureStore
+      if (Platform.OS === 'web' && typeof window !== 'undefined') {
+        localStorage.removeItem('medrecord_user_pin_hash');
+        localStorage.removeItem('medrecord_active_user_id');
+        localStorage.removeItem('medrecord_last_active_time');
+      }
+      setUser(null);
+      setIsSetup(false);
+      setIsLocked(false);
+    } catch (e) {
+      console.error('Logout error:', e);
+      setUser(null);
+      setIsSetup(false);
+      setIsLocked(false);
+    }
+  };
+
   const toggleBiometrics = async (enabled: boolean) => {
     await setBiometricEnabled(enabled);
     setBiometricsEnabled(enabled);
@@ -173,6 +194,7 @@ export const SecurityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         unlockWithPin,
         unlockWithBiometrics,
         lock,
+        logout,
         toggleBiometrics,
       }}
     >
