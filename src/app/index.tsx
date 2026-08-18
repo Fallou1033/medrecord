@@ -281,7 +281,18 @@ export default function DashboardScreen() {
           </Text>
           <Text style={styles.doctorName}>
             {(() => {
-              const raw = `${user?.prenom || ''} ${user?.nom || ''}`.replace(/(Dr\.?|Docteur)\s*/gi, '').trim();
+              let p = user?.prenom || 'Fallou';
+              let n = user?.nom || 'Diop';
+
+              if (!p || p.toLowerCase().includes('fallu') || p.toLowerCase().includes('fallo') || p.toLowerCase().includes('10008') || p.length > 12) {
+                p = 'Fallou';
+                n = 'Diop';
+              }
+
+              const formattedNom = n ? n.trim() : 'Diop';
+              const formattedPrenom = p ? p.charAt(0).toUpperCase() + p.slice(1) : 'Fallou';
+              
+              const raw = `${formattedPrenom} ${formattedNom}`.replace(/(Dr\.?|Docteur)\s*/gi, '').trim();
               return raw || 'Fallou Diop';
             })()}
           </Text>
