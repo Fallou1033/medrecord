@@ -26,8 +26,11 @@ function MainAppContent() {
 
   const [activeView, setActiveView] = React.useState<AppView>(() => {
     const isSessionActive = safeStorageGet(STORAGE_KEYS.SESSION_ACTIVE) === 'true';
-    const hasCurrentUser = Boolean(safeStorageGet(STORAGE_KEYS.CURRENT_USER));
-    return isSessionActive && hasCurrentUser && !isLocked ? 'dashboard' : 'welcome';
+    const hasCurrentUser = Boolean(
+      safeStorageGet(STORAGE_KEYS.CURRENT_USER) ||
+      safeStorageGet(STORAGE_KEYS.DOCTOR_PROFILE)
+    );
+    return isSessionActive && hasCurrentUser ? 'dashboard' : 'welcome';
   });
 
   const [currentDoctor, setCurrentDoctor] = React.useState<any>(() => {
@@ -45,15 +48,17 @@ function MainAppContent() {
     if (!loading) {
       SplashScreen.hideAsync().catch(() => {});
       const isSessionActive = safeStorageGet(STORAGE_KEYS.SESSION_ACTIVE) === 'true';
-      if (isSessionActive && user) {
-        if (!isLocked) {
-          setActiveView('dashboard');
-        }
+      const hasStoredProfile = Boolean(
+        safeStorageGet(STORAGE_KEYS.CURRENT_USER) ||
+        safeStorageGet(STORAGE_KEYS.DOCTOR_PROFILE)
+      );
+      if (isSessionActive && (user || hasStoredProfile)) {
+        setActiveView('dashboard');
       } else {
         setActiveView('welcome');
       }
     }
-  }, [loading, user, isLocked]);
+  }, [loading, user]);
 
   const handleLoginSuccess = (doctorData: any) => {
     persistActiveSession(doctorData);
@@ -137,20 +142,23 @@ function MainAppContent() {
     );
   }
 
+  // Si l'application est verrouillée et qu'une session existe, afficher LockScreen immédiatement
+  const isSessionActive = safeStorageGet(STORAGE_KEYS.SESSION_ACTIVE) === 'true';
+  if (isLocked && (user || isSessionActive)) {
+    return <LockScreen />;
+  }
+
   // Explicit switch-case rendering without parasitic guards
   switch (activeView) {
     case 'dashboard':
       // Safety guard: if not authenticated, redirect to WelcomeGateway
-      if (!user && safeStorageGet(STORAGE_KEYS.SESSION_ACTIVE) !== 'true') {
+      if (!user && !isSessionActive) {
         return (
           <WelcomeGateway
             onNewDoctor={() => setActiveView('setup')}
             onExistingDoctor={() => setActiveView('login')}
           />
         );
-      }
-      if (isLocked) {
-        return <LockScreen />;
       }
       return <AppTabs />;
     case 'login':
