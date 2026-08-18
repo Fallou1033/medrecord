@@ -249,7 +249,13 @@ export const SecurityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     if (success) {
       setIsLocked(false);
       const profile = await getActiveUserProfile();
-      if (profile) setUser(profile);
+      if (profile) {
+        setUser(profile);
+        persistActiveSession(profile);
+      } else if (user) {
+        persistActiveSession(user);
+      }
+      await updateLastActiveTime();
     }
     return success;
   };
@@ -259,7 +265,13 @@ export const SecurityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     if (success) {
       setIsLocked(false);
       const profile = await getActiveUserProfile();
-      if (profile) setUser(profile);
+      if (profile) {
+        setUser(profile);
+        persistActiveSession(profile);
+      } else if (user) {
+        persistActiveSession(user);
+      }
+      await updateLastActiveTime();
     }
     return success;
   };
