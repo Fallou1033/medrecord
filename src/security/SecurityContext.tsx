@@ -38,17 +38,17 @@ const SecurityContext = createContext<SecurityContextType | null>(null);
 
 export const SecurityProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [isSetup, setIsSetup] = useState<boolean>(() => {
-    const activeSession = safeStorageGet(STORAGE_KEYS.SESSION_ACTIVE);
+    const isSessionActive = safeStorageGet(STORAGE_KEYS.SESSION_ACTIVE) === 'true';
     const activeUserId = safeStorageGet(STORAGE_KEYS.ACTIVE_USER_ID);
-    const storedDoc = safeStorageGet(STORAGE_KEYS.DOCTOR_PROFILE) || safeStorageGet(STORAGE_KEYS.CURRENT_USER);
-    return Boolean(activeSession || activeUserId || storedDoc);
+    return Boolean(isSessionActive && activeUserId);
   });
 
   const [user, setUser] = useState<UserProfile | null>(() => {
+    const isSessionActive = safeStorageGet(STORAGE_KEYS.SESSION_ACTIVE) === 'true';
+    if (!isSessionActive) return null;
     return (
       safeStorageGet<UserProfile>(STORAGE_KEYS.CURRENT_USER) ||
       safeStorageGet<UserProfile>(STORAGE_KEYS.DOCTOR_PROFILE) ||
-      safeStorageGet<UserProfile>(STORAGE_KEYS.DOCTOR_META) ||
       null
     );
   });

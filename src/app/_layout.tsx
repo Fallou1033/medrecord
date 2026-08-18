@@ -27,14 +27,15 @@ function MainAppContent() {
   const [activeView, setActiveView] = React.useState<AppView>(() => {
     const isSessionActive = safeStorageGet(STORAGE_KEYS.SESSION_ACTIVE) === 'true';
     const hasCurrentUser = Boolean(safeStorageGet(STORAGE_KEYS.CURRENT_USER));
-    return (isSessionActive || hasCurrentUser || isSetup) && !isLocked ? 'dashboard' : 'welcome';
+    return isSessionActive && hasCurrentUser && !isLocked ? 'dashboard' : 'welcome';
   });
 
   const [currentDoctor, setCurrentDoctor] = React.useState<any>(() => {
+    const isSessionActive = safeStorageGet(STORAGE_KEYS.SESSION_ACTIVE) === 'true';
+    if (!isSessionActive) return null;
     return (
       safeStorageGet(STORAGE_KEYS.CURRENT_USER) ||
       safeStorageGet(STORAGE_KEYS.DOCTOR_PROFILE) ||
-      safeStorageGet(STORAGE_KEYS.DOCTOR_META) ||
       user
     );
   });
@@ -43,7 +44,8 @@ function MainAppContent() {
   useEffect(() => {
     if (!loading) {
       SplashScreen.hideAsync().catch(() => {});
-      if (user || isSetup) {
+      const isSessionActive = safeStorageGet(STORAGE_KEYS.SESSION_ACTIVE) === 'true';
+      if (isSessionActive && user) {
         if (!isLocked) {
           setActiveView('dashboard');
         }
@@ -51,7 +53,7 @@ function MainAppContent() {
         setActiveView('welcome');
       }
     }
-  }, [loading, user, isSetup, isLocked]);
+  }, [loading, user, isLocked]);
 
   const handleLoginSuccess = (doctorData: any) => {
     persistActiveSession(doctorData);
@@ -138,6 +140,15 @@ function MainAppContent() {
   // Explicit switch-case rendering without parasitic guards
   switch (activeView) {
     case 'dashboard':
+      // Safety guard: if not authenticated, redirect to WelcomeGateway
+      if (!user && safeStorageGet(STORAGE_KEYS.SESSION_ACTIVE) !== 'true') {
+        return (
+          <WelcomeGateway
+            onNewDoctor={() => setActiveView('setup')}
+            onExistingDoctor={() => setActiveView('login')}
+          />
+        );
+      }
       if (isLocked) {
         return <LockScreen />;
       }
