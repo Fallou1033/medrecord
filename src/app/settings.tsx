@@ -442,14 +442,8 @@ export default function SettingsScreen() {
           onPress={() => {
             if (Platform.OS === 'web' && typeof window !== 'undefined') {
               if (window.confirm("Voulez-vous vous déconnecter de votre cabinet ?")) {
-                localStorage.removeItem('medrecord_session_active');
-                localStorage.removeItem('medrecord_current_user');
-                localStorage.removeItem('medrecord_doctor');
-                localStorage.removeItem('medrecord_auth_token');
-                localStorage.removeItem('medrecord_active_user_id');
-                if (typeof sessionStorage !== 'undefined') {
-                  sessionStorage.clear();
-                }
+                const { purgeActiveSession } = require('../utils/storage');
+                purgeActiveSession();
                 try { logout(); } catch (e) {}
                 window.location.href = window.location.origin + window.location.pathname;
               }

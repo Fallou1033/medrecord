@@ -140,19 +140,12 @@ export function CrossDeviceLoginView({
     try {
       const docData = await loginUser(cleanIdentifier, enteredPinStr);
 
-      // Persistance immédiate
-      if (Platform.OS === 'web' && typeof window !== 'undefined') {
-        localStorage.setItem('medrecord_session_active', 'true');
-        localStorage.setItem('medrecord_current_user', JSON.stringify(docData));
-        localStorage.setItem('medrecord_doctor_profile', JSON.stringify(docData));
-        localStorage.setItem('medrecord_doctor', JSON.stringify(docData));
-        localStorage.setItem('medrecord_auth_token', 'true');
-      }
+      const { persistActiveSession } = require('../utils/storage');
+      persistActiveSession(docData);
 
       setFailedAttempts(0);
       setHasAuthError(false);
 
-      // Déclenchement direct du Dashboard
       if (onSuccess) {
         onSuccess(docData);
       }

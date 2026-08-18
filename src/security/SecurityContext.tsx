@@ -12,6 +12,12 @@ import {
   isBiometricEnabled,
   UserProfile,
 } from './auth';
+import {
+  STORAGE_KEYS,
+  safeStorageGet,
+  persistActiveSession,
+  purgeActiveSession,
+} from '../utils/storage';
 
 interface SecurityContextType {
   isLocked: boolean;
@@ -19,8 +25,8 @@ interface SecurityContextType {
   user: UserProfile | null;
   biometricsEnabled: boolean;
   loading: boolean;
-  loginUser: (identifier: string, pin: string) => Promise<void>;
-  setupSecurity: (pin: string, nom: string, prenom: string, email: string, telephone?: string | null) => Promise<void>;
+  loginUser: (identifier: string, pin: string) => Promise<any>;
+  setupSecurity: (pin: string, nom: string, prenom: string, email: string, telephone?: string | null) => Promise<any>;
   unlockWithPin: (pin: string) => Promise<boolean>;
   unlockWithBiometrics: () => Promise<boolean>;
   lock: () => void;
@@ -32,21 +38,19 @@ const SecurityContext = createContext<SecurityContextType | null>(null);
 
 export const SecurityProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [isSetup, setIsSetup] = useState<boolean>(() => {
-    if (Platform.OS === 'web' && typeof window !== 'undefined') {
-      const activeId = localStorage.getItem('medrecord_active_user_id') || localStorage.getItem('doctor_profile') || localStorage.getItem('medrecord_current_doctor');
-      return Boolean(activeId);
-    }
-    return false;
+    const activeSession = safeStorageGet(STORAGE_KEYS.SESSION_ACTIVE);
+    const activeUserId = safeStorageGet(STORAGE_KEYS.ACTIVE_USER_ID);
+    const storedDoc = safeStorageGet(STORAGE_KEYS.DOCTOR_PROFILE) || safeStorageGet(STORAGE_KEYS.CURRENT_USER);
+    return Boolean(activeSession || activeUserId || storedDoc);
   });
 
   const [user, setUser] = useState<UserProfile | null>(() => {
-    if (Platform.OS === 'web' && typeof window !== 'undefined') {
-      try {
-        const saved = localStorage.getItem('medrecord_current_doctor') || localStorage.getItem('doctor_profile');
-        if (saved) return JSON.parse(saved);
-      } catch (e) {}
-    }
-    return null;
+    return (
+      safeStorageGet<UserProfile>(STORAGE_KEYS.CURRENT_USER) ||
+      safeStorageGet<UserProfile>(STORAGE_KEYS.DOCTOR_PROFILE) ||
+      safeStorageGet<UserProfile>(STORAGE_KEYS.DOCTOR_META) ||
+      null
+    );
   });
 
   const [isLocked, setIsLocked] = useState<boolean>(false);
@@ -63,10 +67,7 @@ export const SecurityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         const profile = await getActiveUserProfile();
         if (profile) {
           setUser(profile);
-          if (Platform.OS === 'web' && typeof window !== 'undefined') {
-            localStorage.setItem('medrecord_current_doctor', JSON.stringify(profile));
-            localStorage.setItem('medrecord_active_user_id', profile.id);
-          }
+          persistActiveSession(profile);
         }
         const bioEnabled = await isBiometricEnabled();
         setBiometricsEnabled(bioEnabled);
@@ -126,31 +127,25 @@ export const SecurityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       const { loginExistingUser } = require('./auth');
       let profile: any = null;
 
-      // 1. Priorité 1: Recherche du profil d'onboarding réel dans localStorage
-      if (Platform.OS === 'web' && typeof window !== 'undefined') {
-        const storedMetaStr = localStorage.getItem('doctor_profile_meta') ||
-                              localStorage.getItem('medrecord_doctor_profile') ||
-                              localStorage.getItem('doctor_profile') ||
-                              localStorage.getItem('medrecord_current_user') ||
-                              localStorage.getItem('medrecord_doctor');
-        if (storedMetaStr) {
-          try {
-            const storedObj = JSON.parse(storedMetaStr);
-            if (storedObj && (storedObj.nom || storedObj.prenom)) {
-              profile = {
-                id: storedObj.id || `user_${Date.now()}`,
-                email: storedObj.email || identifier.trim().toLowerCase(),
-                nom: storedObj.nom || "Diop",
-                prenom: storedObj.prenom || "Fallou",
-                telephone: storedObj.telephone || storedObj.phone || "+221 77 123 45 67",
-                role: storedObj.role || 'MEDECIN',
-                civilite: storedObj.civilite || 'Dr',
-                specialite: storedObj.specialite || 'Médecine Générale',
-                biometrie_active: false
-              };
-            }
-          } catch (e) {}
-        }
+      // Priorité 1: Recherche du profil d'onboarding réel dans storage
+      const storedObj =
+        safeStorageGet(STORAGE_KEYS.DOCTOR_META) ||
+        safeStorageGet(STORAGE_KEYS.DOCTOR_PROFILE) ||
+        safeStorageGet(STORAGE_KEYS.CURRENT_USER) ||
+        safeStorageGet(STORAGE_KEYS.DOCTOR_LEGACY);
+
+      if (storedObj && (storedObj.nom || storedObj.prenom)) {
+        profile = {
+          id: storedObj.id || `user_${Date.now()}`,
+          email: storedObj.email || identifier.trim().toLowerCase(),
+          nom: storedObj.nom || 'Diop',
+          prenom: storedObj.prenom || 'Fallou',
+          telephone: storedObj.telephone || storedObj.phone || '+221 77 123 45 67',
+          role: storedObj.role || 'MEDECIN',
+          civilite: storedObj.civilite || 'Dr',
+          specialite: storedObj.specialite || 'Médecine Générale',
+          biometrie_active: false,
+        };
       }
 
       // 2. Priorité 2: Recherche SQLite / Supabase Cloud si non trouvé localement
@@ -193,16 +188,7 @@ export const SecurityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         profile.nom = 'Diop';
       }
 
-      // Persistance réactive synchrone
-      if (Platform.OS === 'web' && typeof window !== 'undefined') {
-        localStorage.setItem('medrecord_session_active', 'true');
-        localStorage.setItem('medrecord_current_user', JSON.stringify(profile));
-        localStorage.setItem('medrecord_doctor_profile', JSON.stringify(profile));
-        localStorage.setItem('medrecord_doctor', JSON.stringify(profile));
-        localStorage.setItem('doctor_profile', JSON.stringify(profile));
-        localStorage.setItem('medrecord_auth_token', 'true');
-        localStorage.setItem('medrecord_active_user_id', profile.id);
-      }
+      persistActiveSession(profile);
 
       setUser(profile);
       setIsSetup(true);
@@ -219,17 +205,15 @@ export const SecurityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     setLoading(true);
     try {
       const profile = await setupPIN(pin, nom, prenom, email, telephone || '+221 77 123 4567');
-      if (Platform.OS === 'web' && typeof window !== 'undefined') {
-        localStorage.setItem('medrecord_auth_token', 'true');
-        localStorage.setItem('medrecord_current_doctor', JSON.stringify(profile));
-        localStorage.setItem('medrecord_active_user_id', profile.id);
-      }
+      persistActiveSession(profile);
+
       setUser(profile);
       setIsSetup(true);
       setIsLocked(false);
       await updateLastActiveTime();
+      return profile;
     } catch (error) {
-      console.error('MedRecord: Failed to save PIN setup:', error);
+      console.error('MedRecord: Failed to set up security:', error);
       throw error;
     } finally {
       setLoading(false);
@@ -241,7 +225,7 @@ export const SecurityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     if (success) {
       setIsLocked(false);
       const profile = await getActiveUserProfile();
-      setUser(profile);
+      if (profile) setUser(profile);
     }
     return success;
   };
@@ -251,7 +235,7 @@ export const SecurityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     if (success) {
       setIsLocked(false);
       const profile = await getActiveUserProfile();
-      setUser(profile);
+      if (profile) setUser(profile);
     }
     return success;
   };
@@ -262,18 +246,7 @@ export const SecurityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   const logout = async () => {
     try {
-      if (Platform.OS === 'web' && typeof window !== 'undefined') {
-        localStorage.removeItem('medrecord_session_active');
-        localStorage.removeItem('medrecord_current_user');
-        localStorage.removeItem('medrecord_doctor');
-        localStorage.removeItem('medrecord_auth_token');
-        localStorage.removeItem('medrecord_active_user_id');
-        localStorage.removeItem('medrecord_user_pin_hash');
-        localStorage.removeItem('medrecord_last_active_time');
-        if (typeof sessionStorage !== 'undefined') {
-          sessionStorage.clear();
-        }
-      }
+      purgeActiveSession();
       setUser(null);
       setIsSetup(false);
       setIsLocked(false);

@@ -185,37 +185,39 @@ export default function SetupSecurityScreen({ onSetupSuccess }: { onSetupSuccess
 
     setLoading(true);
     try {
-      const cleanNom = `${civilite} ${nom.trim().replace(/\b(dr|docteur|pr|professeur)\.?\b/gi, '').trim()}`;
-      const cleanPrenom = prenom.trim().replace(/\b(dr|docteur|pr|professeur)\.?\b/gi, '').trim();
+      const rawNom = nom.trim().replace(/\b(dr|docteur|pr|professeur)\.?\b/gi, '').trim();
+      const rawPrenom = prenom.trim().replace(/\b(dr|docteur|pr|professeur)\.?\b/gi, '').trim();
 
       const docProfileData = {
+        id: `user_${Date.now()}`,
         civilite,
         specialite,
         numero_rpps: numeroOrdre.trim(),
-        nom: cleanNom,
-        prenom: cleanPrenom,
+        nom: rawNom,
+        prenom: rawPrenom,
         email: email.trim(),
         telephone: telephone.trim(),
         phone: telephone.trim(),
         pin,
-        role: 'MEDECIN'
+        role: 'MEDECIN',
       };
 
-      if (typeof window !== 'undefined' && window.localStorage) {
-        localStorage.setItem('doctor_profile_meta', JSON.stringify(docProfileData));
-        localStorage.setItem('medrecord_doctor_profile', JSON.stringify(docProfileData));
-        localStorage.setItem('medrecord_current_user', JSON.stringify(docProfileData));
-        localStorage.setItem('medrecord_doctor', JSON.stringify(docProfileData));
-        localStorage.setItem('medrecord_session_active', 'true');
+      if (Platform.OS === 'web' && typeof window !== 'undefined') {
+        const { STORAGE_KEYS, safeStorageSet, persistActiveSession } = require('../utils/storage');
+        safeStorageSet(STORAGE_KEYS.DOCTOR_META, docProfileData);
+        safeStorageSet(STORAGE_KEYS.DOCTOR_PROFILE, docProfileData);
+        safeStorageSet(STORAGE_KEYS.CURRENT_USER, docProfileData);
+        persistActiveSession(docProfileData);
       }
 
-      await setupSecurity(pin, cleanNom, cleanPrenom, email.trim(), telephone.trim());
+      await setupSecurity(pin, rawNom, rawPrenom, email.trim(), telephone.trim());
+
       if (onSetupSuccess) {
         onSetupSuccess(docProfileData);
       }
-    } catch (error: any) {
-      console.error(error);
-      showAlert('Erreur', error.message || "Impossible d'enregistrer le profil et le code PIN.");
+    } catch (err: any) {
+      console.error('MedRecord: Error creating cabinet profile:', err);
+      showAlert('Erreur de configuration', err.message || 'Une erreur est survenue lors de la sauvegarde du cabinet.');
     } finally {
       setLoading(false);
     }

@@ -14,37 +14,29 @@ import { AnimatedSplashOverlay } from '@/components/animated-icon';
 import AppTabs from '@/components/app-tabs';
 import { ThemePreferenceProvider, useThemePreference } from '../theme/ThemePreferenceContext';
 import { getGoogleToken, backupDatabaseToDrive } from '../services/googleDriveService';
+import { STORAGE_KEYS, safeStorageGet, persistActiveSession } from '../utils/storage';
+import { AppView } from '../types';
 
 if (Platform.OS !== 'web') {
   SplashScreen.preventAutoHideAsync().catch(() => {});
 }
 
-type AppView = 'welcome' | 'setup' | 'login' | 'dashboard';
-
 function MainAppContent() {
   const { user, isSetup, isLocked, loading, logout } = useSecurity();
 
   const [activeView, setActiveView] = React.useState<AppView>(() => {
-    if (Platform.OS === 'web' && typeof window !== 'undefined') {
-      const hasActiveSession = localStorage.getItem('medrecord_session_active') === 'true' || 
-                               !!localStorage.getItem('medrecord_current_user') || 
-                               !!localStorage.getItem('medrecord_doctor_profile') ||
-                               !!localStorage.getItem('medrecord_doctor');
-      return hasActiveSession ? 'dashboard' : 'welcome';
-    }
-    return isSetup && !isLocked ? 'dashboard' : 'welcome';
+    const isSessionActive = safeStorageGet(STORAGE_KEYS.SESSION_ACTIVE) === 'true';
+    const hasCurrentUser = Boolean(safeStorageGet(STORAGE_KEYS.CURRENT_USER));
+    return (isSessionActive || hasCurrentUser || isSetup) && !isLocked ? 'dashboard' : 'welcome';
   });
 
   const [currentDoctor, setCurrentDoctor] = React.useState<any>(() => {
-    if (Platform.OS === 'web' && typeof window !== 'undefined') {
-      try {
-        const doc = localStorage.getItem('medrecord_current_user') || 
-                    localStorage.getItem('medrecord_doctor_profile') || 
-                    localStorage.getItem('medrecord_doctor');
-        if (doc) return JSON.parse(doc);
-      } catch (e) {}
-    }
-    return user;
+    return (
+      safeStorageGet(STORAGE_KEYS.CURRENT_USER) ||
+      safeStorageGet(STORAGE_KEYS.DOCTOR_PROFILE) ||
+      safeStorageGet(STORAGE_KEYS.DOCTOR_META) ||
+      user
+    );
   });
 
   // Sync state when security context finishes loading or when user logs out
@@ -62,12 +54,7 @@ function MainAppContent() {
   }, [loading, user, isSetup, isLocked]);
 
   const handleLoginSuccess = (doctorData: any) => {
-    if (Platform.OS === 'web' && typeof window !== 'undefined') {
-      localStorage.setItem('medrecord_session_active', 'true');
-      localStorage.setItem('medrecord_current_user', JSON.stringify(doctorData));
-      localStorage.setItem('medrecord_doctor_profile', JSON.stringify(doctorData));
-      localStorage.setItem('medrecord_doctor', JSON.stringify(doctorData));
-    }
+    persistActiveSession(doctorData);
     setCurrentDoctor(doctorData);
     setActiveView('dashboard');
   };
