@@ -26,6 +26,25 @@ export default function LockScreen() {
     }
   }, [biometricsEnabled, lockoutTime]);
 
+  // Support direct typing from physical keyboard (PC / Laptops)
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof window === 'undefined') return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (lockoutTime > 0) return;
+      if (e.key >= '0' && e.key <= '9') {
+        handleKeyPress(e.key);
+      } else if (e.key === 'Backspace' || e.key === 'Delete') {
+        handleBackspace();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [pin, lockoutTime]);
+
   // Gère le compte à rebours de blocage de sécurité (30s)
   useEffect(() => {
     if (lockoutTime <= 0) return;
@@ -109,12 +128,14 @@ export default function LockScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <Ionicons name="lock-closed" size={48} color="#28C2FF" />
-        <Text style={styles.title}>MedRecord</Text>
+        <View style={styles.iconCircle}>
+          <Ionicons name="lock-closed" size={36} color="#28C2FF" />
+        </View>
+        <Text style={styles.title}>Session Verrouillée</Text>
         <Text style={styles.doctorName}>
-          {user ? `${user.prenom} ${user.nom}` : 'Dossier Médical Numérique'}
+          {user ? `Dr ${user.prenom} ${user.nom}` : 'Dossier Médical Numérique'}
         </Text>
-        <Text style={styles.subtitle}>Saisissez votre code PIN d'accès</Text>
+        <Text style={styles.subtitle}>Saisissez votre code PIN (4 chiffres) pour déverrouiller</Text>
       </View>
 
       <View style={styles.dotsContainer}>
@@ -201,13 +222,22 @@ const styles = StyleSheet.create({
   },
   header: {
     alignItems: 'center',
-    marginTop: 40,
+    marginTop: 20,
+  },
+  iconCircle: {
+    width: 68,
+    height: 68,
+    borderRadius: 34,
+    backgroundColor: 'rgba(40, 194, 255, 0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 8,
   },
   title: {
-    fontSize: 32,
+    fontSize: 26,
     fontWeight: 'bold',
     color: '#FFFFFF',
-    marginTop: 12,
+    marginTop: 4,
   },
   doctorName: {
     fontSize: 18,
