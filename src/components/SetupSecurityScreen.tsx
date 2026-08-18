@@ -188,6 +188,12 @@ export default function SetupSecurityScreen({ onSetupSuccess }: { onSetupSuccess
       const rawNom = nom.trim().replace(/\b(dr|docteur|pr|professeur)\.?\b/gi, '').trim();
       const rawPrenom = prenom.trim().replace(/\b(dr|docteur|pr|professeur)\.?\b/gi, '').trim();
 
+      const Crypto = require('expo-crypto');
+      const pinHash = await Crypto.digestStringAsync(
+        Crypto.CryptoDigestAlgorithm.SHA256,
+        pin
+      );
+
       const docProfileData = {
         id: `user_${Date.now()}`,
         civilite,
@@ -199,6 +205,7 @@ export default function SetupSecurityScreen({ onSetupSuccess }: { onSetupSuccess
         telephone: telephone.trim(),
         phone: telephone.trim(),
         pin,
+        pin_hash: pinHash,
         role: 'MEDECIN',
       };
 

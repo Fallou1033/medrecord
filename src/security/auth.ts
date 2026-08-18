@@ -330,13 +330,50 @@ export async function loginExistingUser(identifier: string, pin: string): Promis
     throw new Error('Identifiant introuvable ou code PIN incorrect.');
   }
 
-  // STRICT SECURITY CONTROL 2: Compare entered PIN with stored PIN hash / plain PIN
-  const storedHash = userRow.pin_hash || (await secureStoreGetItem(PIN_HASH_KEY));
-  const isHashMatch = storedHash ? storedHash === pinHash : false;
-  const isPlainMatch = userRow.pin ? userRow.pin === pin : false;
+  // STRICT SECURITY CONTROL 2: Retrieve all possible stored PIN representations
+  let storedPinHash = userRow.pin_hash || null;
+  let storedPlainPin = userRow.pin || null;
 
-  if (!isHashMatch && !isPlainMatch && (storedHash || userRow.pin)) {
-    throw new Error('Identifiant ou code PIN incorrect.');
+  if (!storedPinHash && !storedPlainPin && Platform.OS === 'web' && typeof window !== 'undefined') {
+    try {
+      const { safeStorageGet, STORAGE_KEYS } = require('../utils/storage');
+      const meta = safeStorageGet(STORAGE_KEYS.DOCTOR_META) || safeStorageGet(STORAGE_KEYS.DOCTOR_PROFILE);
+      if (meta) {
+        storedPinHash = meta.pin_hash || null;
+        storedPlainPin = meta.pin || null;
+      }
+    } catch (e) {}
+  }
+
+  if (!storedPinHash) {
+    try {
+      const secureHash = await secureStoreGetItem(PIN_HASH_KEY);
+      if (secureHash) storedPinHash = secureHash;
+    } catch (e) {}
+  }
+
+  if (!storedPinHash) {
+    try {
+      const dbRow = (await db.getFirstAsync(
+        'SELECT pin_hash FROM utilisateurs WHERE LOWER(email) = ? OR telephone = ? LIMIT 1;',
+        [cleanId, identifier.trim()]
+      )) as any;
+      if (dbRow?.pin_hash) storedPinHash = dbRow.pin_hash;
+    } catch (e) {}
+  }
+
+  // STRICT PIN VERIFICATION: Entered PIN must match stored PIN hash or plain PIN
+  let isPinValid = false;
+  if (storedPinHash && storedPinHash === pinHash) {
+    isPinValid = true;
+  }
+  if (storedPlainPin && String(storedPlainPin).trim() === String(pin).trim()) {
+    isPinValid = true;
+  }
+
+  // If the PIN is not valid, ALWAYS THROW ERROR AND BLOCK ACCESS!
+  if (!isPinValid) {
+    throw new Error('Code PIN incorrect.');
   }
 
   // Format clean practitioner name (e.g. Dr Fallou Diop)
