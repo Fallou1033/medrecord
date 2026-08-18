@@ -7,6 +7,7 @@ import {
   SafeAreaView,
   Vibration,
   Alert,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSecurity } from '../security/SecurityContext';
@@ -171,7 +172,20 @@ export default function LockScreen() {
         {/* Option Déconnexion / Changer de cabinet */}
         <TouchableOpacity
           onPress={() => {
-            if (confirm('Voulez-vous vous déconnecter de ce cabinet ?')) {
+            if (Platform.OS === 'web' && typeof window !== 'undefined') {
+              if (window.confirm("Voulez-vous vous déconnecter de votre cabinet ?")) {
+                localStorage.removeItem('medrecord_session_active');
+                localStorage.removeItem('medrecord_current_user');
+                localStorage.removeItem('medrecord_doctor');
+                localStorage.removeItem('medrecord_auth_token');
+                localStorage.removeItem('medrecord_active_user_id');
+                if (typeof sessionStorage !== 'undefined') {
+                  sessionStorage.clear();
+                }
+                try { logout(); } catch (e) {}
+                window.location.href = window.location.origin + window.location.pathname;
+              }
+            } else {
               logout();
             }
           }}

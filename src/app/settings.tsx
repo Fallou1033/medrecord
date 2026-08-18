@@ -440,9 +440,18 @@ export default function SettingsScreen() {
           style={[styles.menuCardLast, { backgroundColor: 'rgba(255, 107, 107, 0.1)', borderColor: '#FF6B6B', marginTop: 12 }]}
           activeOpacity={0.7}
           onPress={() => {
-            if (Platform.OS === 'web') {
-              if (confirm('Voulez-vous vous déconnecter de ce cabinet ?')) {
-                logout();
+            if (Platform.OS === 'web' && typeof window !== 'undefined') {
+              if (window.confirm("Voulez-vous vous déconnecter de votre cabinet ?")) {
+                localStorage.removeItem('medrecord_session_active');
+                localStorage.removeItem('medrecord_current_user');
+                localStorage.removeItem('medrecord_doctor');
+                localStorage.removeItem('medrecord_auth_token');
+                localStorage.removeItem('medrecord_active_user_id');
+                if (typeof sessionStorage !== 'undefined') {
+                  sessionStorage.clear();
+                }
+                try { logout(); } catch (e) {}
+                window.location.href = window.location.origin + window.location.pathname;
               }
             } else {
               Alert.alert('Déconnexion', 'Voulez-vous vous déconnecter de ce cabinet ?', [
