@@ -122,7 +122,6 @@ export const SecurityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   }, []);
 
   const loginUser = async (identifier: string, pin: string) => {
-    setLoading(true);
     try {
       const { loginExistingUser } = require('./auth');
       let profile: any = null;
@@ -161,8 +160,6 @@ export const SecurityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     } catch (error) {
       console.error('MedRecord: Failed cross-device login:', error);
       throw error;
-    } finally {
-      setLoading(false);
     }
   };
 
