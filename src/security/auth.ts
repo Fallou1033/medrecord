@@ -97,6 +97,15 @@ export async function checkEmailExists(email: string, currentUserId?: string): P
 export async function isPinSetup(): Promise<boolean> {
   const hash = await secureStoreGetItem(PIN_HASH_KEY);
   const activeUserId = await secureStoreGetItem(ACTIVE_USER_ID_KEY);
+  if (hash && activeUserId) return true;
+
+  if (Platform.OS === 'web' && typeof window !== 'undefined') {
+    const { safeStorageGet, STORAGE_KEYS } = require('../utils/storage');
+    const hasActiveSession = safeStorageGet(STORAGE_KEYS.SESSION_ACTIVE) === 'true';
+    const profile = safeStorageGet(STORAGE_KEYS.CURRENT_USER) || safeStorageGet(STORAGE_KEYS.DOCTOR_PROFILE);
+    if (hasActiveSession && profile && profile.id) return true;
+  }
+
   if (!hash || !activeUserId) return false;
 
   try {
@@ -351,7 +360,28 @@ export async function loginExistingUser(identifier: string, pin: string): Promis
  */
 export async function verifyPIN(pin: string): Promise<boolean> {
   try {
-    const storedHash = await secureStoreGetItem(PIN_HASH_KEY);
+    let storedHash = await secureStoreGetItem(PIN_HASH_KEY);
+    let activeUserId = await secureStoreGetItem(ACTIVE_USER_ID_KEY);
+
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      const { safeStorageGet, STORAGE_KEYS } = require('../utils/storage');
+      const profile = safeStorageGet(STORAGE_KEYS.CURRENT_USER) || safeStorageGet(STORAGE_KEYS.DOCTOR_PROFILE);
+      const meta = safeStorageGet(STORAGE_KEYS.DOCTOR_META);
+      if (meta?.pin_hash && !storedHash) storedHash = meta.pin_hash;
+      if (meta?.pin && !storedHash) {
+        storedHash = await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, String(meta.pin).trim());
+      }
+      if (profile?.id && !activeUserId) activeUserId = profile.id;
+    }
+
+    if (!storedHash && activeUserId) {
+      try {
+        const db = await getDatabase();
+        const dbUser = (await db.getFirstAsync('SELECT pin_hash FROM utilisateurs WHERE id = ?;', [activeUserId])) as any;
+        if (dbUser?.pin_hash) storedHash = dbUser.pin_hash;
+      } catch (e) {}
+    }
+
     if (!storedHash) return false;
 
     const inputHash = await Crypto.digestStringAsync(
@@ -436,31 +466,45 @@ export async function authenticateBiometric(): Promise<boolean> {
 }
 
 /**
- * Gets the current authenticated user profile from SQLite.
+ * Gets the current authenticated user profile from SQLite or local storage.
  */
 export async function getActiveUserProfile(): Promise<UserProfile | null> {
   try {
-    const userId = await secureStoreGetItem(ACTIVE_USER_ID_KEY);
+    let userId = await secureStoreGetItem(ACTIVE_USER_ID_KEY);
+    if (!userId && Platform.OS === 'web' && typeof window !== 'undefined') {
+      const { safeStorageGet, STORAGE_KEYS } = require('../utils/storage');
+      const storedUser = safeStorageGet(STORAGE_KEYS.CURRENT_USER) || safeStorageGet(STORAGE_KEYS.DOCTOR_PROFILE);
+      if (storedUser?.id) userId = storedUser.id;
+    }
     if (!userId) return null;
 
-    const db = await getDatabase();
-    const user = (await db.getFirstAsync(
-      'SELECT id, email, nom, prenom, telephone, role, biometrie_active FROM utilisateurs WHERE id = ?;',
-      [userId]
-    )) as any;
+    let user: any = null;
+    try {
+      const db = await getDatabase();
+      user = (await db.getFirstAsync(
+        'SELECT id, email, nom, prenom, telephone, role, biometrie_active FROM utilisateurs WHERE id = ?;',
+        [userId]
+      )) as any;
+    } catch (e) {}
 
-    if (!user) return null;
+    if (!user && Platform.OS === 'web' && typeof window !== 'undefined') {
+      const { safeStorageGet, STORAGE_KEYS } = require('../utils/storage');
+      user = safeStorageGet(STORAGE_KEYS.CURRENT_USER) || safeStorageGet(STORAGE_KEYS.DOCTOR_PROFILE);
+    }
 
     if (user) {
       const cleanedNom = cleanRawName(user.nom);
       const cleanedPrenom = cleanRawName(user.prenom);
 
       if (cleanedNom !== user.nom || cleanedPrenom !== user.prenom) {
-        await db.runAsync('UPDATE utilisateurs SET nom = ?, prenom = ? WHERE id = ?;', [
-          cleanedNom,
-          cleanedPrenom,
-          user.id,
-        ]);
+        try {
+          const db = await getDatabase();
+          await db.runAsync('UPDATE utilisateurs SET nom = ?, prenom = ? WHERE id = ?;', [
+            cleanedNom,
+            cleanedPrenom,
+            user.id,
+          ]);
+        } catch (e) {}
       }
 
       return {
@@ -468,9 +512,9 @@ export async function getActiveUserProfile(): Promise<UserProfile | null> {
         email: user.email,
         nom: cleanedNom,
         prenom: cleanedPrenom,
-        telephone: user.telephone,
-        role: user.role,
-        biometrie_active: user.biometrie_active === 1,
+        telephone: user.telephone || null,
+        role: user.role || 'MEDECIN',
+        biometrie_active: user.biometrie_active === 1 || user.biometrie_active === true,
       };
     }
 
