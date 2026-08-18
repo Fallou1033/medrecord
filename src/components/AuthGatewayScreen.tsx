@@ -123,49 +123,72 @@ export function CrossDeviceLoginView({
     if (lockoutTime > 0 || loading) return;
     setErrorMsg('');
     setHasAuthError(false);
-
-    if (!identifier.trim() || (!isEmail && !isPhone)) {
-      setHasAuthError(true);
-      setErrorMsg('Veuillez vérifier votre adresse e-mail ou votre code PIN.');
-      setPin('');
-      return;
-    }
-
-    if (pin.length !== 4) {
-      setHasAuthError(true);
-      setErrorMsg('Veuillez vérifier votre adresse e-mail ou votre code PIN.');
-      setPin('');
-      return;
-    }
-
     setLoading(true);
+
     try {
-      await loginUser(identifier.trim(), pin);
-      setFailedAttempts(0);
-      setHasAuthError(false);
+      const cleanIdentifier = identifier.trim().toLowerCase();
+      const enteredPin = pin; // 4-digit PIN string
 
-      const docData = user || { email: identifier.trim(), pin };
+      // 1. Récupération sécurisée du profil stocké
+      let doctorData: any = null;
       if (Platform.OS === 'web' && typeof window !== 'undefined') {
-        localStorage.setItem('medrecord_doctor', JSON.stringify(docData));
-        localStorage.setItem('medrecord_auth_token', 'true');
+        const savedProfileStr = localStorage.getItem('medrecord_doctor_profile') || 
+                                localStorage.getItem('medrecord_doctor') || 
+                                localStorage.getItem('doctor_profile') ||
+                                localStorage.getItem('medrecord_current_user');
+        if (savedProfileStr) {
+          try { doctorData = JSON.parse(savedProfileStr); } catch (err) {}
+        }
       }
 
-      if (onSuccess) {
-        onSuccess(docData);
-      }
-    } catch (err: any) {
-      console.error(err);
-      const nextFailed = failedAttempts + 1;
-      setFailedAttempts(nextFailed);
-      setPin(''); // Automatically clear 4-digit PIN boxes
-      setHasAuthError(true);
+      // 2. Vérification stricte
+      const isEmailMatch = doctorData?.email?.trim().toLowerCase() === cleanIdentifier;
+      const cleanSavedPhone = doctorData?.phone?.replace(/\s+/g, '') || doctorData?.telephone?.replace(/\s+/g, '');
+      const isPhoneMatch = cleanSavedPhone && cleanSavedPhone === cleanIdentifier.replace(/\s+/g, '');
+      const isPinMatch = String(doctorData?.pin) === enteredPin || String(doctorData?.pin_hash) === enteredPin;
 
-      if (nextFailed >= 5) {
-        setLockoutTime(30);
-        setErrorMsg('Trop d\'échecs consécutifs (5/5). Compte bloqué pendant 30 secondes.');
+      let isVerified = Boolean(doctorData && (isEmailMatch || isPhoneMatch) && isPinMatch);
+
+      // 3. Fallback via SQLite / Supabase Cloud si non trouvé dans localStorage
+      if (!isVerified) {
+        try {
+          await loginUser(cleanIdentifier, enteredPin);
+          isVerified = true;
+          doctorData = user || { email: cleanIdentifier, role: 'MEDECIN' };
+        } catch (authErr) {
+          isVerified = false;
+        }
+      }
+
+      if (isVerified && doctorData) {
+        // Enregistrement de session
+        if (Platform.OS === 'web' && typeof window !== 'undefined') {
+          localStorage.setItem('medrecord_session_active', 'true');
+          localStorage.setItem('medrecord_current_user', JSON.stringify(doctorData));
+          localStorage.setItem('medrecord_doctor', JSON.stringify(doctorData));
+          localStorage.setItem('medrecord_doctor_profile', JSON.stringify(doctorData));
+          localStorage.setItem('medrecord_auth_token', 'true');
+        }
+
+        setFailedAttempts(0);
+        setHasAuthError(false);
+
+        // Déclenchement de la transition vers le Dashboard
+        if (onSuccess) {
+          onSuccess(doctorData);
+        }
       } else {
-        setErrorMsg('Veuillez vérifier votre adresse e-mail ou votre code PIN.');
+        const nextFailed = failedAttempts + 1;
+        setFailedAttempts(nextFailed);
+        setHasAuthError(true);
+        setErrorMsg("Adresse e-mail ou code PIN incorrect.");
+        setPin(''); // Réinitialiser le code PIN
       }
+    } catch (err) {
+      console.error("Erreur lors de la connexion :", err);
+      setHasAuthError(true);
+      setErrorMsg("Une erreur est survenue lors de l'accès au compte.");
+      setPin('');
     } finally {
       setLoading(false);
     }

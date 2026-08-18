@@ -22,14 +22,29 @@ if (Platform.OS !== 'web') {
 type AppView = 'welcome' | 'setup' | 'login' | 'dashboard';
 
 function MainAppContent() {
-  const { user, isSetup, isLocked, loading } = useSecurity();
+  const { user, isSetup, isLocked, loading, logout } = useSecurity();
 
-  const [currentView, setCurrentView] = React.useState<AppView>(() => {
+  const [activeView, setActiveView] = React.useState<AppView>(() => {
     if (Platform.OS === 'web' && typeof window !== 'undefined') {
-      const savedDoc = localStorage.getItem('medrecord_doctor') || localStorage.getItem('medrecord_current_doctor') || localStorage.getItem('medrecord_active_user_id');
-      return savedDoc ? 'dashboard' : 'welcome';
+      const hasActiveSession = localStorage.getItem('medrecord_session_active') === 'true' || 
+                               !!localStorage.getItem('medrecord_current_user') || 
+                               !!localStorage.getItem('medrecord_doctor_profile') ||
+                               !!localStorage.getItem('medrecord_doctor');
+      return hasActiveSession ? 'dashboard' : 'welcome';
     }
     return isSetup && !isLocked ? 'dashboard' : 'welcome';
+  });
+
+  const [currentDoctor, setCurrentDoctor] = React.useState<any>(() => {
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      try {
+        const doc = localStorage.getItem('medrecord_current_user') || 
+                    localStorage.getItem('medrecord_doctor_profile') || 
+                    localStorage.getItem('medrecord_doctor');
+        if (doc) return JSON.parse(doc);
+      } catch (e) {}
+    }
+    return user;
   });
 
   // Sync state when security context finishes loading
@@ -38,11 +53,22 @@ function MainAppContent() {
       SplashScreen.hideAsync().catch(() => {});
       if (user || isSetup) {
         if (!isLocked) {
-          setCurrentView('dashboard');
+          setActiveView('dashboard');
         }
       }
     }
   }, [loading, user, isSetup, isLocked]);
+
+  const handleLoginSuccess = (doctorData: any) => {
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      localStorage.setItem('medrecord_session_active', 'true');
+      localStorage.setItem('medrecord_current_user', JSON.stringify(doctorData));
+      localStorage.setItem('medrecord_doctor_profile', JSON.stringify(doctorData));
+      localStorage.setItem('medrecord_doctor', JSON.stringify(doctorData));
+    }
+    setCurrentDoctor(doctorData);
+    setActiveView('dashboard');
+  };
 
   // Load Ionicons font for Expo Web
   const [fontsLoaded] = useFonts({
@@ -120,62 +146,52 @@ function MainAppContent() {
     );
   }
 
-  // 1. Dashboard View
-  if (currentView === 'dashboard') {
-    if (isLocked) {
-      return <LockScreen />;
-    }
-    return <AppTabs />;
-  }
-
-  // 2. Login View
-  if (currentView === 'login') {
-    return (
-      <View style={{ flex: 1, backgroundColor: '#0F172A' }}>
-        <TouchableOpacity
-          onPress={() => setCurrentView('welcome')}
-          style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 20, paddingTop: 16, zIndex: 10 }}
-        >
-          <Ionicons name="arrow-back" size={20} color="#28C2FF" />
-          <Text style={{ color: '#28C2FF', fontWeight: 'bold', fontSize: 14 }}>Retour au choix d'accueil</Text>
-        </TouchableOpacity>
-        <CrossDeviceLoginView
-          onSuccess={(doctorData) => {
-            if (Platform.OS === 'web' && typeof window !== 'undefined') {
-              localStorage.setItem('medrecord_doctor', JSON.stringify(doctorData));
-              localStorage.setItem('medrecord_auth_token', 'true');
-            }
-            setCurrentView('dashboard');
-          }}
-          onSwitchToCreate={() => setCurrentView('setup')}
+  // Explicit switch-case rendering without parasitic guards
+  switch (activeView) {
+    case 'dashboard':
+      if (isLocked) {
+        return <LockScreen />;
+      }
+      return <AppTabs />;
+    case 'login':
+      return (
+        <View style={{ flex: 1, backgroundColor: '#0F172A' }}>
+          <TouchableOpacity
+            onPress={() => setActiveView('welcome')}
+            style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 20, paddingTop: 16, zIndex: 10 }}
+          >
+            <Ionicons name="arrow-back" size={20} color="#28C2FF" />
+            <Text style={{ color: '#28C2FF', fontWeight: 'bold', fontSize: 14 }}>Retour au choix d'accueil</Text>
+          </TouchableOpacity>
+          <CrossDeviceLoginView
+            onSuccess={handleLoginSuccess}
+            onSwitchToCreate={() => setActiveView('setup')}
+          />
+        </View>
+      );
+    case 'setup':
+      return (
+        <View style={{ flex: 1, backgroundColor: '#0F172A' }}>
+          <TouchableOpacity
+            onPress={() => setActiveView('welcome')}
+            style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 20, paddingTop: 16, zIndex: 10 }}
+          >
+            <Ionicons name="arrow-back" size={20} color="#28C2FF" />
+            <Text style={{ color: '#28C2FF', fontWeight: 'bold', fontSize: 14 }}>Retour au choix d'accueil</Text>
+          </TouchableOpacity>
+          <SetupSecurityScreen
+            onSetupSuccess={handleLoginSuccess}
+          />
+        </View>
+      );
+    default:
+      return (
+        <WelcomeGateway
+          onNewDoctor={() => setActiveView('setup')}
+          onExistingDoctor={() => setActiveView('login')}
         />
-      </View>
-    );
+      );
   }
-
-  // 3. Setup View (Créer mon cabinet)
-  if (currentView === 'setup') {
-    return (
-      <View style={{ flex: 1, backgroundColor: '#0F172A' }}>
-        <TouchableOpacity
-          onPress={() => setCurrentView('welcome')}
-          style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 20, paddingTop: 16, zIndex: 10 }}
-        >
-          <Ionicons name="arrow-back" size={20} color="#28C2FF" />
-          <Text style={{ color: '#28C2FF', fontWeight: 'bold', fontSize: 14 }}>Retour au choix d'accueil</Text>
-        </TouchableOpacity>
-        <SetupSecurityScreen />
-      </View>
-    );
-  }
-
-  // 4. Welcome Gateway View (Default)
-  return (
-    <WelcomeGateway
-      onNewDoctor={() => setCurrentView('setup')}
-      onExistingDoctor={() => setCurrentView('login')}
-    />
-  );
 }
 
 function TabLayoutContent() {

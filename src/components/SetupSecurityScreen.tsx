@@ -91,7 +91,7 @@ function OtpPinInput({ label, value, onChange }: OtpInputProps) {
   );
 }
 
-export default function SetupSecurityScreen() {
+export default function SetupSecurityScreen({ onSetupSuccess }: { onSetupSuccess?: (docData: any) => void }) {
   const { setupSecurity } = useSecurity();
   const [civilite, setCivilite] = useState<'Dr' | 'Pr'>('Dr');
   const [specialite, setSpecialite] = useState('Médecine Générale');
@@ -188,19 +188,31 @@ export default function SetupSecurityScreen() {
       const cleanNom = `${civilite} ${nom.trim().replace(/\b(dr|docteur|pr|professeur)\.?\b/gi, '').trim()}`;
       const cleanPrenom = prenom.trim().replace(/\b(dr|docteur|pr|professeur)\.?\b/gi, '').trim();
 
-      // Store doctor metadata in localStorage/storage for prescription header auto-fill
+      const docProfileData = {
+        civilite,
+        specialite,
+        numero_rpps: numeroOrdre.trim(),
+        nom: cleanNom,
+        prenom: cleanPrenom,
+        email: email.trim(),
+        telephone: telephone.trim(),
+        phone: telephone.trim(),
+        pin,
+        role: 'MEDECIN'
+      };
+
       if (typeof window !== 'undefined' && window.localStorage) {
-        localStorage.setItem(
-          'doctor_profile_meta',
-          JSON.stringify({
-            civilite,
-            specialite,
-            numero_rpps: numeroOrdre.trim(),
-          })
-        );
+        localStorage.setItem('doctor_profile_meta', JSON.stringify(docProfileData));
+        localStorage.setItem('medrecord_doctor_profile', JSON.stringify(docProfileData));
+        localStorage.setItem('medrecord_current_user', JSON.stringify(docProfileData));
+        localStorage.setItem('medrecord_doctor', JSON.stringify(docProfileData));
+        localStorage.setItem('medrecord_session_active', 'true');
       }
 
       await setupSecurity(pin, cleanNom, cleanPrenom, email.trim(), telephone.trim());
+      if (onSetupSuccess) {
+        onSetupSuccess(docProfileData);
+      }
     } catch (error: any) {
       console.error(error);
       showAlert('Erreur', error.message || "Impossible d'enregistrer le profil et le code PIN.");
