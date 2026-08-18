@@ -119,76 +119,47 @@ export function CrossDeviceLoginView({
   }, [lockoutTime]);
 
   const handleLogin = async (e?: any) => {
-    if (e && e.preventDefault) e.preventDefault();
+    if (e) {
+      if (typeof e.preventDefault === 'function') e.preventDefault();
+      if (typeof e.stopPropagation === 'function') e.stopPropagation();
+    }
     if (lockoutTime > 0 || loading) return;
     setErrorMsg('');
     setHasAuthError(false);
+
+    const cleanIdentifier = identifier.trim().toLowerCase();
+    const enteredPinStr = pin; // 4-digit PIN
+
+    if (!cleanIdentifier || enteredPinStr.length !== 4) {
+      setErrorMsg("Veuillez saisir votre identifiant et votre code PIN à 4 chiffres.");
+      setHasAuthError(true);
+      return;
+    }
+
     setLoading(true);
-
     try {
-      const cleanIdentifier = identifier.trim().toLowerCase();
-      const enteredPin = pin; // 4-digit PIN string
+      const docData = await loginUser(cleanIdentifier, enteredPinStr);
 
-      // 1. Récupération sécurisée du profil stocké
-      let doctorData: any = null;
+      // Persistance immédiate
       if (Platform.OS === 'web' && typeof window !== 'undefined') {
-        const savedProfileStr = localStorage.getItem('medrecord_doctor_profile') || 
-                                localStorage.getItem('medrecord_doctor') || 
-                                localStorage.getItem('doctor_profile') ||
-                                localStorage.getItem('medrecord_current_user');
-        if (savedProfileStr) {
-          try { doctorData = JSON.parse(savedProfileStr); } catch (err) {}
-        }
+        localStorage.setItem('medrecord_session_active', 'true');
+        localStorage.setItem('medrecord_current_user', JSON.stringify(docData));
+        localStorage.setItem('medrecord_doctor_profile', JSON.stringify(docData));
+        localStorage.setItem('medrecord_doctor', JSON.stringify(docData));
+        localStorage.setItem('medrecord_auth_token', 'true');
       }
 
-      // 2. Vérification stricte
-      const isEmailMatch = doctorData?.email?.trim().toLowerCase() === cleanIdentifier;
-      const cleanSavedPhone = doctorData?.phone?.replace(/\s+/g, '') || doctorData?.telephone?.replace(/\s+/g, '');
-      const isPhoneMatch = cleanSavedPhone && cleanSavedPhone === cleanIdentifier.replace(/\s+/g, '');
-      const isPinMatch = String(doctorData?.pin) === enteredPin || String(doctorData?.pin_hash) === enteredPin;
+      setFailedAttempts(0);
+      setHasAuthError(false);
 
-      let isVerified = Boolean(doctorData && (isEmailMatch || isPhoneMatch) && isPinMatch);
-
-      // 3. Fallback via SQLite / Supabase Cloud si non trouvé dans localStorage
-      if (!isVerified) {
-        try {
-          await loginUser(cleanIdentifier, enteredPin);
-          isVerified = true;
-          doctorData = user || { email: cleanIdentifier, role: 'MEDECIN' };
-        } catch (authErr) {
-          isVerified = false;
-        }
+      // Déclenchement direct du Dashboard
+      if (onSuccess) {
+        onSuccess(docData);
       }
-
-      if (isVerified && doctorData) {
-        // Enregistrement de session
-        if (Platform.OS === 'web' && typeof window !== 'undefined') {
-          localStorage.setItem('medrecord_session_active', 'true');
-          localStorage.setItem('medrecord_current_user', JSON.stringify(doctorData));
-          localStorage.setItem('medrecord_doctor', JSON.stringify(doctorData));
-          localStorage.setItem('medrecord_doctor_profile', JSON.stringify(doctorData));
-          localStorage.setItem('medrecord_auth_token', 'true');
-        }
-
-        setFailedAttempts(0);
-        setHasAuthError(false);
-
-        // Déclenchement de la transition vers le Dashboard
-        if (onSuccess) {
-          onSuccess(doctorData);
-        }
-      } else {
-        const nextFailed = failedAttempts + 1;
-        setFailedAttempts(nextFailed);
-        setHasAuthError(true);
-        setErrorMsg("Adresse e-mail ou code PIN incorrect.");
-        setPin(''); // Réinitialiser le code PIN
-      }
-    } catch (err) {
+    } catch (err: any) {
       console.error("Erreur lors de la connexion :", err);
       setHasAuthError(true);
       setErrorMsg("Une erreur est survenue lors de l'accès au compte.");
-      setPin('');
     } finally {
       setLoading(false);
     }
