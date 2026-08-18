@@ -57,63 +57,35 @@ const secureStoreDeleteItem = async (key: string): Promise<void> => {
   }
 };
 
-/**
- * Checks if an email address already exists in the database/storage for another user.
- */
 export async function checkEmailExists(email: string, currentUserId?: string): Promise<boolean> {
   const cleanEmail = email.trim().toLowerCase();
   if (!cleanEmail) return false;
 
   try {
-    const db = await getDatabase();
+    const activeUserId = await secureStoreGetItem(ACTIVE_USER_ID_KEY);
+    // If setting up a cabinet without an active user, allow configuring/reconfiguring
+    if (!activeUserId && !currentUserId) {
+      return false;
+    }
 
-    // 1. Check SQLite database
+    const db = await getDatabase();
     let query = 'SELECT id FROM utilisateurs WHERE LOWER(email) = LOWER(?)';
     const params: any[] = [cleanEmail];
 
-    if (currentUserId) {
+    const excludeId = currentUserId || activeUserId;
+    if (excludeId) {
       query += ' AND id != ?';
-      params.push(currentUserId);
+      params.push(excludeId);
     }
     query += ' LIMIT 1;';
 
     const existingUser = (await db.getFirstAsync(query, params)) as any;
-    if (existingUser && existingUser.id) {
+    if (existingUser && existingUser.id && existingUser.id !== excludeId) {
       return true;
     }
 
-    // 2. Check Web localStorage
-    if (Platform.OS === 'web' && typeof window !== 'undefined') {
-      try {
-        const { safeStorageGet, STORAGE_KEYS } = require('../utils/storage');
-        const meta = safeStorageGet(STORAGE_KEYS.DOCTOR_META) || safeStorageGet(STORAGE_KEYS.DOCTOR_PROFILE);
-        if (meta && meta.email && meta.email.trim().toLowerCase() === cleanEmail) {
-          if (!currentUserId || meta.id !== currentUserId) {
-            return true;
-          }
-        }
-      } catch (e) {}
-    }
-
-    // 3. Check remote Supabase if client is active
-    try {
-      const { supabase } = require('../services/supabase');
-      const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || '';
-      if (supabase && supabaseUrl.trim().length > 0) {
-        let sbQuery = supabase.from('utilisateurs').select('id').eq('email', cleanEmail);
-        if (currentUserId) {
-          sbQuery = sbQuery.neq('id', currentUserId);
-        }
-        const { data, error } = await sbQuery.limit(1);
-        if (!error && Array.isArray(data) && data.length > 0) {
-          return true;
-        }
-      }
-    } catch (e) {}
-
     return false;
   } catch (error) {
-    console.warn('MedRecord: Failed to check email uniqueness:', error);
     return false;
   }
 }

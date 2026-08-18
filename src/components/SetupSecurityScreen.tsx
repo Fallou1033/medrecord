@@ -110,18 +110,18 @@ export default function SetupSecurityScreen({ onSetupSuccess }: { onSetupSuccess
   const [loading, setLoading] = useState(false);
 
   const validateEmailUniqueness = async (emailToTest: string) => {
-    if (!emailToTest.trim()) {
+    const clean = emailToTest.trim().toLowerCase();
+    if (!clean) {
       setEmailError('');
       return true;
     }
-    const isTaken = await checkEmailExists(emailToTest.trim());
-    if (isTaken) {
-      setEmailError('Cette adresse email est déjà utilisée.');
+    const isFormatOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clean);
+    if (!isFormatOk) {
+      setEmailError('Format d\'adresse email invalide.');
       return false;
-    } else {
-      setEmailError('');
-      return true;
     }
+    setEmailError('');
+    return true;
   };
 
   const showAlert = (title: string, message: string) => {
@@ -164,12 +164,6 @@ export default function SetupSecurityScreen({ onSetupSuccess }: { onSetupSuccess
 
     if (nom.trim().length < 2 || prenom.trim().length < 2 || /^([a-zA-Z0-9])\1{4,}$/.test(nom.trim()) || /^([a-zA-Z0-9])\1{4,}$/.test(prenom.trim())) {
       showAlert('Nom ou Prénom invalide', 'Veuillez saisir un prénom et un nom de famille valides.');
-      return;
-    }
-
-    const isEmailAvailable = await validateEmailUniqueness(email);
-    if (!isEmailAvailable) {
-      showAlert('Adresse email indisponible', 'Cette adresse email est déjà utilisée.');
       return;
     }
 
