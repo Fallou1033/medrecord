@@ -445,7 +445,7 @@ export default function SettingsScreen() {
                 const { purgeActiveSession } = require('../utils/storage');
                 purgeActiveSession();
                 try { logout(); } catch (e) {}
-                window.location.href = window.location.origin + window.location.pathname;
+                window.location.reload();
               }
             } else {
               Alert.alert('Déconnexion', 'Voulez-vous vous déconnecter de ce cabinet ?', [
