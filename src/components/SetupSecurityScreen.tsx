@@ -194,8 +194,11 @@ export default function SetupSecurityScreen({ onSetupSuccess }: { onSetupSuccess
         pin
       );
 
+      // 1. Initialiser le profil utilisateur et la sécurité SQLite / SecureStore
+      const profile = await setupSecurity(pin, rawNom, rawPrenom, email.trim(), telephone.trim());
+
       const docProfileData = {
-        id: `user_${Date.now()}`,
+        id: profile?.id || `user_${Date.now()}`,
         civilite,
         specialite,
         numero_rpps: numeroOrdre.trim(),
@@ -209,6 +212,7 @@ export default function SetupSecurityScreen({ onSetupSuccess }: { onSetupSuccess
         role: 'MEDECIN',
       };
 
+      // 2. Sauvegarde des métadonnées du cabinet
       if (Platform.OS === 'web' && typeof window !== 'undefined') {
         const { STORAGE_KEYS, safeStorageSet, persistActiveSession } = require('../utils/storage');
         safeStorageSet(STORAGE_KEYS.DOCTOR_META, docProfileData);
@@ -216,8 +220,6 @@ export default function SetupSecurityScreen({ onSetupSuccess }: { onSetupSuccess
         safeStorageSet(STORAGE_KEYS.CURRENT_USER, docProfileData);
         persistActiveSession(docProfileData);
       }
-
-      await setupSecurity(pin, rawNom, rawPrenom, email.trim(), telephone.trim());
 
       if (onSetupSuccess) {
         onSetupSuccess(docProfileData);

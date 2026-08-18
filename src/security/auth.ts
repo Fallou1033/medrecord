@@ -149,13 +149,10 @@ export async function setupPIN(pin: string, nom: string, prenom: string, email: 
 
     const cleanNom = cleanRawName(nom);
     const cleanPrenom = cleanRawName(prenom);
-    
-    // Check if default user already exists
-    let user = (await db.getFirstAsync('SELECT * FROM utilisateurs LIMIT 1;')) as any;
-    let userId = user?.id;
+    const cleanEmail = email.trim().toLowerCase();
 
-    // Check email uniqueness
-    const isEmailTaken = await checkEmailExists(email, userId);
+    // Check if email is already taken by another user
+    const isEmailTaken = await checkEmailExists(cleanEmail);
     if (isEmailTaken) {
       throw new Error('Cette adresse email est déjà utilisée.');
     }
@@ -169,85 +166,49 @@ export async function setupPIN(pin: string, nom: string, prenom: string, email: 
     // 2. Save the PIN hash in secure store
     await secureStoreSetItem(PIN_HASH_KEY, pinHash);
 
-    if (!user) {
-      userId = generateUUID();
-      await db.runAsync(
-        `INSERT INTO utilisateurs (id, email, nom, prenom, telephone, role, pin_hash, biometrie_active) 
-         VALUES (?, ?, ?, ?, ?, ?, ?, 0);`,
-        [userId, email, cleanNom, cleanPrenom, telephone || null, 'MEDECIN', pinHash]
-      );
-    } else {
-      // Update existing user's PIN
-      await db.runAsync(
-        `UPDATE utilisateurs SET pin_hash = ?, email = ?, nom = ?, prenom = ?, telephone = ? WHERE id = ?;`,
-        [pinHash, email, cleanNom, cleanPrenom, telephone || null, userId]
-      );
-    }
+    const userId = `user_${Date.now()}`;
+
+    await db.runAsync(
+      `INSERT OR REPLACE INTO utilisateurs (id, email, nom, prenom, telephone, role, pin_hash, biometrie_active) 
+       VALUES (?, ?, ?, ?, ?, ?, ?, 0);`,
+      [userId, cleanEmail, cleanNom, cleanPrenom, telephone || null, 'MEDECIN', pinHash]
+    );
 
     // 4. Save active user ID locally
     await secureStoreSetItem(ACTIVE_USER_ID_KEY, userId);
+    await updateLastActiveTime();
 
     // 5. Sync to Supabase in background if client is configured
     try {
       const { supabase } = require('../services/supabase');
-      if (supabase) {
-        // Upsert to both possible user tables in Supabase (utilisateurs/profiles)
+      const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || '';
+      if (supabase && supabaseUrl.trim().length > 0) {
         supabase.from('utilisateurs').upsert({
           id: userId,
-          email,
-          nom,
-          prenom,
+          email: cleanEmail,
+          nom: cleanNom,
+          prenom: cleanPrenom,
           telephone: telephone || null,
           role: 'MEDECIN',
           updated_at: new Date().toISOString()
         }).then(({ error }: any) => {
           if (error) console.warn('Supabase sync warning (utilisateurs):', error);
         });
-
-        supabase.from('profiles').upsert({
-          id: userId,
-          email,
-          nom,
-          prenom,
-          telephone: telephone || null,
-          role: 'MEDECIN',
-          updated_at: new Date().toISOString()
-        }).then(({ error }: any) => {
-          if (error) console.warn('Supabase sync warning (profiles):', error);
-        });
       }
-    } catch (supabaseErr) {
-      console.warn('MedRecord: Failed to background-sync profile to Supabase:', supabaseErr);
-    }
-
-    if (Platform.OS === 'web' && typeof window !== 'undefined') {
-      try {
-        localStorage.setItem('doctor_profile', JSON.stringify({
-          id: userId,
-          email,
-          nom: cleanNom,
-          prenom: cleanPrenom,
-          telephone,
-          role: 'MEDECIN',
-          pin_hash: pinHash
-        }));
-      } catch (e) {
-        console.warn('localStorage doctor_profile save warning:', e);
-      }
-    }
+    } catch (supabaseErr) {}
 
     return {
       id: userId,
-      email,
-      nom,
-      prenom,
-      telephone,
+      email: cleanEmail,
+      nom: cleanNom,
+      prenom: cleanPrenom,
+      telephone: telephone || null,
       role: 'MEDECIN',
       biometrie_active: false
     };
-  } catch (error) {
+  } catch (error: any) {
     console.error('MedRecord: Failed to set up PIN:', error);
-    throw new Error('Failed to configure PIN code.');
+    throw error;
   }
 }
 
