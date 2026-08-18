@@ -116,28 +116,57 @@ class WebDatabaseMock {
         return [{ count: countList.length }];
       }
 
-      // Handle simple WHERE filters
+      // Handle WHERE filters
       const whereMatch = cleanQuery.match(/WHERE\s+(.+?)(?:\s+ORDER\s+BY|\s+LIMIT|$)/i);
       if (whereMatch) {
-        const whereClause = whereMatch[1];
+        const whereClause = whereMatch[1].trim();
 
-        // Check for range search (e.g. "date_heure >= ? AND date_heure <= ?")
-        const matchRange = whereClause.match(/([\w.]+)\s*>=\s*\?\s+AND\s+([\w.]+)\s*<=\s*\?/i);
-        // Check for equality (e.g. "id = ?")
-        const matchEqual = whereClause.match(/([\w.]+)\s*=\s*\?/);
-        // Check for greater or equal (e.g. "date >= ?")
-        const matchGreaterEqual = whereClause.match(/([\w.]+)\s*>=\s*\?/);
-
-        if (matchRange) {
+        // 1. Check for LOWER(email) = LOWER(?) OR telephone = ?
+        if (/LOWER\(email\)\s*=\s*(?:LOWER\(\?\)|LOWER\('[^']*'\)|\?)\s+OR\s+telephone\s*=\s*\?/i.test(whereClause)) {
+          const emailVal = (params[0] || '').toLowerCase().trim();
+          const phoneVal = (params[1] || '').trim();
+          list = list.filter((row: any) => {
+            const rowEmail = (row.email || '').toLowerCase().trim();
+            const rowPhone = (row.telephone || '').trim();
+            return (emailVal && rowEmail === emailVal) || (phoneVal && rowPhone === phoneVal);
+          });
+        }
+        // 2. Check for LOWER(email) = LOWER(?) with optional ID exclusion (checkEmailExists)
+        else if (/LOWER\(email\)\s*=\s*(?:LOWER\(\?\)|LOWER\('[^']*'\)|\?)/i.test(whereClause)) {
+          const emailVal = (params[0] || '').toLowerCase().trim();
+          const excludeId = params[1] || null;
+          list = list.filter((row: any) => {
+            const rowEmail = (row.email || '').toLowerCase().trim();
+            if (rowEmail !== emailVal) return false;
+            if (excludeId && row.id === excludeId) return false;
+            return true;
+          });
+        }
+        // 3. Check for range search (e.g. "date_heure >= ? AND date_heure <= ?")
+        else if (/([\w.]+)\s*>=\s*\?\s+AND\s+([\w.]+)\s*<=\s*\?/i.test(whereClause)) {
+          const matchRange = whereClause.match(/([\w.]+)\s*>=\s*\?\s+AND\s+([\w.]+)\s*<=\s*\?/i)!;
           const field = matchRange[1].replace(/.*\./, '').toLowerCase();
           const val1 = params[0];
           const val2 = params[1];
           list = list.filter((row: any) => row[field] >= val1 && row[field] <= val2);
-        } else if (matchEqual) {
+        }
+        // 4. Check for equality (e.g. "id = ?" or "LOWER(field) = ?")
+        else if (/(?:LOWER\()?([\w.]+)\)?\s*=\s*(?:LOWER\()?(\?|'[^']*')\)?/i.test(whereClause)) {
+          const matchEqual = whereClause.match(/(?:LOWER\()?([\w.]+)\)?\s*=\s*(?:LOWER\()?(\?|'[^']*')\)?/i)!;
           const field = matchEqual[1].replace(/.*\./, '').toLowerCase();
-          const val = params[0];
-          list = list.filter((row: any) => row[field] === val);
-        } else if (matchGreaterEqual) {
+          const val = params[0] !== undefined ? params[0] : matchEqual[2].replace(/'/g, '');
+          const isLower = whereClause.toUpperCase().includes('LOWER');
+          list = list.filter((row: any) => {
+            if (row[field] === undefined || row[field] === null) return false;
+            if (isLower && typeof row[field] === 'string' && typeof val === 'string') {
+              return row[field].toLowerCase() === val.toLowerCase();
+            }
+            return row[field] === val;
+          });
+        }
+        // 5. Check for greater or equal (e.g. "date >= ?")
+        else if (/([\w.]+)\s*>=\s*\?/i.test(whereClause)) {
+          const matchGreaterEqual = whereClause.match(/([\w.]+)\s*>=\s*\?/i)!;
           const field = matchGreaterEqual[1].replace(/.*\./, '').toLowerCase();
           const val = params[0];
           list = list.filter((row: any) => row[field] >= val);
