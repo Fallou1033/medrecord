@@ -10,6 +10,8 @@ import {
   checkSessionTimeout,
   setBiometricEnabled,
   isBiometricEnabled,
+  getAutoLockTimeoutMinutes,
+  setAutoLockTimeoutMinutes,
   UserProfile,
 } from './auth';
 import {
@@ -24,6 +26,7 @@ interface SecurityContextType {
   isSetup: boolean;
   user: UserProfile | null;
   biometricsEnabled: boolean;
+  autoLockMinutes: number;
   loading: boolean;
   loginUser: (identifier: string, pin: string) => Promise<any>;
   setupSecurity: (pin: string, nom: string, prenom: string, email: string, telephone?: string | null) => Promise<any>;
@@ -32,6 +35,7 @@ interface SecurityContextType {
   lock: () => void;
   logout: () => Promise<void>;
   toggleBiometrics: (enabled: boolean) => Promise<void>;
+  updateAutoLockTimeout: (minutes: number) => Promise<void>;
 }
 
 const SecurityContext = createContext<SecurityContextType | null>(null);
@@ -55,6 +59,7 @@ export const SecurityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   const [isLocked, setIsLocked] = useState<boolean>(false);
   const [biometricsEnabled, setBiometricsEnabled] = useState(false);
+  const [autoLockMinutes, setAutoLockMinutesState] = useState<number>(2);
   const [loading, setLoading] = useState(true);
 
   // Initialize security state
@@ -71,7 +76,10 @@ export const SecurityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         }
         const bioEnabled = await isBiometricEnabled();
         setBiometricsEnabled(bioEnabled);
-        
+
+        const mins = await getAutoLockTimeoutMinutes();
+        setAutoLockMinutesState(mins);
+
         // Locked state
         setIsLocked(false);
       } else {
@@ -121,6 +129,57 @@ export const SecurityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       subscription.remove();
     };
   }, []);
+
+  // Track user interactions on Web to keep the activity timestamp fresh
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof window !== 'undefined') {
+      let lastThrottled = 0;
+      const onUserInteraction = () => {
+        const now = Date.now();
+        if (now - lastThrottled > 2000) {
+          lastThrottled = now;
+          updateLastActiveTime().catch(() => {});
+        }
+      };
+
+      if (typeof window !== 'undefined') {
+        window.addEventListener('mousemove', onUserInteraction, { passive: true });
+        window.addEventListener('mousedown', onUserInteraction, { passive: true });
+        window.addEventListener('keydown', onUserInteraction, { passive: true });
+        window.addEventListener('touchstart', onUserInteraction, { passive: true });
+        window.addEventListener('scroll', onUserInteraction, { passive: true });
+
+        return () => {
+          window.removeEventListener('mousemove', onUserInteraction);
+          window.removeEventListener('mousedown', onUserInteraction);
+          window.removeEventListener('keydown', onUserInteraction);
+          window.removeEventListener('touchstart', onUserInteraction);
+          window.removeEventListener('scroll', onUserInteraction);
+        };
+      }
+    }
+  }, []);
+
+  // Periodic check of inactivity timeout every 4 seconds
+  useEffect(() => {
+    if (!isSetup || !user || isLocked || autoLockMinutes === 0) return;
+
+    const interval = setInterval(async () => {
+      const timedOut = await checkSessionTimeout();
+      if (timedOut) {
+        console.log('MedRecord: Inactivity timeout reached, locking screen...');
+        setIsLocked(true);
+      }
+    }, 4000);
+
+    return () => clearInterval(interval);
+  }, [isSetup, user, isLocked, autoLockMinutes]);
+
+  const updateAutoLockTimeout = async (minutes: number) => {
+    await setAutoLockTimeoutMinutes(minutes);
+    setAutoLockMinutesState(minutes);
+    await updateLastActiveTime();
+  };
 
   const loginUser = async (identifier: string, pin: string) => {
     try {
@@ -246,6 +305,7 @@ export const SecurityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         isSetup,
         user,
         biometricsEnabled,
+        autoLockMinutes,
         loading,
         loginUser,
         setupSecurity,
@@ -254,6 +314,7 @@ export const SecurityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         lock,
         logout,
         toggleBiometrics,
+        updateAutoLockTimeout,
       }}
     >
       {children}

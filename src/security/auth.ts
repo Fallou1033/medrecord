@@ -8,8 +8,9 @@ const PIN_HASH_KEY = 'medrecord_user_pin_hash';
 const BIOMETRIC_ENABLED_KEY = 'medrecord_biometric_enabled';
 const ACTIVE_USER_ID_KEY = 'medrecord_active_user_id';
 const LAST_ACTIVE_TIMESTAMP_KEY = 'medrecord_last_active_time';
+const AUTO_LOCK_TIMEOUT_KEY = 'medrecord_autolock_timeout_minutes';
 
-const INACTIVITY_TIMEOUT_MS = 2 * 60 * 1000; // 2 minutes auto-lock
+const DEFAULT_INACTIVITY_TIMEOUT_MINUTES = 2; // 2 minutes par défaut
 
 export interface UserProfile {
   id: string;
@@ -481,6 +482,27 @@ export async function getActiveUserProfile(): Promise<UserProfile | null> {
 }
 
 /**
+ * Récupère le délai de verrouillage automatique en minutes (0 = Désactivé).
+ */
+export async function getAutoLockTimeoutMinutes(): Promise<number> {
+  try {
+    const val = await secureStoreGetItem(AUTO_LOCK_TIMEOUT_KEY);
+    if (val === null || val === undefined) return DEFAULT_INACTIVITY_TIMEOUT_MINUTES;
+    const parsed = parseInt(val, 10);
+    return isNaN(parsed) ? DEFAULT_INACTIVITY_TIMEOUT_MINUTES : parsed;
+  } catch (error) {
+    return DEFAULT_INACTIVITY_TIMEOUT_MINUTES;
+  }
+}
+
+/**
+ * Définit le délai de verrouillage automatique en minutes.
+ */
+export async function setAutoLockTimeoutMinutes(minutes: number): Promise<void> {
+  await secureStoreSetItem(AUTO_LOCK_TIMEOUT_KEY, minutes.toString());
+}
+
+/**
  * Records the timestamp of the last user interaction/activity.
  */
 export async function updateLastActiveTime(): Promise<void> {
@@ -493,13 +515,18 @@ export async function updateLastActiveTime(): Promise<void> {
  */
 export async function checkSessionTimeout(): Promise<boolean> {
   try {
+    const minutes = await getAutoLockTimeoutMinutes();
+    // Si désactivé (0 minute), pas de verrouillage automatique
+    if (minutes === 0) return false;
+
     const lastActiveStr = await secureStoreGetItem(LAST_ACTIVE_TIMESTAMP_KEY);
     if (!lastActiveStr) return true; // Timeout if never set
 
     const lastActive = parseInt(lastActiveStr, 10);
     const elapsed = Date.now() - lastActive;
+    const timeoutMs = minutes * 60 * 1000;
 
-    return elapsed > INACTIVITY_TIMEOUT_MS;
+    return elapsed > timeoutMs;
   } catch (error) {
     console.error('MedRecord: Failed to check session timeout:', error);
     return true;

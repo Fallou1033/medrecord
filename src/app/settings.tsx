@@ -46,7 +46,7 @@ export default function SettingsScreen() {
   };
   const theme = useTheme();
   const { themeMode, setThemeMode } = useThemePreference();
-  const { user, setupSecurity, logout } = useSecurity();
+  const { user, setupSecurity, logout, lock, autoLockMinutes, updateAutoLockTimeout } = useSecurity();
 
   // Active modal section: 'profile' | 'cabinet' | 'security' | 'audit' | 'backup' | 'theme' | 'about' | null
   const [activeModal, setActiveModal] = useState<string | null>(null);
@@ -759,14 +759,80 @@ export default function SettingsScreen() {
             <View style={styles.modalScroll}>
               <View style={styles.infoBadgeBox}>
                 <Ionicons name="shield-checkmark" size={24} color="#28C2FF" />
-                <Text style={styles.infoBadgeTitle}>Chiffrement Médical AES-256</Text>
+                <Text style={styles.infoBadgeTitle}>Protection & Secret Médical</Text>
                 <Text style={styles.infoBadgeDesc}>
-                  Vos dossiers patients et données cliniques sont chiffrés localement sur votre appareil. Le verrouillage automatique par code PIN se déclenche après 2 minutes d'inactivité.
+                  Toutes les données cliniques sont chiffrées en AES-256. L'écran se verrouille automatiquement en cas d'inactivité pour éviter toute indiscrétion en cabinet.
                 </Text>
               </View>
 
+              {/* Minuteur d'Inactivité Personnalisable */}
+              <View style={{ marginTop: 20 }}>
+                <Text style={styles.inputLabel}>Délai de Verrouillage Automatique</Text>
+                <Text style={{ fontSize: 12, color: '#94A3B8', marginBottom: 10 }}>
+                  Choisissez la durée d'inactivité avant le masquage automatique des dossiers médicaux :
+                </Text>
+
+                <View style={{ gap: 8 }}>
+                  {[
+                    { minutes: 1, label: '1 minute', tag: 'Ultra Sécurisé' },
+                    { minutes: 2, label: '2 minutes', tag: 'Recommandé en cabinet' },
+                    { minutes: 5, label: '5 minutes', tag: 'Standard' },
+                    { minutes: 10, label: '10 minutes', tag: null },
+                    { minutes: 15, label: '15 minutes', tag: null },
+                    { minutes: 0, label: 'Désactivé', tag: 'Non recommandé' },
+                  ].map((opt) => {
+                    const isSelected = autoLockMinutes === opt.minutes;
+                    return (
+                      <TouchableOpacity
+                        key={opt.minutes}
+                        style={[
+                          styles.timeoutOptionRow,
+                          isSelected && styles.timeoutOptionActive,
+                        ]}
+                        onPress={() => updateAutoLockTimeout(opt.minutes)}
+                        activeOpacity={0.7}
+                      >
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 }}>
+                          <Ionicons
+                            name={isSelected ? 'radio-button-on' : 'radio-button-off'}
+                            size={18}
+                            color={isSelected ? '#28C2FF' : '#64748B'}
+                          />
+                          <Text style={[styles.timeoutOptionLabel, isSelected && { color: '#FFFFFF', fontWeight: 'bold' }]}>
+                            {opt.label}
+                          </Text>
+                          {opt.tag && (
+                            <View style={[styles.timeoutTag, isSelected && { backgroundColor: 'rgba(40, 194, 255, 0.2)' }]}>
+                              <Text style={[styles.timeoutTagText, isSelected && { color: '#28C2FF' }]}>{opt.tag}</Text>
+                            </View>
+                          )}
+                        </View>
+                        {isSelected && <Ionicons name="checkmark-circle" size={18} color="#28C2FF" />}
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </View>
+
+              {/* Bouton Verrouiller Maintenant */}
               <TouchableOpacity
-                style={[styles.saveSubmitBtn, { marginTop: 20 }]}
+                style={[styles.saveSubmitBtn, { backgroundColor: '#1E293B', borderWidth: 1, borderColor: '#334155', marginTop: 20 }]}
+                onPress={() => {
+                  setActiveModal(null);
+                  setTimeout(() => {
+                    lock();
+                  }, 100);
+                }}
+              >
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <Ionicons name="lock-closed" size={16} color="#28C2FF" />
+                  <Text style={[styles.saveSubmitBtnText, { color: '#28C2FF' }]}>Verrouiller l'écran maintenant</Text>
+                </View>
+              </TouchableOpacity>
+
+              {/* Bouton Modifier Code PIN */}
+              <TouchableOpacity
+                style={[styles.saveSubmitBtn, { marginTop: 4 }]}
                 onPress={() => {
                   setActiveModal('profile');
                 }}
@@ -1520,5 +1586,36 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#10B981',
     letterSpacing: 0.5,
+  },
+  timeoutOptionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#0F172A',
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#334155',
+  },
+  timeoutOptionActive: {
+    borderColor: '#28C2FF',
+    backgroundColor: 'rgba(40, 194, 255, 0.08)',
+  },
+  timeoutOptionLabel: {
+    fontSize: 14,
+    color: '#CBD5E1',
+    fontWeight: '500',
+  },
+  timeoutTag: {
+    backgroundColor: 'rgba(148, 163, 184, 0.15)',
+    paddingVertical: 2,
+    paddingHorizontal: 6,
+    borderRadius: 4,
+  },
+  timeoutTagText: {
+    fontSize: 10,
+    color: '#94A3B8',
+    fontWeight: '600',
   },
 });
