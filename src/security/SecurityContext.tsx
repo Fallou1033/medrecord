@@ -125,6 +125,7 @@ export const SecurityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const loginUser = async (identifier: string, pin: string) => {
     try {
       const { loginExistingUser } = require('./auth');
+      const { logAuditEvent } = require('./auditLogger');
       // STRICT AUTHENTICATION: Will throw if user does not exist or PIN does not match
       const profile = await loginExistingUser(identifier, pin);
 
@@ -135,6 +136,17 @@ export const SecurityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       setIsSetup(true);
       setIsLocked(false);
       await updateLastActiveTime();
+
+      // Journal d'audit : Connexion réussie
+      logAuditEvent(
+        'LOGIN_SUCCESS',
+        'utilisateurs',
+        profile.id,
+        `Connexion réussie du Dr ${profile.prenom || ''} ${profile.nom || ''} (${profile.email})`,
+        'SUCCESS',
+        profile.id
+      ).catch(() => {});
+
       return profile;
     } catch (error) {
       console.error('MedRecord: Failed login attempt:', error);
@@ -145,6 +157,7 @@ export const SecurityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const setupSecurity = async (pin: string, nom: string, prenom: string, email: string, telephone?: string | null) => {
     setLoading(true);
     try {
+      const { logAuditEvent } = require('./auditLogger');
       const profile = await setupPIN(pin, nom, prenom, email, telephone || '+221 77 123 4567');
       persistActiveSession(profile);
 
@@ -152,6 +165,17 @@ export const SecurityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       setIsSetup(true);
       setIsLocked(false);
       await updateLastActiveTime();
+
+      // Journal d'audit : Initialisation du cabinet
+      logAuditEvent(
+        'CABINET_SETUP',
+        'utilisateurs',
+        profile.id,
+        `Création & activation du cabinet par le Dr ${profile.prenom || ''} ${profile.nom || ''}`,
+        'SUCCESS',
+        profile.id
+      ).catch(() => {});
+
       return profile;
     } catch (error) {
       console.error('MedRecord: Failed to set up security:', error);
@@ -187,6 +211,17 @@ export const SecurityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   const logout = async () => {
     try {
+      const { logAuditEvent } = require('./auditLogger');
+      if (user) {
+        logAuditEvent(
+          'LOGOUT',
+          'utilisateurs',
+          user.id,
+          `Déconnexion du cabinet du Dr ${user.prenom || ''} ${user.nom || ''}`,
+          'INFO',
+          user.id
+        ).catch(() => {});
+      }
       purgeActiveSession();
       setUser(null);
       setIsSetup(false);

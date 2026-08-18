@@ -154,6 +154,19 @@ export function CrossDeviceLoginView({
       setHasAuthError(true);
       setPin('');
       setErrorMsg(err.message || "Identifiant ou code PIN incorrect.");
+
+      // Journal d'audit : Échec d'accès (Alerte Sécurité)
+      try {
+        const { logAuditEvent } = require('../security/auditLogger');
+        logAuditEvent(
+          'LOGIN_FAILURE',
+          'utilisateurs',
+          cleanIdentifier,
+          `Échec d'authentification pour l'identifiant ${cleanIdentifier} (code PIN invalide)`,
+          'WARNING',
+          cleanIdentifier
+        ).catch(() => {});
+      } catch (e) {}
     } finally {
       setLoading(false);
     }

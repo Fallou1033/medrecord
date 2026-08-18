@@ -30,6 +30,11 @@ import {
 import { useSecurity } from '../security/SecurityContext';
 import { verifyPIN, checkEmailExists } from '../security/auth';
 import { useThemePreference } from '../theme/ThemePreferenceContext';
+import {
+  getAuditLogs,
+  exportAuditLogsCsv,
+  AuditLogEntry,
+} from '../security/auditLogger';
 import { BottomTabInset, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
@@ -43,7 +48,7 @@ export default function SettingsScreen() {
   const { themeMode, setThemeMode } = useThemePreference();
   const { user, setupSecurity, logout } = useSecurity();
 
-  // Active modal section: 'profile' | 'cabinet' | 'security' | 'backup' | 'theme' | 'about' | null
+  // Active modal section: 'profile' | 'cabinet' | 'security' | 'audit' | 'backup' | 'theme' | 'about' | null
   const [activeModal, setActiveModal] = useState<string | null>(null);
 
   // Doctor Profile state
@@ -57,6 +62,29 @@ export default function SettingsScreen() {
   const [saving, setSaving] = useState(false);
   const [avatar, setAvatar] = useState('');
   const [signature, setSignature] = useState('');
+
+  // Audit Logs state
+  const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>([]);
+  const [loadingAudit, setLoadingAudit] = useState(false);
+  const [auditFilter, setAuditFilter] = useState('ALL');
+
+  const loadAuditLogs = async (filter: string = 'ALL') => {
+    setLoadingAudit(true);
+    try {
+      const logs = await getAuditLogs(200, filter);
+      setAuditLogs(logs);
+    } catch (e) {
+      console.error('Failed to load audit logs:', e);
+    } finally {
+      setLoadingAudit(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeModal === 'audit') {
+      loadAuditLogs(auditFilter);
+    }
+  }, [activeModal, auditFilter]);
 
   // Cabinet Info State
   const [cabinetNom, setCabinetNom] = useState('Cabinet Médical Privé');
@@ -376,6 +404,29 @@ export default function SettingsScreen() {
             <Text style={styles.menuTitle}>Sécurité & Verrouillage</Text>
             <Text style={styles.menuSubtitle}>
               Code PIN, mot de passe, délai de verrouillage automatique
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color="#64748B" />
+        </TouchableOpacity>
+
+        {/* Item 3.5: Journal d'Audit & Traçabilité */}
+        <TouchableOpacity
+          style={styles.menuCard}
+          activeOpacity={0.7}
+          onPress={() => setActiveModal('audit')}
+        >
+          <View style={[styles.iconBadge, { backgroundColor: 'rgba(16, 185, 129, 0.12)' }]}>
+            <Ionicons name="finger-print-outline" size={22} color="#10B981" />
+          </View>
+          <View style={styles.menuTextGroup}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Text style={styles.menuTitle}>Journal d'Audit & Traçabilité</Text>
+              <View style={styles.proBadge}>
+                <Text style={styles.proBadgeText}>CONFORME</Text>
+              </View>
+            </View>
+            <Text style={styles.menuSubtitle}>
+              Historique des accès, consultations, modifications et sécurité
             </Text>
           </View>
           <Ionicons name="chevron-forward" size={20} color="#64748B" />
@@ -723,6 +774,145 @@ export default function SettingsScreen() {
                 <Text style={styles.saveSubmitBtnText}>Modifier mon Code PIN (4 chiffres)</Text>
               </TouchableOpacity>
             </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ================= MODAL 3.5: JOURNAL D'AUDIT & TRAÇABILITÉ ================= */}
+      <Modal
+        visible={activeModal === 'audit'}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setActiveModal(null)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalCard, { maxWidth: 680, maxHeight: '92%' }]}>
+            <View style={styles.modalHeader}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(16, 185, 129, 0.15)', justifyContent: 'center', alignItems: 'center' }}>
+                  <Ionicons name="finger-print" size={20} color="#10B981" />
+                </View>
+                <View>
+                  <Text style={styles.modalTitle}>Journal d'Audit & Traçabilité</Text>
+                  <Text style={{ fontSize: 12, color: '#94A3B8' }}>Registre médico-légal des accès et des actions</Text>
+                </View>
+              </View>
+              <TouchableOpacity onPress={() => setActiveModal(null)}>
+                <Ionicons name="close-circle" size={26} color="#94A3B8" />
+              </TouchableOpacity>
+            </View>
+
+            {/* Quick Actions Bar */}
+            <View style={styles.auditActionBar}>
+              <View style={styles.auditFilterTabs}>
+                {[
+                  { id: 'ALL', label: 'Tous' },
+                  { id: 'LOGIN', label: 'Sécurité' },
+                  { id: 'PATIENT', label: 'Patients' },
+                  { id: 'CONSULTATION', label: 'Consultations' },
+                ].map((tab) => (
+                  <TouchableOpacity
+                    key={tab.id}
+                    style={[styles.auditFilterPill, auditFilter === tab.id && styles.auditFilterPillActive]}
+                    onPress={() => setAuditFilter(tab.id)}
+                  >
+                    <Text style={[styles.auditFilterText, auditFilter === tab.id && styles.auditFilterTextActive]}>
+                      {tab.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <TouchableOpacity
+                style={styles.auditExportBtn}
+                onPress={() => {
+                  if (auditLogs.length === 0) {
+                    alert("Aucun événement à exporter pour le moment.");
+                    return;
+                  }
+                  exportAuditLogsCsv(auditLogs);
+                }}
+              >
+                <Ionicons name="download-outline" size={16} color="#0F2C3D" />
+                <Text style={styles.auditExportBtnText}>Exporter CSV</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Stats row */}
+            <View style={styles.auditStatsRow}>
+              <View style={styles.auditStatCard}>
+                <Text style={styles.auditStatVal}>{auditLogs.length}</Text>
+                <Text style={styles.auditStatLabel}>Événements</Text>
+              </View>
+              <View style={styles.auditStatCard}>
+                <Text style={[styles.auditStatVal, { color: '#10B981' }]}>
+                  {auditLogs.filter(l => l.criticite === 'SUCCESS').length}
+                </Text>
+                <Text style={styles.auditStatLabel}>Succès</Text>
+              </View>
+              <View style={styles.auditStatCard}>
+                <Text style={[styles.auditStatVal, { color: '#F59E0B' }]}>
+                  {auditLogs.filter(l => l.criticite === 'WARNING' || l.criticite === 'DANGER').length}
+                </Text>
+                <Text style={styles.auditStatLabel}>Alertes Sécurité</Text>
+              </View>
+            </View>
+
+            {/* Audit Logs List */}
+            <ScrollView style={styles.auditScroll} showsVerticalScrollIndicator={true}>
+              {loadingAudit ? (
+                <View style={{ padding: 40, alignItems: 'center' }}>
+                  <ActivityIndicator size="large" color="#28C2FF" />
+                  <Text style={{ color: '#94A3B8', marginTop: 12, fontSize: 13 }}>Chargement du registre d'audit...</Text>
+                </View>
+              ) : auditLogs.length === 0 ? (
+                <View style={{ padding: 40, alignItems: 'center' }}>
+                  <Ionicons name="shield-checkmark" size={42} color="#334155" />
+                  <Text style={{ color: '#94A3B8', marginTop: 12, fontSize: 14 }}>Aucun événement enregistré pour ce filtre.</Text>
+                </View>
+              ) : (
+                <View style={{ gap: 8, paddingBottom: 20 }}>
+                  {auditLogs.map((log) => {
+                    const badgeColor =
+                      log.criticite === 'SUCCESS' ? '#10B981' :
+                      log.criticite === 'WARNING' ? '#F59E0B' :
+                      log.criticite === 'DANGER' ? '#EF4444' : '#28C2FF';
+
+                    const badgeBg =
+                      log.criticite === 'SUCCESS' ? 'rgba(16, 185, 129, 0.15)' :
+                      log.criticite === 'WARNING' ? 'rgba(245, 158, 11, 0.15)' :
+                      log.criticite === 'DANGER' ? 'rgba(239, 68, 68, 0.15)' : 'rgba(40, 194, 255, 0.15)';
+
+                    const dateFormatted = new Date(log.date).toLocaleString('fr-FR', {
+                      day: '2-digit',
+                      month: '2-digit',
+                      year: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                      second: '2-digit'
+                    });
+
+                    return (
+                      <View key={log.id} style={styles.auditLogRow}>
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                          <View style={[styles.auditBadge, { backgroundColor: badgeBg }]}>
+                            <Text style={[styles.auditBadgeText, { color: badgeColor }]}>{log.action}</Text>
+                          </View>
+                          <Text style={styles.auditDateText}>{dateFormatted}</Text>
+                        </View>
+                        <Text style={styles.auditDescText}>{log.description}</Text>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 }}>
+                          <Ionicons name="person-outline" size={12} color="#64748B" />
+                          <Text style={styles.auditUserText}>Auteur : {log.utilisateur_id || 'Praticien'}</Text>
+                          <Text style={styles.auditSeparator}>•</Text>
+                          <Text style={styles.auditModuleText}>Module : {log.table_cible}</Text>
+                        </View>
+                      </View>
+                    );
+                  })}
+                </View>
+              )}
+            </ScrollView>
           </View>
         </View>
       </Modal>
@@ -1199,5 +1389,136 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
     color: '#FFFFFF',
+  },
+  auditActionBar: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 10,
+    marginBottom: 14,
+  },
+  auditFilterTabs: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    flexWrap: 'wrap',
+  },
+  auditFilterPill: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    backgroundColor: '#0F172A',
+    borderWidth: 1,
+    borderColor: '#334155',
+  },
+  auditFilterPillActive: {
+    backgroundColor: '#28C2FF',
+    borderColor: '#28C2FF',
+  },
+  auditFilterText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#94A3B8',
+  },
+  auditFilterTextActive: {
+    color: '#0F2C3D',
+    fontWeight: 'bold',
+  },
+  auditExportBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#28C2FF',
+    paddingVertical: 7,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+  },
+  auditExportBtnText: {
+    color: '#0F2C3D',
+    fontWeight: 'bold',
+    fontSize: 12,
+  },
+  auditStatsRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 14,
+  },
+  auditStatCard: {
+    flex: 1,
+    backgroundColor: '#0F172A',
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#334155',
+  },
+  auditStatVal: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#28C2FF',
+  },
+  auditStatLabel: {
+    fontSize: 11,
+    color: '#94A3B8',
+    marginTop: 2,
+  },
+  auditScroll: {
+    maxHeight: 460,
+  },
+  auditLogRow: {
+    backgroundColor: '#0F172A',
+    borderRadius: 10,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#334155',
+  },
+  auditBadge: {
+    paddingVertical: 3,
+    paddingHorizontal: 8,
+    borderRadius: 6,
+    alignSelf: 'flex-start',
+  },
+  auditBadgeText: {
+    fontSize: 11,
+    fontWeight: 'bold',
+  },
+  auditDateText: {
+    fontSize: 11,
+    color: '#94A3B8',
+  },
+  auditDescText: {
+    fontSize: 13,
+    color: '#F1F5F9',
+    marginVertical: 4,
+    lineHeight: 18,
+  },
+  auditUserText: {
+    fontSize: 11,
+    color: '#94A3B8',
+  },
+  auditSeparator: {
+    fontSize: 11,
+    color: '#64748B',
+  },
+  auditModuleText: {
+    fontSize: 11,
+    color: '#64748B',
+    fontStyle: 'italic',
+  },
+  proBadge: {
+    backgroundColor: 'rgba(16, 185, 129, 0.15)',
+    paddingVertical: 2,
+    paddingHorizontal: 6,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: '#10B981',
+  },
+  proBadgeText: {
+    fontSize: 9,
+    fontWeight: 'bold',
+    color: '#10B981',
+    letterSpacing: 0.5,
   },
 });

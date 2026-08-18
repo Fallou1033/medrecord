@@ -313,7 +313,7 @@ export default function CreateConsultationScreen() {
           }
         : null;
 
-      await createConsultation(
+      const newConsultation = await createConsultation(
         {
           patient_id: patientId,
           medecin_id: user.id,
@@ -329,6 +329,19 @@ export default function CreateConsultationScreen() {
         constantesDetails,
         user.id
       );
+
+      // Journal d'audit : Consultation médicale enregistrée
+      try {
+        const { logAuditEvent } = require('../../security/auditLogger');
+        logAuditEvent(
+          'CONSULTATION_CREATE',
+          'consultations',
+          newConsultation?.id || null,
+          `Consultation enregistrée pour ${patient ? `${patient.prenom} ${patient.nom}` : 'le patient'} (Motif: ${motif.trim()})`,
+          'SUCCESS',
+          user.id
+        ).catch(() => {});
+      } catch (e) {}
 
       // Clear draft on successful save
       if (patientId) {

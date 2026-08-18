@@ -416,14 +416,15 @@ export async function initDatabase(): Promise<void> {
       FOREIGN KEY (medecin_id) REFERENCES utilisateurs(id) ON DELETE RESTRICT
     );
 
-    -- 11. Table Journal Audit
+    -- 11. Table Journal Audit (Audit Trail Médico-Légal)
     CREATE TABLE IF NOT EXISTS journal_audit (
       id TEXT PRIMARY KEY,
       utilisateur_id TEXT,
-      action TEXT NOT NULL CHECK (action IN ('CREATE', 'UPDATE', 'DELETE', 'READ')),
+      action TEXT NOT NULL,
       table_cible TEXT NOT NULL,
       cible_id TEXT,
       description TEXT,
+      criticite TEXT DEFAULT 'INFO',
       date TEXT DEFAULT CURRENT_TIMESTAMP NOT NULL
     );
 

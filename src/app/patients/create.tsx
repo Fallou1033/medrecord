@@ -183,7 +183,7 @@ export default function CreatePatientScreen() {
 
     setLoading(true);
     try {
-      await createPatient(
+      const newPatient = await createPatient(
         {
           nom: nom.trim(),
           prenom: prenom.trim(),
@@ -199,6 +199,19 @@ export default function CreatePatientScreen() {
         },
         user.id
       );
+
+      // Journal d'audit : Création de patient
+      try {
+        const { logAuditEvent } = require('../../security/auditLogger');
+        logAuditEvent(
+          'PATIENT_CREATE',
+          'patients',
+          newPatient?.id || null,
+          `Création du dossier patient : ${prenom.trim()} ${nom.trim()}`,
+          'SUCCESS',
+          user.id
+        ).catch(() => {});
+      } catch (e) {}
 
       // Clear draft on successful creation
       await clearPatientDraft();

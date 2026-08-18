@@ -289,6 +289,20 @@ export default function PatientDetailsScreen() {
         },
         user.id
       );
+
+      // Journal d'audit : Mise à jour du dossier patient
+      try {
+        const { logAuditEvent } = require('../../security/auditLogger');
+        logAuditEvent(
+          'PATIENT_UPDATE',
+          'patients',
+          patient.id,
+          `Mise à jour des informations administratives : ${editPrenom.trim()} ${editNom.trim()}`,
+          'INFO',
+          user.id
+        ).catch(() => {});
+      } catch (e) {}
+
       setEditModalVisible(false);
       showAlert('Succès', 'Le dossier du patient a été mis à jour.');
       loadAllData();
@@ -316,6 +330,19 @@ export default function PatientDetailsScreen() {
         return;
       }
       setPatient(p);
+
+      // Journal d'audit : Consultation du dossier médical
+      try {
+        const { logAuditEvent } = require('../../security/auditLogger');
+        logAuditEvent(
+          'PATIENT_VIEW',
+          'patients',
+          p.id,
+          `Consultation du dossier médical : ${p.prenom || ''} ${p.nom || ''}`,
+          'INFO',
+          user?.id
+        ).catch(() => {});
+      } catch (e) {}
 
       // 1. Track recently viewed
       try {
