@@ -152,7 +152,8 @@ export function CrossDeviceLoginView({
     } catch (err: any) {
       console.error("Erreur lors de la connexion :", err);
       setHasAuthError(true);
-      setErrorMsg("Une erreur est survenue lors de l'accès au compte.");
+      setPin('');
+      setErrorMsg(err.message || "Identifiant ou code PIN incorrect.");
     } finally {
       setLoading(false);
     }

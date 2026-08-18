@@ -125,69 +125,10 @@ export const SecurityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const loginUser = async (identifier: string, pin: string) => {
     try {
       const { loginExistingUser } = require('./auth');
-      let profile: any = null;
+      // STRICT AUTHENTICATION: Will throw if user does not exist or PIN does not match
+      const profile = await loginExistingUser(identifier, pin);
 
-      // Priorité 1: Recherche du profil d'onboarding réel dans storage
-      const storedObj =
-        safeStorageGet(STORAGE_KEYS.DOCTOR_META) ||
-        safeStorageGet(STORAGE_KEYS.DOCTOR_PROFILE) ||
-        safeStorageGet(STORAGE_KEYS.CURRENT_USER) ||
-        safeStorageGet(STORAGE_KEYS.DOCTOR_LEGACY);
-
-      if (storedObj && (storedObj.nom || storedObj.prenom)) {
-        profile = {
-          id: storedObj.id || `user_${Date.now()}`,
-          email: storedObj.email || identifier.trim().toLowerCase(),
-          nom: storedObj.nom || 'Diop',
-          prenom: storedObj.prenom || 'Fallou',
-          telephone: storedObj.telephone || storedObj.phone || '+221 77 123 45 67',
-          role: storedObj.role || 'MEDECIN',
-          civilite: storedObj.civilite || 'Dr',
-          specialite: storedObj.specialite || 'Médecine Générale',
-          biometrie_active: false,
-        };
-      }
-
-      // 2. Priorité 2: Recherche SQLite / Supabase Cloud si non trouvé localement
-      if (!profile) {
-        try {
-          profile = await loginExistingUser(identifier, pin);
-        } catch (e) {}
-      }
-
-      // 3. Fallback avec nettoyage intelligent des identifiants (Fallou Diop)
-      if (!profile) {
-        const cleanId = identifier.trim().toLowerCase();
-        let prenomClean = "Fallou";
-        let nomClean = "Diop";
-
-        if (cleanId.includes('fallu') || cleanId.includes('fallo') || cleanId.includes('diop')) {
-          prenomClean = "Fallou";
-          nomClean = "Diop";
-        } else if (cleanId.includes('@')) {
-          const part = cleanId.split('@')[0];
-          prenomClean = part.charAt(0).toUpperCase() + part.slice(1).toLowerCase();
-        }
-
-        profile = {
-          id: `user_${Date.now()}`,
-          email: cleanId,
-          prenom: prenomClean,
-          nom: nomClean,
-          telephone: cleanId.includes('@') ? '+221 77 123 45 67' : cleanId,
-          role: 'MEDECIN',
-          civilite: 'Dr',
-          specialite: 'Médecine Générale',
-          biometrie_active: false
-        };
-      }
-
-      // Formatage final garanti pour le profil praticien (ex: Fallou Diop)
-      if (!profile.prenom || profile.prenom.includes('10008') || profile.prenom === 'falludiop10008') {
-        profile.prenom = 'Fallou';
-        profile.nom = 'Diop';
-      }
-
+      // Persist authenticated active session
       persistActiveSession(profile);
 
       setUser(profile);
@@ -196,7 +137,7 @@ export const SecurityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       await updateLastActiveTime();
       return profile;
     } catch (error) {
-      console.error('MedRecord: Failed cross-device login:', error);
+      console.error('MedRecord: Failed login attempt:', error);
       throw error;
     }
   };

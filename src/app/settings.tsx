@@ -442,10 +442,7 @@ export default function SettingsScreen() {
           onPress={() => {
             if (Platform.OS === 'web' && typeof window !== 'undefined') {
               if (window.confirm("Voulez-vous vous déconnecter de votre cabinet ?")) {
-                const { purgeActiveSession } = require('../utils/storage');
-                purgeActiveSession();
-                try { logout(); } catch (e) {}
-                window.location.reload();
+                logout();
               }
             } else {
               Alert.alert('Déconnexion', 'Voulez-vous vous déconnecter de ce cabinet ?', [
