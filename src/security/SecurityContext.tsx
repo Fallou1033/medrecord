@@ -263,12 +263,16 @@ export const SecurityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const logout = async () => {
     try {
       if (Platform.OS === 'web' && typeof window !== 'undefined') {
+        localStorage.removeItem('medrecord_session_active');
+        localStorage.removeItem('medrecord_current_user');
+        localStorage.removeItem('medrecord_doctor');
         localStorage.removeItem('medrecord_auth_token');
-        localStorage.removeItem('medrecord_current_doctor');
         localStorage.removeItem('medrecord_active_user_id');
         localStorage.removeItem('medrecord_user_pin_hash');
         localStorage.removeItem('medrecord_last_active_time');
-        localStorage.removeItem('doctor_profile');
+        if (typeof sessionStorage !== 'undefined') {
+          sessionStorage.clear();
+        }
       }
       setUser(null);
       setIsSetup(false);

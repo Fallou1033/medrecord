@@ -47,7 +47,7 @@ function MainAppContent() {
     return user;
   });
 
-  // Sync state when security context finishes loading
+  // Sync state when security context finishes loading or when user logs out
   useEffect(() => {
     if (!loading) {
       SplashScreen.hideAsync().catch(() => {});
@@ -55,6 +55,8 @@ function MainAppContent() {
         if (!isLocked) {
           setActiveView('dashboard');
         }
+      } else {
+        setActiveView('welcome');
       }
     }
   }, [loading, user, isSetup, isLocked]);
