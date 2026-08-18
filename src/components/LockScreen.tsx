@@ -92,6 +92,7 @@ export default function LockScreen() {
     const success = await unlockWithPin(attempt);
     if (success) {
       setFailedAttempts(0);
+      setPin('');
     } else {
       Vibration.vibrate(300);
       setPin('');

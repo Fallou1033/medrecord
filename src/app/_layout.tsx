@@ -142,25 +142,24 @@ function MainAppContent() {
     );
   }
 
-  // Si l'application est verrouillée et qu'une session existe, afficher LockScreen immédiatement
-  const isSessionActive = safeStorageGet(STORAGE_KEYS.SESSION_ACTIVE) === 'true';
-  if (isLocked && (user || isSessionActive)) {
-    return <LockScreen />;
+  // Calcul direct et fiable de l'état d'authentification
+  const isSessionActive = Boolean(
+    user ||
+    safeStorageGet(STORAGE_KEYS.SESSION_ACTIVE) === 'true' ||
+    safeStorageGet(STORAGE_KEYS.CURRENT_USER) ||
+    safeStorageGet(STORAGE_KEYS.DOCTOR_PROFILE)
+  );
+
+  // 1. Si une session praticien est active :
+  if (isSessionActive) {
+    if (isLocked) {
+      return <LockScreen />;
+    }
+    return <AppTabs />;
   }
 
-  // Explicit switch-case rendering without parasitic guards
+  // 2. Si aucune session active (déconnecté ou première installation) :
   switch (activeView) {
-    case 'dashboard':
-      // Safety guard: if not authenticated, redirect to WelcomeGateway
-      if (!user && !isSessionActive) {
-        return (
-          <WelcomeGateway
-            onNewDoctor={() => setActiveView('setup')}
-            onExistingDoctor={() => setActiveView('login')}
-          />
-        );
-      }
-      return <AppTabs />;
     case 'login':
       return (
         <View style={{ flex: 1, backgroundColor: '#0F172A' }}>
