@@ -866,13 +866,14 @@ export default function PatientDetailsScreen() {
           <View style={styles.infoContainer}>
             {/* 1. Fiche Administrative */}
             <View style={styles.tabHeader}>
-              <Text style={[styles.sectionTitle, { flex: 1, marginRight: 8 }]} numberOfLines={1}>Fiche Administrative</Text>
-              <Link href={`/patients/certificat_create?patientId=${id}`} asChild>
-                <TouchableOpacity style={styles.actionButton}>
-                  <Ionicons name="document-text" size={16} color="#0F2C3D" />
-                  <Text style={styles.actionButtonText}>+ Certificat</Text>
-                </TouchableOpacity>
-              </Link>
+              <Text style={styles.sectionTitle} numberOfLines={1}>Fiche Administrative</Text>
+              <TouchableOpacity
+                style={styles.actionButton}
+                onPress={() => router.push(`/patients/certificat_create?patientId=${id}`)}
+              >
+                <Ionicons name="document-text" size={16} color="#0F2C3D" />
+                <Text style={styles.actionButtonText}>+ Certificat</Text>
+              </TouchableOpacity>
             </View>
             <View style={styles.infoCard}>
               {/* Groupe Sanguin avec Traçabilité & Badge de Confiance */}
@@ -971,8 +972,8 @@ export default function PatientDetailsScreen() {
             <View style={styles.tabHeader}>
               <Text style={styles.sectionTitle}>Antécédents et Terrain</Text>
               <TouchableOpacity style={styles.actionButton} onPress={() => setModalVisible(true)}>
-                <Ionicons name="add-circle" size={20} color="#0F2C3D" />
-                <Text style={styles.actionButtonText}>+ Ajouter un antécédent</Text>
+                <Ionicons name="add-circle" size={18} color="#0F2C3D" />
+                <Text style={styles.actionButtonText}>+ Ajouter</Text>
               </TouchableOpacity>
             </View>
 
@@ -1288,13 +1289,14 @@ export default function PatientDetailsScreen() {
         {activeTab === 'consultations' && (
           <View style={styles.infoContainer}>
             <View style={styles.tabHeader}>
-              <Text style={[styles.sectionTitle, { flex: 1, marginRight: 8 }]} numberOfLines={1}>Consultations</Text>
-              <Link href={`/patients/consultation_create?patientId=${id}`} asChild>
-                <TouchableOpacity style={styles.actionButton}>
-                  <Ionicons name="add-circle" size={16} color="#0F2C3D" />
-                  <Text style={styles.actionButtonText}>+ Visite</Text>
-                </TouchableOpacity>
-              </Link>
+              <Text style={styles.sectionTitle} numberOfLines={1}>Consultations</Text>
+              <TouchableOpacity
+                style={styles.actionButton}
+                onPress={() => router.push(`/patients/consultation_create?patientId=${id}`)}
+              >
+                <Ionicons name="add-circle" size={16} color="#0F2C3D" />
+                <Text style={styles.actionButtonText}>+ Visite</Text>
+              </TouchableOpacity>
             </View>
 
             {consultations.length === 0 ? (
@@ -1337,10 +1339,10 @@ export default function PatientDetailsScreen() {
           <LocalParacliniqueBoundary>
             <View style={styles.infoContainer}>
               <View style={styles.tabHeader}>
-                <Text style={[styles.sectionTitle, { flex: 1, marginRight: 8 }]} numberOfLines={1}>Examens Paracliniques</Text>
+                <Text style={styles.sectionTitle} numberOfLines={1}>Examens Paracliniques</Text>
                 <TouchableOpacity style={styles.actionButton} onPress={() => setModalParacliniqueVisible(true)}>
                   <Ionicons name="flask" size={16} color="#0F2C3D" />
-                  <Text style={styles.actionButtonText}>+ Examen Paraclinique</Text>
+                  <Text style={styles.actionButtonText}>+ Examen</Text>
                 </TouchableOpacity>
               </View>
 
@@ -1570,8 +1572,8 @@ export default function PatientDetailsScreen() {
             <View style={styles.tabHeader}>
               <Text style={styles.sectionTitle}>Suivi Vaccinal</Text>
               <TouchableOpacity style={styles.actionButton} onPress={() => setModalVaccineVisible(true)}>
-                <Ionicons name="add-circle" size={20} color="#0F2C3D" />
-                <Text style={styles.actionButtonText}>Ajouter</Text>
+                <Ionicons name="add-circle" size={18} color="#0F2C3D" />
+                <Text style={styles.actionButtonText}>+ Vaccin</Text>
               </TouchableOpacity>
             </View>
 
@@ -2694,18 +2696,22 @@ const styles = StyleSheet.create({
   tabBar: {
     borderTopWidth: 1,
     borderTopColor: '#2F5C77',
+    backgroundColor: '#0F2C3D',
   },
   tabBarScroll: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 8,
+    minWidth: '100%',
   },
   tabItem: {
-    paddingVertical: 14,
-    paddingHorizontal: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
     alignItems: 'center',
+    justifyContent: 'center',
     borderBottomWidth: 3,
     borderBottomColor: 'transparent',
+    flexShrink: 0,
   },
   tabItemActive: {
     borderBottomColor: '#28C2FF',
@@ -2713,7 +2719,15 @@ const styles = StyleSheet.create({
   tabLabel: {
     color: '#8AC8F9',
     fontSize: 14,
-    fontWeight: '500',
+    fontWeight: '600',
+    textAlign: 'center',
+    flexShrink: 0,
+    ...Platform.select({
+      web: {
+        whiteSpace: 'nowrap',
+        userSelect: 'none',
+      },
+    }),
   },
   tabLabelActive: {
     color: '#28C2FF',
@@ -2723,14 +2737,15 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
   },
   infoContainer: {
-    padding: 20,
+    padding: 16,
   },
   sectionTitle: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: 'bold',
     color: '#8AC8F9',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
+    flexShrink: 1,
   },
   infoCard: {
     backgroundColor: '#1E3E52',
@@ -2763,20 +2778,28 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 16,
+    flexWrap: 'wrap',
+    gap: 8,
   },
   actionButton: {
     backgroundColor: '#28C2FF',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    paddingVertical: 6,
+    paddingVertical: 7,
     paddingHorizontal: 12,
-    borderRadius: 15,
+    borderRadius: 12,
+    flexShrink: 0,
   },
   actionButtonText: {
     color: '#0F2C3D',
     fontWeight: 'bold',
     fontSize: 13,
+    ...Platform.select({
+      web: {
+        whiteSpace: 'nowrap',
+      },
+    }),
   },
   emptyCard: {
     backgroundColor: '#1E3E52',
