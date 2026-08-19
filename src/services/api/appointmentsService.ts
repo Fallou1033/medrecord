@@ -11,7 +11,7 @@ export async function getAppointments(): Promise<RendezVous[]> {
     .order('date_heure', { ascending: true });
 
   if (error) {
-    console.error('Supabase getAppointments error:', error);
+    console.error('Supabase getAppointments error:', error.message, error.details, error.hint, error.code);
     throw new Error(`Erreur lors de la récupération des rendez-vous: ${error.message}`);
   }
 
@@ -21,6 +21,8 @@ export async function getAppointments(): Promise<RendezVous[]> {
     doctor_id: row.doctor_id,
     medecin_id: row.doctor_id,
     patient_name: row.patients ? `${row.patients.prenom || ''} ${row.patients.nom || ''}`.trim() : 'Patient',
+    patient_telephone: row.patients?.telephone || null,
+    patient_numero_dossier: row.patients?.numero_dossier || null,
     date_heure: row.date_heure,
     motif: row.motif || null,
     statut: row.statut || 'PLANIFIE',
@@ -33,9 +35,19 @@ export async function getAppointments(): Promise<RendezVous[]> {
 
 export async function createAppointment(appointment: Omit<RendezVous, 'id' | 'created_at' | 'updated_at'>): Promise<RendezVous> {
   const { data: userData } = await supabase.auth.getUser();
-  const doctorId = userData?.user?.id;
+  let doctorId = userData?.user?.id;
+
+  if (!doctorId) {
+    const { data: sessionData } = await supabase.auth.getSession();
+    doctorId = sessionData?.session?.user?.id;
+  }
+
+  if (!doctorId) {
+    throw new Error("Session praticien non authentifiée. Veuillez vous reconnecter.");
+  }
 
   const insertPayload: any = {
+    doctor_id: doctorId,
     patient_id: appointment.patient_id,
     date_heure: appointment.date_heure,
     statut: appointment.statut || 'PLANIFIE',
@@ -43,19 +55,15 @@ export async function createAppointment(appointment: Omit<RendezVous, 'id' | 'cr
     notes: appointment.notes || null,
   };
 
-  if (doctorId) {
-    insertPayload.doctor_id = doctorId;
-  }
-
   const { data, error } = await supabase
     .from('appointments')
     .insert(insertPayload)
-    .select('*, patients(nom, prenom)')
+    .select('*, patients(nom, prenom, telephone, numero_dossier)')
     .single();
 
   if (error) {
-    console.error('Supabase createAppointment error:', error);
-    throw new Error(`Erreur lors de la création du rendez-vous: ${error.message}`);
+    console.error('Supabase createAppointment error:', error.message, error.details, error.hint, error.code);
+    throw new Error(`[Supabase ${error.code || 'ERR'}] ${error.message}${error.details ? ` (${error.details})` : ''}`);
   }
 
   return {
@@ -64,6 +72,8 @@ export async function createAppointment(appointment: Omit<RendezVous, 'id' | 'cr
     doctor_id: data.doctor_id,
     medecin_id: data.doctor_id,
     patient_name: data.patients ? `${data.patients.prenom || ''} ${data.patients.nom || ''}`.trim() : 'Patient',
+    patient_telephone: data.patients?.telephone || null,
+    patient_numero_dossier: data.patients?.numero_dossier || null,
     date_heure: data.date_heure,
     statut: data.statut,
     motif: data.motif,
@@ -80,17 +90,20 @@ export async function updateAppointment(id: string, updates: Partial<RendezVous>
   delete updatePayload.created_at;
   delete updatePayload.is_synced;
   delete updatePayload.patient_name;
-  delete updatePayload.medecin_id;
+  delete updatePayload.patient_nom;
+  delete updatePayload.patient_prenom;
+  delete updatePayload.patient_telephone;
+  delete updatePayload.patient_numero_dossier;
 
   const { data, error } = await supabase
     .from('appointments')
     .update(updatePayload)
     .eq('id', id)
-    .select('*, patients(nom, prenom)')
+    .select('*, patients(nom, prenom, telephone, numero_dossier)')
     .single();
 
   if (error) {
-    console.error('Supabase updateAppointment error:', error);
+    console.error('Supabase updateAppointment error:', error.message, error.details, error.hint, error.code);
     throw new Error(`Erreur lors de la mise à jour du rendez-vous: ${error.message}`);
   }
 
@@ -100,6 +113,8 @@ export async function updateAppointment(id: string, updates: Partial<RendezVous>
     doctor_id: data.doctor_id,
     medecin_id: data.doctor_id,
     patient_name: data.patients ? `${data.patients.prenom || ''} ${data.patients.nom || ''}`.trim() : 'Patient',
+    patient_telephone: data.patients?.telephone || null,
+    patient_numero_dossier: data.patients?.numero_dossier || null,
     date_heure: data.date_heure,
     statut: data.statut,
     motif: data.motif,
@@ -117,7 +132,7 @@ export async function deleteAppointment(id: string): Promise<boolean> {
     .eq('id', id);
 
   if (error) {
-    console.error('Supabase deleteAppointment error:', error);
+    console.error('Supabase deleteAppointment error:', error.message, error.details, error.hint, error.code);
     throw new Error(`Erreur lors de la suppression du rendez-vous: ${error.message}`);
   }
 

@@ -11,7 +11,7 @@ export async function getPatients(): Promise<Patient[]> {
     .order('created_at', { ascending: false });
 
   if (error) {
-    console.error('Supabase getPatients error:', error);
+    console.error('Supabase getPatients error:', error.message, error.details, error.hint, error.code);
     throw new Error(`Erreur lors de la récupération des patients: ${error.message}`);
   }
 
@@ -51,7 +51,7 @@ export async function getPatientById(id: string): Promise<Patient | null> {
 
   if (error) {
     if (error.code === 'PGRST116') return null; // No row found
-    console.error('Supabase getPatientById error:', error);
+    console.error('Supabase getPatientById error:', error.message, error.details, error.hint, error.code);
     throw new Error(`Patient introuvable: ${error.message}`);
   }
 
@@ -83,35 +83,59 @@ export async function getPatientById(id: string): Promise<Patient | null> {
 }
 
 export async function createPatient(patient: Partial<Patient> & { nom: string; prenom: string; sexe: 'M' | 'F' }): Promise<Patient> {
-  const { data: userData } = await supabase.auth.getUser();
-  const doctorId = userData?.user?.id;
+  // Récupération obligatoire de l'identifiant du médecin connecté
+  const { data: userData, error: userError } = await supabase.auth.getUser();
+  let doctorId = userData?.user?.id;
+
+  if (!doctorId) {
+    const { data: sessionData } = await supabase.auth.getSession();
+    doctorId = sessionData?.session?.user?.id;
+  }
+
+  if (!doctorId) {
+    console.error('Supabase createPatient: User not authenticated', userError);
+    throw new Error("Session praticien non authentifiée ou expirée. Veuillez vous reconnecter.");
+  }
+
+  // Formatage de la date de naissance au format ISO YYYY-MM-DD
+  let cleanDateNaissance: string | null = null;
+  if (patient.date_naissance && typeof patient.date_naissance === 'string' && patient.date_naissance.trim().length > 0) {
+    let dStr = patient.date_naissance.trim();
+    if (/^\d{2}[\/\-]\d{2}[\/\-]\d{4}$/.test(dStr)) {
+      const p = dStr.split(/[\/\-]/);
+      dStr = `${p[2]}-${p[1]}-${p[0]}`;
+    }
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dStr)) {
+      cleanDateNaissance = dStr;
+    }
+  }
 
   const numero_dossier = patient.numero_dossier || `MED-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
 
+  // Construction du payload avec mapping strict des colonnes snake_case
   const insertPayload: any = {
+    doctor_id: doctorId,
     numero_dossier,
     nom: patient.nom?.trim() || '',
     prenom: patient.prenom?.trim() || '',
     sexe: patient.sexe || 'M',
-    date_naissance: patient.date_naissance || null,
-    telephone: patient.telephone || null,
-    email: patient.email || null,
-    adresse: patient.adresse || null,
-    profession: patient.profession || null,
-    personne_prevenir: patient.personne_prevenir || null,
+    date_naissance: cleanDateNaissance,
+    telephone: patient.telephone?.trim() || null,
+    email: patient.email?.trim() || null,
+    adresse: patient.adresse?.trim() || null,
+    profession: patient.profession?.trim() || null,
+    personne_prevenir: patient.personne_prevenir?.trim() || null,
     groupe_sanguin: patient.groupe_sanguin || 'Inconnu',
     source_groupe_sanguin: patient.source_groupe_sanguin || 'DECLARE',
     photo_url: patient.photo_url || null,
-    antecedents_medicaux: patient.antecedents_medicaux || null,
-    antecedents_chirurgicaux: patient.antecedents_chirurgicaux || null,
-    allergies: patient.allergies || null,
-    traitements_fond: patient.traitements_fond || null,
-    notes: patient.notes || null,
+    antecedents_medicaux: patient.antecedents_medicaux?.trim() || null,
+    antecedents_chirurgicaux: patient.antecedents_chirurgicaux?.trim() || null,
+    allergies: patient.allergies?.trim() || null,
+    traitements_fond: patient.traitements_fond?.trim() || null,
+    notes: patient.notes?.trim() || null,
   };
 
-  if (doctorId) {
-    insertPayload.doctor_id = doctorId;
-  }
+  console.log('MedRecord: Inserting patient with payload:', insertPayload);
 
   const { data, error } = await supabase
     .from('patients')
@@ -120,8 +144,8 @@ export async function createPatient(patient: Partial<Patient> & { nom: string; p
     .single();
 
   if (error) {
-    console.error('Supabase createPatient error:', error);
-    throw new Error(`Erreur lors de la création du patient: ${error.message}`);
+    console.error('Supabase insert error:', error.message, error.details, error.hint, error.code);
+    throw new Error(`[Supabase ${error.code || 'ERR'}] ${error.message}${error.details ? ` (${error.details})` : ''}${error.hint ? ` - ${error.hint}` : ''}`);
   }
 
   return {
@@ -136,6 +160,19 @@ export async function updatePatient(id: string, updates: Partial<Patient>): Prom
   delete updatePayload.created_at;
   delete updatePayload.is_synced;
 
+  if (updatePayload.date_naissance && typeof updatePayload.date_naissance === 'string') {
+    let dStr = updatePayload.date_naissance.trim();
+    if (/^\d{2}[\/\-]\d{2}[\/\-]\d{4}$/.test(dStr)) {
+      const p = dStr.split(/[\/\-]/);
+      dStr = `${p[2]}-${p[1]}-${p[0]}`;
+    }
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dStr)) {
+      updatePayload.date_naissance = dStr;
+    } else if (!dStr) {
+      updatePayload.date_naissance = null;
+    }
+  }
+
   const { data, error } = await supabase
     .from('patients')
     .update(updatePayload)
@@ -144,7 +181,7 @@ export async function updatePatient(id: string, updates: Partial<Patient>): Prom
     .single();
 
   if (error) {
-    console.error('Supabase updatePatient error:', error);
+    console.error('Supabase updatePatient error:', error.message, error.details, error.hint, error.code);
     throw new Error(`Erreur lors de la mise à jour du patient: ${error.message}`);
   }
 
@@ -161,7 +198,7 @@ export async function deletePatient(id: string): Promise<boolean> {
     .eq('id', id);
 
   if (error) {
-    console.error('Supabase deletePatient error:', error);
+    console.error('Supabase deletePatient error:', error.message, error.details, error.hint, error.code);
     throw new Error(`Erreur lors de la suppression du patient: ${error.message}`);
   }
 
@@ -179,7 +216,7 @@ export async function searchPatients(query: string): Promise<Patient[]> {
     .order('created_at', { ascending: false });
 
   if (error) {
-    console.error('Supabase searchPatients error:', error);
+    console.error('Supabase searchPatients error:', error.message, error.details, error.hint, error.code);
     throw new Error(`Erreur de recherche: ${error.message}`);
   }
 

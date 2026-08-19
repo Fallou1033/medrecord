@@ -17,7 +17,7 @@ export async function getConsultations(patientId?: string): Promise<Consultation
   const { data, error } = await query;
 
   if (error) {
-    console.error('Supabase getConsultations error:', error);
+    console.error('Supabase getConsultations error:', error.message, error.details, error.hint, error.code);
     throw new Error(`Erreur lors de la récupération des consultations: ${error.message}`);
   }
 
@@ -55,7 +55,7 @@ export async function getConsultationById(id: string): Promise<Consultation | nu
 
   if (error) {
     if (error.code === 'PGRST116') return null;
-    console.error('Supabase getConsultationById error:', error);
+    console.error('Supabase getConsultationById error:', error.message, error.details, error.hint, error.code);
     throw new Error(`Consultation introuvable: ${error.message}`);
   }
 
@@ -86,28 +86,34 @@ export async function getConsultationById(id: string): Promise<Consultation | nu
 
 export async function createConsultation(consultation: Omit<Consultation, 'id' | 'created_at' | 'updated_at'>): Promise<Consultation> {
   const { data: userData } = await supabase.auth.getUser();
-  const doctorId = userData?.user?.id;
+  let doctorId = userData?.user?.id;
+
+  if (!doctorId) {
+    const { data: sessionData } = await supabase.auth.getSession();
+    doctorId = sessionData?.session?.user?.id;
+  }
+
+  if (!doctorId) {
+    throw new Error("Session praticien non authentifiée. Veuillez vous reconnecter.");
+  }
 
   const insertPayload: any = {
+    doctor_id: doctorId,
     patient_id: consultation.patient_id,
     date: consultation.date || consultation.date_consultation || new Date().toISOString(),
     motif: consultation.motif?.trim() || 'Consultation générale',
-    histoire_maladie: consultation.histoire_maladie || null,
-    examen_clinique: consultation.examen_clinique || null,
-    diagnostic: consultation.diagnostic || null,
-    traitement: consultation.traitement || null,
-    conseils: consultation.conseils || null,
+    histoire_maladie: consultation.histoire_maladie?.trim() || null,
+    examen_clinique: consultation.examen_clinique?.trim() || null,
+    diagnostic: consultation.diagnostic?.trim() || null,
+    traitement: consultation.traitement?.trim() || null,
+    conseils: consultation.conseils?.trim() || null,
     date_controle: consultation.date_controle || null,
     poids_kg: consultation.poids_kg || null,
     taille_cm: consultation.taille_cm || null,
-    pression_arterielle: consultation.pression_arterielle || null,
+    pression_arterielle: consultation.pression_arterielle?.trim() || null,
     frequence_cardiaque: consultation.frequence_cardiaque || null,
     temperature: consultation.temperature || null,
   };
-
-  if (doctorId) {
-    insertPayload.doctor_id = doctorId;
-  }
 
   const { data, error } = await supabase
     .from('consultations')
@@ -116,8 +122,8 @@ export async function createConsultation(consultation: Omit<Consultation, 'id' |
     .single();
 
   if (error) {
-    console.error('Supabase createConsultation error:', error);
-    throw new Error(`Erreur lors de la création de la consultation: ${error.message}`);
+    console.error('Supabase createConsultation error:', error.message, error.details, error.hint, error.code);
+    throw new Error(`[Supabase ${error.code || 'ERR'}] ${error.message}${error.details ? ` (${error.details})` : ''}`);
   }
 
   return {
@@ -142,7 +148,7 @@ export async function updateConsultation(id: string, updates: Partial<Consultati
     .single();
 
   if (error) {
-    console.error('Supabase updateConsultation error:', error);
+    console.error('Supabase updateConsultation error:', error.message, error.details, error.hint, error.code);
     throw new Error(`Erreur lors de la mise à jour de la consultation: ${error.message}`);
   }
 
@@ -160,7 +166,7 @@ export async function deleteConsultation(id: string): Promise<boolean> {
     .eq('id', id);
 
   if (error) {
-    console.error('Supabase deleteConsultation error:', error);
+    console.error('Supabase deleteConsultation error:', error.message, error.details, error.hint, error.code);
     throw new Error(`Erreur lors de la suppression de la consultation: ${error.message}`);
   }
 

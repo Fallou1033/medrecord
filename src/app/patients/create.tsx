@@ -168,17 +168,24 @@ export default function CreatePatientScreen() {
       return;
     }
 
-    // Optional date validation (YYYY-MM-DD) if filled
-    if (dateNaissance.trim()) {
+    // Validation et conversion de la date de naissance si renseignée
+    let formattedDateNaissance: string | null = null;
+    if (dateNaissance && dateNaissance.trim()) {
+      let rawDate = dateNaissance.trim();
+      if (/^\d{2}[\/\-]\d{2}[\/\-]\d{4}$/.test(rawDate)) {
+        const p = rawDate.split(/[\/\-]/);
+        rawDate = `${p[2]}-${p[1]}-${p[0]}`;
+      }
       const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
-      if (!dateRegex.test(dateNaissance.trim())) {
+      if (!dateRegex.test(rawDate)) {
         showAlert('Date invalide', 'La date de naissance doit être au format AAAA-MM-JJ (ex: 1990-05-15).');
         return;
       }
+      formattedDateNaissance = rawDate;
     }
 
     if (!user) {
-      showAlert('Erreur', 'Session utilisateur non active.');
+      showAlert('Erreur de session', 'Votre session praticien est inactive ou a expiré. Veuillez vous reconnecter.');
       return;
     }
 
@@ -188,7 +195,7 @@ export default function CreatePatientScreen() {
         nom: nom.trim(),
         prenom: prenom.trim(),
         sexe,
-        date_naissance: dateNaissance.trim() || null,
+        date_naissance: formattedDateNaissance,
         telephone: telephone.trim() || null,
         adresse: adresse.trim() || null,
         profession: profession.trim() || null,
@@ -214,9 +221,10 @@ export default function CreatePatientScreen() {
       showAlert('Succès', 'Le dossier patient a été créé avec succès.', [
         { text: 'OK', onPress: () => router.back() },
       ]);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to create patient:', error);
-      showAlert('Erreur', "Une erreur est survenue lors de l'enregistrement.");
+      const detailedMessage = error?.message || (typeof error === 'string' ? error : "Une erreur est survenue lors de l'enregistrement.");
+      showAlert('Erreur', detailedMessage);
     } finally {
       setLoading(false);
     }
