@@ -261,7 +261,11 @@ export default function ConsultationDetailsScreen() {
           <Link
             href={{
               pathname: '/patients/ordonnance_create' as any,
-              params: { consultationId: id, patientId: patient.id },
+              params: {
+                consultationId: id,
+                patientId: patient.id,
+                treatment: encodeURIComponent(consultation.traitement || ''),
+              },
             }}
             asChild
           >

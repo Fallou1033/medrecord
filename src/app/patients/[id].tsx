@@ -2207,77 +2207,84 @@ export default function PatientDetailsScreen() {
 
       {/* Consultation Detail Modal */}
       <Modal
-        animationType="slide"
+        animationType="fade"
         transparent={true}
         visible={!!selectedConsultationDetail}
         onRequestClose={() => setSelectedConsultationDetail(null)}
       >
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { maxHeight: '90%', width: Platform.OS === 'web' ? '90%' : '95%', maxWidth: 700 }]}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+        <View style={[styles.modalOverlay, { justifyContent: 'center', alignItems: 'center', padding: Platform.OS === 'web' ? 24 : 16 }]}>
+          <View style={[styles.modalContent, {
+            maxHeight: '92%',
+            width: Platform.OS === 'web' ? '85%' : '96%',
+            maxWidth: 880,
+            alignSelf: 'center',
+            borderRadius: 20,
+            padding: Platform.OS === 'web' ? 28 : 18,
+          }]}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
               <View>
-                <Text style={styles.modalTitle}>Détail de la Visite</Text>
+                <Text style={[styles.modalTitle, { textAlign: 'left', marginBottom: 0 }]}>Détail de la Visite</Text>
                 <Text style={{ color: '#8AC8F9', fontSize: 13, marginTop: 2 }}>
                   {formatDateFR(selectedConsultationDetail?.date || selectedConsultationDetail?.created_at)}
                 </Text>
               </View>
               <TouchableOpacity onPress={() => setSelectedConsultationDetail(null)} style={{ padding: 4 }}>
-                <Ionicons name="close-circle" size={26} color="#FF6B6B" />
+                <Ionicons name="close-circle" size={28} color="#FF6B6B" />
               </TouchableOpacity>
             </View>
 
             <ScrollView contentContainerStyle={{ paddingBottom: 20, gap: 14 }}>
               {/* Patient Summary */}
-              <View style={{ backgroundColor: '#0F2C3D', padding: 12, borderRadius: 10, borderWidth: 1, borderColor: '#2F5C77' }}>
-                <Text style={{ color: '#FFFFFF', fontWeight: 'bold', fontSize: 15 }}>
+              <View style={{ backgroundColor: '#0F2C3D', padding: 14, borderRadius: 12, borderWidth: 1, borderColor: '#2F5C77' }}>
+                <Text style={{ color: '#FFFFFF', fontWeight: 'bold', fontSize: 16 }}>
                   {patient.prenom} {patient.nom.toUpperCase()} ({patient.numero_dossier})
                 </Text>
-                <Text style={{ color: '#8AC8F9', fontSize: 12, marginTop: 2 }}>
+                <Text style={{ color: '#8AC8F9', fontSize: 13, marginTop: 4 }}>
                   {patient.sexe === 'M' ? 'Homme' : 'Femme'} • {age} ans • Tél : {patient.telephone || 'Non renseigné'}
                 </Text>
               </View>
 
               {/* Constantes Physiologiques */}
               {(selectedConsultationDetail?.temperature || selectedConsultationDetail?.pression_arterielle || selectedConsultationDetail?.frequence_cardiaque || selectedConsultationDetail?.poids_kg || selectedConsultationDetail?.taille_cm) && (
-                <View style={{ backgroundColor: '#0F2C3D', padding: 12, borderRadius: 10, borderWidth: 1, borderColor: '#2F5C77' }}>
-                  <Text style={{ color: '#28C2FF', fontWeight: 'bold', fontSize: 14, marginBottom: 8 }}>
+                <View style={{ backgroundColor: '#0F2C3D', padding: 14, borderRadius: 12, borderWidth: 1, borderColor: '#2F5C77' }}>
+                  <Text style={{ color: '#28C2FF', fontWeight: 'bold', fontSize: 14, marginBottom: 10 }}>
                     Constantes Physiologiques
                   </Text>
                   <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
                     {selectedConsultationDetail.temperature && (
-                      <View style={{ backgroundColor: '#1E3E52', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 6 }}>
+                      <View style={{ backgroundColor: '#1E3E52', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8 }}>
                         <Text style={{ color: '#8AC8F9', fontSize: 11 }}>Température</Text>
-                        <Text style={{ color: '#FFFFFF', fontWeight: 'bold', fontSize: 13 }}>{selectedConsultationDetail.temperature} °C</Text>
+                        <Text style={{ color: '#FFFFFF', fontWeight: 'bold', fontSize: 14 }}>{selectedConsultationDetail.temperature} °C</Text>
                       </View>
                     )}
                     {selectedConsultationDetail.pression_arterielle && (
-                      <View style={{ backgroundColor: '#1E3E52', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 6 }}>
+                      <View style={{ backgroundColor: '#1E3E52', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8 }}>
                         <Text style={{ color: '#8AC8F9', fontSize: 11 }}>Tension</Text>
-                        <Text style={{ color: '#FFFFFF', fontWeight: 'bold', fontSize: 13 }}>{selectedConsultationDetail.pression_arterielle}</Text>
+                        <Text style={{ color: '#FFFFFF', fontWeight: 'bold', fontSize: 14 }}>{selectedConsultationDetail.pression_arterielle}</Text>
                       </View>
                     )}
                     {selectedConsultationDetail.frequence_cardiaque && (
-                      <View style={{ backgroundColor: '#1E3E52', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 6 }}>
+                      <View style={{ backgroundColor: '#1E3E52', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8 }}>
                         <Text style={{ color: '#8AC8F9', fontSize: 11 }}>Pulsations</Text>
-                        <Text style={{ color: '#FFFFFF', fontWeight: 'bold', fontSize: 13 }}>{selectedConsultationDetail.frequence_cardiaque} bpm</Text>
+                        <Text style={{ color: '#FFFFFF', fontWeight: 'bold', fontSize: 14 }}>{selectedConsultationDetail.frequence_cardiaque} bpm</Text>
                       </View>
                     )}
                     {selectedConsultationDetail.poids_kg && (
-                      <View style={{ backgroundColor: '#1E3E52', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 6 }}>
+                      <View style={{ backgroundColor: '#1E3E52', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8 }}>
                         <Text style={{ color: '#8AC8F9', fontSize: 11 }}>Poids</Text>
-                        <Text style={{ color: '#FFFFFF', fontWeight: 'bold', fontSize: 13 }}>{selectedConsultationDetail.poids_kg} kg</Text>
+                        <Text style={{ color: '#FFFFFF', fontWeight: 'bold', fontSize: 14 }}>{selectedConsultationDetail.poids_kg} kg</Text>
                       </View>
                     )}
                     {selectedConsultationDetail.taille_cm && (
-                      <View style={{ backgroundColor: '#1E3E52', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 6 }}>
+                      <View style={{ backgroundColor: '#1E3E52', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8 }}>
                         <Text style={{ color: '#8AC8F9', fontSize: 11 }}>Taille</Text>
-                        <Text style={{ color: '#FFFFFF', fontWeight: 'bold', fontSize: 13 }}>{selectedConsultationDetail.taille_cm} cm</Text>
+                        <Text style={{ color: '#FFFFFF', fontWeight: 'bold', fontSize: 14 }}>{selectedConsultationDetail.taille_cm} cm</Text>
                       </View>
                     )}
                     {selectedConsultationDetail.poids_kg && selectedConsultationDetail.taille_cm && (
-                      <View style={{ backgroundColor: '#1E3E52', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 6, borderColor: '#28C2FF', borderWidth: 1 }}>
+                      <View style={{ backgroundColor: '#1E3E52', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, borderColor: '#28C2FF', borderWidth: 1 }}>
                         <Text style={{ color: '#28C2FF', fontSize: 11, fontWeight: 'bold' }}>IMC</Text>
-                        <Text style={{ color: '#28C2FF', fontWeight: 'bold', fontSize: 13 }}>
+                        <Text style={{ color: '#28C2FF', fontWeight: 'bold', fontSize: 14 }}>
                           {(selectedConsultationDetail.poids_kg / ((selectedConsultationDetail.taille_cm / 100) ** 2)).toFixed(1)}
                         </Text>
                       </View>
@@ -2287,81 +2294,90 @@ export default function PatientDetailsScreen() {
               )}
 
               {/* Observation Médicale */}
-              <View style={{ backgroundColor: '#0F2C3D', padding: 12, borderRadius: 10, borderWidth: 1, borderColor: '#2F5C77', gap: 10 }}>
+              <View style={{ backgroundColor: '#0F2C3D', padding: 14, borderRadius: 12, borderWidth: 1, borderColor: '#2F5C77', gap: 12 }}>
                 <Text style={{ color: '#28C2FF', fontWeight: 'bold', fontSize: 14 }}>
                   Observation Médicale
                 </Text>
 
                 <View>
                   <Text style={{ color: '#8AC8F9', fontSize: 12, fontWeight: 'bold' }}>Motif de consultation :</Text>
-                  <Text style={{ color: '#FFFFFF', fontSize: 14, marginTop: 2 }}>{selectedConsultationDetail?.motif}</Text>
+                  <Text style={{ color: '#FFFFFF', fontSize: 14, marginTop: 3 }}>{selectedConsultationDetail?.motif}</Text>
                 </View>
 
                 {selectedConsultationDetail?.histoire_maladie && (
                   <View>
                     <Text style={{ color: '#8AC8F9', fontSize: 12, fontWeight: 'bold' }}>Histoire de la maladie :</Text>
-                    <Text style={{ color: '#FFFFFF', fontSize: 14, marginTop: 2 }}>{selectedConsultationDetail.histoire_maladie}</Text>
+                    <Text style={{ color: '#FFFFFF', fontSize: 14, marginTop: 3 }}>{selectedConsultationDetail.histoire_maladie}</Text>
                   </View>
                 )}
 
                 {selectedConsultationDetail?.examen_clinique && (
                   <View>
                     <Text style={{ color: '#8AC8F9', fontSize: 12, fontWeight: 'bold' }}>Examen clinique :</Text>
-                    <Text style={{ color: '#FFFFFF', fontSize: 14, marginTop: 2 }}>{selectedConsultationDetail.examen_clinique}</Text>
+                    <Text style={{ color: '#FFFFFF', fontSize: 14, marginTop: 3 }}>{selectedConsultationDetail.examen_clinique}</Text>
                   </View>
                 )}
 
                 {selectedConsultationDetail?.diagnostic && (
-                  <View style={{ backgroundColor: '#1E3E52', padding: 10, borderRadius: 8, borderColor: '#28C2FF', borderWidth: 1 }}>
+                  <View style={{ backgroundColor: '#1E3E52', padding: 12, borderRadius: 10, borderColor: '#28C2FF', borderWidth: 1 }}>
                     <Text style={{ color: '#28C2FF', fontSize: 12, fontWeight: 'bold' }}>Diagnostic Retenu :</Text>
-                    <Text style={{ color: '#FFFFFF', fontSize: 15, fontWeight: 'bold', marginTop: 2 }}>{selectedConsultationDetail.diagnostic}</Text>
+                    <Text style={{ color: '#FFFFFF', fontSize: 15, fontWeight: 'bold', marginTop: 3 }}>{selectedConsultationDetail.diagnostic}</Text>
                   </View>
                 )}
 
                 {selectedConsultationDetail?.conseils && (
                   <View>
                     <Text style={{ color: '#8AC8F9', fontSize: 12, fontWeight: 'bold' }}>Conseils & Recommandations :</Text>
-                    <Text style={{ color: '#FFFFFF', fontSize: 14, marginTop: 2 }}>{selectedConsultationDetail.conseils}</Text>
+                    <Text style={{ color: '#FFFFFF', fontSize: 14, marginTop: 3 }}>{selectedConsultationDetail.conseils}</Text>
                   </View>
                 )}
 
                 {selectedConsultationDetail?.date_controle && (
                   <View>
                     <Text style={{ color: '#8AC8F9', fontSize: 12, fontWeight: 'bold' }}>Date de contrôle prévue :</Text>
-                    <Text style={{ color: '#FFD700', fontSize: 14, fontWeight: 'bold', marginTop: 2 }}>{formatDateFR(selectedConsultationDetail.date_controle)}</Text>
+                    <Text style={{ color: '#FFD700', fontSize: 14, fontWeight: 'bold', marginTop: 3 }}>{formatDateFR(selectedConsultationDetail.date_controle)}</Text>
                   </View>
                 )}
               </View>
 
               {/* Traitement & Ordonnance */}
-              <View style={{ backgroundColor: '#0F2C3D', padding: 12, borderRadius: 10, borderWidth: 1, borderColor: '#2F5C77', gap: 10 }}>
+              <View style={{ backgroundColor: '#0F2C3D', padding: 14, borderRadius: 12, borderWidth: 1, borderColor: '#2F5C77', gap: 12 }}>
                 <Text style={{ color: '#28C2FF', fontWeight: 'bold', fontSize: 14 }}>
                   Traitement & Ordonnance
                 </Text>
-                <Text style={{ color: '#FFFFFF', fontSize: 14, lineHeight: 20 }}>
+                <Text style={{ color: '#FFFFFF', fontSize: 14, lineHeight: 22, backgroundColor: '#1E3E52', padding: 12, borderRadius: 8 }}>
                   {selectedConsultationDetail?.traitement || 'Aucun traitement médicamenteux saisi.'}
                 </Text>
 
                 <TouchableOpacity
                   style={{
                     backgroundColor: '#28C2FF',
-                    paddingVertical: 12,
-                    paddingHorizontal: 16,
-                    borderRadius: 8,
+                    paddingVertical: 14,
+                    paddingHorizontal: 20,
+                    borderRadius: 10,
                     flexDirection: 'row',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    gap: 8,
+                    gap: 10,
                     marginTop: 6,
                   }}
+                  activeOpacity={0.8}
                   onPress={() => {
                     const cId = selectedConsultationDetail?.id;
+                    const treatmentText = selectedConsultationDetail?.traitement || '';
                     setSelectedConsultationDetail(null);
-                    router.push(`/patients/ordonnance_create?consultationId=${cId}&patientId=${id}`);
+                    router.push({
+                      pathname: '/patients/ordonnance_create',
+                      params: {
+                        consultationId: cId,
+                        patientId: id,
+                        treatment: encodeURIComponent(treatmentText),
+                      },
+                    });
                   }}
                 >
-                  <Ionicons name="document-text-outline" size={18} color="#0F2C3D" />
-                  <Text style={{ color: '#0F2C3D', fontWeight: 'bold', fontSize: 14 }}>Générer l'Ordonnance PDF</Text>
+                  <Ionicons name="document-text" size={20} color="#0F2C3D" />
+                  <Text style={{ color: '#0F2C3D', fontWeight: 'bold', fontSize: 15 }}>Générer l'Ordonnance PDF</Text>
                 </TouchableOpacity>
               </View>
             </ScrollView>
@@ -2848,8 +2864,9 @@ const styles = StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    backgroundColor: 'rgba(0, 0, 0, 0.75)',
     justifyContent: 'center',
+    alignItems: 'center',
     padding: 24,
   },
   modalContent: {
@@ -2858,6 +2875,9 @@ const styles = StyleSheet.create({
     padding: 24,
     borderWidth: 1,
     borderColor: '#2F5C77',
+    width: '100%',
+    maxWidth: 700,
+    alignSelf: 'center',
   },
   modalTitle: {
     fontSize: 20,

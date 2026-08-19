@@ -16,12 +16,13 @@ import { useLocalSearchParams, useRouter, Link } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
+import { getPatientById } from '../../services/api/patientsService';
+import { getConsultationById } from '../../services/api/consultationsService';
 import {
   addOrdonnance,
   getOrdonnanceByConsultation,
-  getPatientById,
-  Patient,
 } from '../../database/SQLiteDatabaseManager';
+import { Patient } from '../../types';
 import { getDatabase } from '../../database/db';
 import { encryptData, decryptData } from '../../security/encryption';
 import { calculateAge, formatDateFR } from '../../utils/helpers';
@@ -29,7 +30,12 @@ import { useSecurity } from '../../security/SecurityContext';
 
 export default function CreateOrdonnanceScreen() {
   const router = useRouter();
-  const { consultationId, patientId } = useLocalSearchParams<{ consultationId: string; patientId: string }>();
+  const { consultationId, patientId, treatment, traitement } = useLocalSearchParams<{
+    consultationId?: string;
+    patientId?: string;
+    treatment?: string;
+    traitement?: string;
+  }>();
   const { user } = useSecurity();
 
   const showAlert = (title: string, message: string, buttons?: { text: string; onPress?: () => void }[]) => {
@@ -67,44 +73,54 @@ export default function CreateOrdonnanceScreen() {
   }, []);
 
   useEffect(() => {
-    if (consultationId && patientId) {
-      loadData();
-    }
-  }, [consultationId, patientId]);
+    loadData();
+  }, [consultationId, patientId, treatment, traitement]);
 
   const loadData = async () => {
     setLoading(true);
     try {
-      // 1. Load patient
-      const p = await getPatientById(patientId);
-      setPatient(p);
-
-      // 2. Check if an ordonnance already exists for this consultation
-      const ord = await getOrdonnanceByConsultation(consultationId);
-      if (ord) {
-        setExistingOrdonnance(ord);
-        setContenu(ord.contenu);
-      } else {
-        // Pre-fill with the treatment from the consultation
-        const db = await getDatabase();
-        const row = (await db.getFirstAsync(
-          'SELECT traitement FROM consultations WHERE id = ?;',
-          [consultationId]
-        )) as any;
-        if (row && row.traitement) {
-          const decryptedTreatment = await decryptData(row.traitement);
-          setContenu(decryptedTreatment || '');
-        }
+      // 0. Pré-remplissage immédiat depuis les paramètres d'URL si transmis
+      const paramTreatment = treatment ? decodeURIComponent(treatment) : (traitement ? decodeURIComponent(traitement) : '');
+      if (paramTreatment) {
+        setContenu(paramTreatment);
       }
 
-      // 3. Pre-fill weight if constants exist for this consultation
-      const db = await getDatabase();
-      const weightRow = (await db.getFirstAsync(
-        'SELECT poids FROM constantes WHERE consultation_id = ?;',
-        [consultationId]
-      )) as any;
-      if (weightRow && weightRow.poids) {
-        setPoids(weightRow.poids.toString());
+      // 1. Charger le dossier patient depuis Supabase
+      if (patientId) {
+        const p = await getPatientById(patientId);
+        if (p) setPatient(p);
+      }
+
+      // 2. Charger les données de la consultation (traitement, poids) depuis Supabase
+      if (consultationId) {
+        try {
+          const c = await getConsultationById(consultationId);
+          if (c) {
+            if (!paramTreatment && c.traitement) {
+              setContenu(c.traitement);
+            }
+            if (c.poids_kg) {
+              setPoids(c.poids_kg.toString());
+            }
+            if (!patient && c.patient_id) {
+              const p = await getPatientById(c.patient_id);
+              if (p) setPatient(p);
+            }
+          }
+        } catch (e) {
+          console.warn('Could not fetch consultation for ordonnance prefill:', e);
+        }
+
+        // Vérifier si une ordonnance existait déjà en local
+        try {
+          const ord = await getOrdonnanceByConsultation(consultationId);
+          if (ord) {
+            setExistingOrdonnance(ord);
+            if (!paramTreatment && ord.contenu) {
+              setContenu(ord.contenu);
+            }
+          }
+        } catch (e) {}
       }
     } catch (err) {
       console.error(err);
@@ -129,7 +145,7 @@ export default function CreateOrdonnanceScreen() {
       if (!existingOrdonnance) {
         const newOrd = await addOrdonnance(
           {
-            consultation_id: consultationId,
+            consultation_id: consultationId || '',
             contenu: contenu.trim(),
             date: new Date().toISOString().split('T')[0],
             pdf_url: null, // Local temporary PDF initially
