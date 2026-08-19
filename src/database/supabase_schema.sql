@@ -226,8 +226,32 @@ CREATE POLICY "Médecin peut insérer son profil"
 ON public.profiles FOR INSERT WITH CHECK (auth.uid() = id);
 
 -- Patients
-CREATE POLICY "Médecin propriétaire patients - ALL"
-ON public.patients FOR ALL USING (auth.uid() = doctor_id) WITH CHECK (auth.uid() = doctor_id);
+CREATE POLICY "Médecin propriétaire patients - INSERT"
+ON public.patients FOR INSERT
+WITH CHECK (
+  auth.uid() IS NOT NULL AND (doctor_id = auth.uid() OR doctor_id IS NULL)
+);
+
+CREATE POLICY "Médecin propriétaire patients - SELECT"
+ON public.patients FOR SELECT
+USING (
+  auth.uid() IS NOT NULL AND doctor_id = auth.uid()
+);
+
+CREATE POLICY "Médecin propriétaire patients - UPDATE"
+ON public.patients FOR UPDATE
+USING (
+  auth.uid() IS NOT NULL AND doctor_id = auth.uid()
+)
+WITH CHECK (
+  auth.uid() IS NOT NULL AND doctor_id = auth.uid()
+);
+
+CREATE POLICY "Médecin propriétaire patients - DELETE"
+ON public.patients FOR DELETE
+USING (
+  auth.uid() IS NOT NULL AND doctor_id = auth.uid()
+);
 
 -- Consultations
 CREATE POLICY "Médecin propriétaire consultations - ALL"

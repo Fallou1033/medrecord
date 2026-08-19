@@ -1,6 +1,7 @@
 import { supabase } from '../../lib/supabase';
 import { Patient } from '../../types';
-import { getAuthenticatedDoctorId } from '../../security/auth';
+import { signInDoctor } from '../../security/auth';
+import { STORAGE_KEYS, safeStorageGet } from '../../utils/storage';
 
 /**
  * Service de gestion des patients connecté à Supabase avec Row Level Security (RLS)
@@ -84,8 +85,35 @@ export async function getPatientById(id: string): Promise<Patient | null> {
 }
 
 export async function createPatient(patient: Partial<Patient> & { nom: string; prenom: string; sexe: 'M' | 'F' }): Promise<Patient> {
-  // Récupération asynchrone et infaillible de l'identifiant du médecin connecté
-  const doctorId = await getAuthenticatedDoctorId();
+  // 1. Vérification et extraction de la session Supabase active
+  let doctorId: string | null = null;
+  const { data: userData } = await supabase.auth.getUser();
+  if (userData?.user?.id) {
+    doctorId = userData.user.id;
+  } else {
+    const { data: sessionData } = await supabase.auth.getSession();
+    if (sessionData?.session?.user?.id) {
+      doctorId = sessionData.session.user.id;
+    } else {
+      // Tenter la reconnexion automatique avec les identifiants locaux
+      const cachedUser = safeStorageGet(STORAGE_KEYS.CURRENT_USER);
+      if (cachedUser?.email && cachedUser?.pin) {
+        try {
+          const profile = await signInDoctor({
+            email: cachedUser.email,
+            pin: cachedUser.pin,
+          });
+          doctorId = profile.id;
+        } catch (e) {
+          console.error('Auto-reconnect during createPatient failed:', e);
+        }
+      }
+    }
+  }
+
+  if (!doctorId) {
+    throw new Error("Session praticien non authentifiée ou expirée. Veuillez vous reconnecter.");
+  }
 
   // Formatage de la date de naissance au format ISO YYYY-MM-DD
   let cleanDateNaissance: string | null = null;

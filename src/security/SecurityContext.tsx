@@ -75,15 +75,37 @@ export const SecurityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           setUser(profile);
           setIsSetup(true);
           persistActiveSession(profile);
-          // Requiert le code PIN local à l'ouverture du site pour sécurité
-          setIsLocked(true);
+          setIsLocked(false);
         } else {
           setIsSetup(false);
           setIsLocked(false);
         }
       } else {
-        setIsSetup(false);
-        setIsLocked(false);
+        // Si pas de session Supabase active, tenter l'auto-reconnexion avec le cache
+        const cachedUser = safeStorageGet(STORAGE_KEYS.CURRENT_USER);
+        if (cachedUser?.email && cachedUser?.pin) {
+          try {
+            const profile = await signInDoctor({
+              email: cachedUser.email,
+              pin: cachedUser.pin,
+            });
+            if (profile) {
+              setUser(profile);
+              setIsSetup(true);
+              persistActiveSession(profile);
+              setIsLocked(false);
+            }
+          } catch {
+            setUser(null);
+            setIsSetup(false);
+            setIsLocked(false);
+            purgeActiveSession();
+          }
+        } else {
+          setUser(null);
+          setIsSetup(false);
+          setIsLocked(false);
+        }
       }
 
       const bioEnabled = await isBiometricEnabled();
