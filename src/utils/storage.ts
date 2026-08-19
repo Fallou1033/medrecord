@@ -35,6 +35,38 @@ export function safeStorageGet<T = any>(key: string, fallback: T | null = null):
 }
 
 /**
+ * Retrieves the stored doctor profile across any legacy or new key.
+ */
+export function getAnyStoredDoctorProfile(): any | null {
+  if (Platform.OS === 'web' && typeof window !== 'undefined') {
+    return (
+      safeStorageGet(STORAGE_KEYS.CURRENT_USER) ||
+      safeStorageGet(STORAGE_KEYS.DOCTOR_PROFILE) ||
+      safeStorageGet(STORAGE_KEYS.DOCTOR_OFFICIAL) ||
+      safeStorageGet(STORAGE_KEYS.DOCTOR_META) ||
+      safeStorageGet(STORAGE_KEYS.DOCTOR_LEGACY) ||
+      null
+    );
+  }
+  return null;
+}
+
+/**
+ * Retrieves any stored PIN hash.
+ */
+export function getAnyStoredPinHash(): string | null {
+  if (Platform.OS === 'web' && typeof window !== 'undefined') {
+    const directHash = safeStorageGet<string>(STORAGE_KEYS.PIN_HASH);
+    if (directHash) return directHash;
+    const meta = safeStorageGet(STORAGE_KEYS.DOCTOR_META);
+    if (meta?.pin_hash) return meta.pin_hash;
+    const profile = getAnyStoredDoctorProfile();
+    if (profile?.pin_hash) return profile.pin_hash;
+  }
+  return null;
+}
+
+/**
  * Safely saves an item to web localStorage.
  */
 export function safeStorageSet(key: string, value: any): void {

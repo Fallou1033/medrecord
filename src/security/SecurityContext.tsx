@@ -42,29 +42,33 @@ const SecurityContext = createContext<SecurityContextType | null>(null);
 
 export const SecurityProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [isSetup, setIsSetup] = useState<boolean>(() => {
+    const { getAnyStoredDoctorProfile } = require('../utils/storage');
     const isSessionActive = safeStorageGet(STORAGE_KEYS.SESSION_ACTIVE) === 'true';
-    const activeUserId = safeStorageGet(STORAGE_KEYS.ACTIVE_USER_ID);
-    return Boolean(isSessionActive && activeUserId);
+    const profile = getAnyStoredDoctorProfile();
+    return Boolean(isSessionActive || profile);
   });
 
   const [user, setUser] = useState<UserProfile | null>(() => {
-    const isSessionActive = safeStorageGet(STORAGE_KEYS.SESSION_ACTIVE) === 'true';
-    if (!isSessionActive) return null;
-    return (
-      safeStorageGet<UserProfile>(STORAGE_KEYS.CURRENT_USER) ||
-      safeStorageGet<UserProfile>(STORAGE_KEYS.DOCTOR_PROFILE) ||
-      null
-    );
+    const { getAnyStoredDoctorProfile } = require('../utils/storage');
+    const profile = getAnyStoredDoctorProfile();
+    if (!profile) return null;
+    return {
+      id: profile.id || 'dr_main',
+      email: profile.email || 'dr@cabinet.sn',
+      nom: profile.nom || 'Diéye',
+      prenom: profile.prenom || 'Mami',
+      telephone: profile.telephone || null,
+      role: profile.role || 'MEDECIN',
+      biometrie_active: Boolean(profile.biometrie_active),
+    };
   });
 
   // Always start locked if an active practitioner profile exists, prompting for 4-digit PIN
   const [isLocked, setIsLocked] = useState<boolean>(() => {
+    const { getAnyStoredDoctorProfile } = require('../utils/storage');
     const isSessionActive = safeStorageGet(STORAGE_KEYS.SESSION_ACTIVE) === 'true';
-    const hasStoredUser = Boolean(
-      safeStorageGet(STORAGE_KEYS.CURRENT_USER) ||
-      safeStorageGet(STORAGE_KEYS.DOCTOR_PROFILE)
-    );
-    return Boolean(isSessionActive && hasStoredUser);
+    const profile = getAnyStoredDoctorProfile();
+    return Boolean(isSessionActive || profile);
   });
 
   const [biometricsEnabled, setBiometricsEnabled] = useState(false);
