@@ -212,7 +212,7 @@ ALTER TABLE public.appointments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.journal_audit ENABLE ROW LEVEL SECURITY;
 
 -- ============================================================================
--- 12. POLITIQUES DE SECURITE RLS
+-- 12. POLITIQUES DE SECURITE RLS GRANULAIRES
 -- ============================================================================
 
 -- Profiles
@@ -254,20 +254,86 @@ USING (
 );
 
 -- Consultations
-CREATE POLICY "Médecin propriétaire consultations - ALL"
-ON public.consultations FOR ALL USING (auth.uid() = doctor_id) WITH CHECK (auth.uid() = doctor_id);
+CREATE POLICY "Médecin propriétaire consultations - INSERT"
+ON public.consultations FOR INSERT
+WITH CHECK (
+  auth.uid() IS NOT NULL AND (doctor_id = auth.uid() OR doctor_id IS NULL)
+);
+
+CREATE POLICY "Médecin propriétaire consultations - SELECT"
+ON public.consultations FOR SELECT
+USING (
+  auth.uid() IS NOT NULL AND doctor_id = auth.uid()
+);
+
+CREATE POLICY "Médecin propriétaire consultations - UPDATE"
+ON public.consultations FOR UPDATE
+USING (
+  auth.uid() IS NOT NULL AND doctor_id = auth.uid()
+)
+WITH CHECK (
+  auth.uid() IS NOT NULL AND doctor_id = auth.uid()
+);
+
+CREATE POLICY "Médecin propriétaire consultations - DELETE"
+ON public.consultations FOR DELETE
+USING (
+  auth.uid() IS NOT NULL AND doctor_id = auth.uid()
+);
 
 -- Prescriptions
-CREATE POLICY "Médecin propriétaire prescriptions - ALL"
-ON public.prescriptions FOR ALL USING (auth.uid() = doctor_id) WITH CHECK (auth.uid() = doctor_id);
+CREATE POLICY "Médecin propriétaire prescriptions - INSERT"
+ON public.prescriptions FOR INSERT
+WITH CHECK (
+  auth.uid() IS NOT NULL AND (doctor_id = auth.uid() OR doctor_id IS NULL)
+);
+
+CREATE POLICY "Médecin propriétaire prescriptions - SELECT"
+ON public.prescriptions FOR SELECT
+USING (
+  auth.uid() IS NOT NULL AND doctor_id = auth.uid()
+);
+
+CREATE POLICY "Médecin propriétaire prescriptions - UPDATE"
+ON public.prescriptions FOR UPDATE
+USING (
+  auth.uid() IS NOT NULL AND doctor_id = auth.uid()
+)
+WITH CHECK (
+  auth.uid() IS NOT NULL AND doctor_id = auth.uid()
+);
 
 -- Appointments
-CREATE POLICY "Médecin propriétaire appointments - ALL"
-ON public.appointments FOR ALL USING (auth.uid() = doctor_id) WITH CHECK (auth.uid() = doctor_id);
+CREATE POLICY "Médecin propriétaire appointments - INSERT"
+ON public.appointments FOR INSERT
+WITH CHECK (
+  auth.uid() IS NOT NULL AND (doctor_id = auth.uid() OR doctor_id IS NULL)
+);
+
+CREATE POLICY "Médecin propriétaire appointments - SELECT"
+ON public.appointments FOR SELECT
+USING (
+  auth.uid() IS NOT NULL AND doctor_id = auth.uid()
+);
+
+CREATE POLICY "Médecin propriétaire appointments - UPDATE"
+ON public.appointments FOR UPDATE
+USING (
+  auth.uid() IS NOT NULL AND doctor_id = auth.uid()
+)
+WITH CHECK (
+  auth.uid() IS NOT NULL AND doctor_id = auth.uid()
+);
 
 -- Journal Audit
-CREATE POLICY "Médecin propriétaire audit - SELECT"
-ON public.journal_audit FOR SELECT USING (auth.uid() = doctor_id);
-
 CREATE POLICY "Médecin propriétaire audit - INSERT"
-ON public.journal_audit FOR INSERT WITH CHECK (auth.uid() = doctor_id);
+ON public.journal_audit FOR INSERT
+WITH CHECK (
+  auth.uid() IS NOT NULL AND (doctor_id = auth.uid() OR doctor_id IS NULL)
+);
+
+CREATE POLICY "Médecin propriétaire audit - SELECT"
+ON public.journal_audit FOR SELECT
+USING (
+  auth.uid() IS NOT NULL AND doctor_id = auth.uid()
+);
