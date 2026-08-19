@@ -187,6 +187,7 @@ export async function signUpDoctor(params: {
 
 /**
  * Connexion d'un praticien existant via Supabase Auth
+ * N'appelle JAMAIS signUp pour éviter toute tentative d'envoi d'e-mail ou de rate limit.
  */
 export async function signInDoctor(params: {
   email: string;
@@ -194,47 +195,51 @@ export async function signInDoctor(params: {
   pin: string;
 }): Promise<UserProfile> {
   const cleanEmail = params.email.trim().toLowerCase();
-  const password = params.password || getDoctorPassword(params.pin, cleanEmail);
+  const cleanIdentifier = cleanEmail.replace(/[^a-z0-9]/g, '');
 
-  // 1. Tenter la connexion standard
-  let { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-    email: cleanEmail,
-    password,
-  });
+  // 1. Liste complète et ordonnée des schémas de mots de passe dérivés possibles
+  const candidatePasswords = [
+    params.password,
+    getDoctorPassword(params.pin, cleanEmail),
+    `MedRecord#${params.pin}#${cleanIdentifier}`,
+    `Med@${params.pin}#dieye`,
+    `Med@${params.pin}#mami`,
+    `Med@${params.pin}#sow`,
+    `Med@${params.pin}#2026`,
+    `MedRecord@${params.pin}`,
+    params.pin.repeat(2),
+    `Med@${params.pin}#falludiop10008`,
+    `MedRecord@2026#${params.pin}`,
+  ].filter(Boolean) as string[];
 
-  // 2. Si échec, tester les variantes de mot de passe antérieures
-  if (authError || !authData?.user) {
-    const candidatePasswords = [
-      `Med@${params.pin}#dieye`,
-      `Med@${params.pin}#2026`,
-      `Med@${params.pin}#mami`,
-      `Med@${params.pin}#sow`,
-      `MedRecord@${params.pin}`,
-      params.pin.repeat(2),
-    ];
+  let authData: any = null;
+  let authError: any = null;
 
-    for (const candidate of candidatePasswords) {
-      const res = await supabase.auth.signInWithPassword({
-        email: cleanEmail,
-        password: candidate,
-      });
-      if (res.data?.user) {
-        authData = res.data;
-        authError = null;
-        break;
-      }
+  // 2. Tester l'authentification avec chaque mot de passe candidat
+  for (const candidate of candidatePasswords) {
+    const res = await supabase.auth.signInWithPassword({
+      email: cleanEmail,
+      password: candidate,
+    });
+    if (res.data?.user) {
+      authData = res.data;
+      authError = null;
+      break;
+    } else {
+      authError = res.error;
     }
   }
 
-  // 3. Si toujours aucun compte trouvé, auto-provisionner le praticien avec ce code PIN
+  // 3. Si l'authentification a échoué, afficher un message d'erreur clair
   if (authError || !authData?.user) {
-    console.log('MedRecord: Auto-provisioning practitioner for PIN:', params.pin);
-    return await signUpDoctor({
-      email: cleanEmail,
-      nom: 'Diéye',
-      prenom: 'Mami',
-      pin: params.pin,
-    });
+    console.error('MedRecord: Supabase signInWithPassword failed:', authError?.message);
+    if (authError?.message?.includes('Invalid login credentials')) {
+      throw new Error("Identifiant ou code PIN incorrect. Veuillez vérifier votre saisie.");
+    }
+    if (authError?.message?.includes('Email not confirmed')) {
+      throw new Error("Compte en attente de validation d'e-mail sur Supabase (désactivez 'Confirm email' dans Authentication > Providers > Email).");
+    }
+    throw new Error(authError?.message || "Identifiant ou code PIN incorrect.");
   }
 
   const user = authData.user;
