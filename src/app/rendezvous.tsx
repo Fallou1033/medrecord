@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   StyleSheet,
   View,
@@ -54,6 +54,14 @@ const ALL_HOURS = [
 export default function RendezVousScreen() {
   const { user } = useSecurity();
   const router = useRouter();
+  const isMountedRef = useRef(true);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   const showAlert = (title: string, message: string, buttons?: { text: string; onPress?: () => void }[]) => {
     if (Platform.OS === 'web') {
@@ -147,13 +155,17 @@ export default function RendezVousScreen() {
         getAppointments().catch(() => []),
         getPatients().catch(() => []),
       ]);
-      setRdvs(list);
-      setPatients(pList);
-      setFilteredPatients(pList);
+      if (isMountedRef.current) {
+        setRdvs(Array.isArray(list) ? list : []);
+        setPatients(Array.isArray(pList) ? pList : []);
+        setFilteredPatients(Array.isArray(pList) ? pList : []);
+      }
     } catch (err) {
       console.error(err);
     } finally {
-      setLoading(false);
+      if (isMountedRef.current) {
+        setLoading(false);
+      }
     }
   };
 

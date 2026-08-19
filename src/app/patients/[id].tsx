@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   StyleSheet,
   View,
@@ -79,6 +79,14 @@ export default function PatientDetailsScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { user } = useSecurity();
+  const isMountedRef = useRef(true);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   const showAlert = (title: string, message: string, buttons?: { text: string; onPress?: () => void }[]) => {
     if (Platform.OS === 'web') {
@@ -405,11 +413,13 @@ export default function PatientDetailsScreen() {
       const cons = await getConsultations(id).catch(() => []);
       setConsultations(cons);
 
-      const vacs = await getVaccinationsByPatient(id).catch(() => []);
-      setVaccinations(vacs);
+      if (isMountedRef.current) {
+        const vacs = await getVaccinationsByPatient(id).catch(() => []);
+        setVaccinations(vacs);
 
-      const para = await getExamensParacliniquesByPatient(id).catch(() => []);
-      setExamensParacliniques(para);
+        const para = await getExamensParacliniquesByPatient(id).catch(() => []);
+        setExamensParacliniques(para);
+      }
 
       // Audit read file
       logAuditEvent(
@@ -417,11 +427,13 @@ export default function PatientDetailsScreen() {
         'patients',
         id,
         `Consultation du dossier patient de ${p.prenom} ${p.nom} (${p.numero_dossier})`
-      );
+      ).catch(() => {});
     } catch (error) {
       console.error('Failed to load patient data:', error);
     } finally {
-      setLoading(false);
+      if (isMountedRef.current) {
+        setLoading(false);
+      }
     }
   };
 

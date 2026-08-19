@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   StyleSheet,
   View,
@@ -12,7 +12,7 @@ import {
   Platform,
   StatusBar,
 } from 'react-native';
-import { useLocalSearchParams, useRouter, Link } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
@@ -27,6 +27,14 @@ export default function CreateCertificatScreen() {
   const router = useRouter();
   const { patientId } = useLocalSearchParams<{ patientId: string }>();
   const { user } = useSecurity();
+  const isMountedRef = useRef(true);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   const [patient, setPatient] = useState<Patient | null>(null);
   const [loading, setLoading] = useState(true);
@@ -114,12 +122,16 @@ export default function CreateCertificatScreen() {
     setLoading(true);
     try {
       const p = await getPatientById(patientId);
-      setPatient(p);
+      if (isMountedRef.current) {
+        setPatient(p);
+      }
     } catch (err) {
       console.error(err);
       Alert.alert('Erreur', 'Impossible de charger le patient.');
     } finally {
-      setLoading(false);
+      if (isMountedRef.current) {
+        setLoading(false);
+      }
     }
   };
 

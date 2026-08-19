@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Platform,
   ScrollView,
@@ -47,6 +47,14 @@ export default function SettingsScreen() {
   const theme = useTheme();
   const { themeMode, setThemeMode } = useThemePreference();
   const { user, setupSecurity, logout, lock, autoLockMinutes, updateAutoLockTimeout } = useSecurity();
+  const isMountedRef = useRef(true);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   // Active modal section: 'profile' | 'cabinet' | 'security' | 'audit' | 'backup' | 'theme' | 'about' | null
   const [activeModal, setActiveModal] = useState<string | null>(null);
@@ -72,11 +80,15 @@ export default function SettingsScreen() {
     setLoadingAudit(true);
     try {
       const logs = await getAuditLogs(200, filter);
-      setAuditLogs(logs);
+      if (isMountedRef.current) {
+        setAuditLogs(Array.isArray(logs) ? logs : []);
+      }
     } catch (e) {
       console.error('Failed to load audit logs:', e);
     } finally {
-      setLoadingAudit(false);
+      if (isMountedRef.current) {
+        setLoadingAudit(false);
+      }
     }
   };
 

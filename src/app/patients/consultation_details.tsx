@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   StyleSheet,
   View,
@@ -12,7 +12,7 @@ import {
   Platform,
   StatusBar,
 } from 'react-native';
-import { useLocalSearchParams, useRouter, Link } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
@@ -32,6 +32,14 @@ export default function ConsultationDetailsScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { user } = useSecurity();
+  const isMountedRef = useRef(true);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   const showAlert = (title: string, message: string, buttons?: { text: string; onPress?: () => void }[]) => {
     if (Platform.OS === 'web') {
@@ -199,11 +207,12 @@ export default function ConsultationDetailsScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <Link href={`/patients/${consultation.patient_id}`} asChild>
-          <TouchableOpacity style={styles.backButton}>
-            <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
-          </TouchableOpacity>
-        </Link>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => router.push(`/patients/${consultation.patient_id}`)}
+        >
+          <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+        </TouchableOpacity>
         <Text style={styles.title}>Détail de la Visite</Text>
         <View style={styles.placeholder} />
       </View>
@@ -258,22 +267,22 @@ export default function ConsultationDetailsScreen() {
             {consultation.traitement || 'Aucun traitement médicamenteux saisi.'}
           </Text>
 
-          <Link
-            href={{
-              pathname: '/patients/ordonnance_create' as any,
-              params: {
-                consultationId: id,
-                patientId: patient.id,
-                treatment: encodeURIComponent(consultation.traitement || ''),
-              },
+          <TouchableOpacity
+            style={styles.prescriptionButton}
+            onPress={() => {
+              router.push({
+                pathname: '/patients/ordonnance_create',
+                params: {
+                  consultationId: id,
+                  patientId: patient.id,
+                  treatment: encodeURIComponent(consultation.traitement || ''),
+                },
+              });
             }}
-            asChild
           >
-            <TouchableOpacity style={styles.prescriptionButton}>
-              <Ionicons name="document-text-outline" size={20} color="#0F2C3D" />
-              <Text style={styles.prescriptionButtonText}>Générer l'Ordonnance PDF</Text>
-            </TouchableOpacity>
-          </Link>
+            <Ionicons name="document-text-outline" size={20} color="#0F2C3D" />
+            <Text style={styles.prescriptionButtonText}>Générer l'Ordonnance PDF</Text>
+          </TouchableOpacity>
         </View>
 
         {/* Section 4: Examens Complémentaires & Pièces Jointes */}
@@ -281,12 +290,13 @@ export default function ConsultationDetailsScreen() {
           <View style={styles.cardHeaderFlex}>
             <Text style={styles.cardTitleNoMargin}>Examens & Pièces Jointes</Text>
             <View style={{ flexDirection: 'row', gap: 6 }}>
-              <Link href={`/patients/paraclinique_create?patientId=${consultation.patient_id}&consultationId=${consultation.id}`} asChild>
-                <TouchableOpacity style={[styles.smallAddButton, { backgroundColor: '#28C2FF' }]}>
-                  <Ionicons name="flask-outline" size={16} color="#0F2C3D" />
-                  <Text style={styles.smallAddButtonText}>+ Paraclinique</Text>
-                </TouchableOpacity>
-              </Link>
+              <TouchableOpacity
+                style={[styles.smallAddButton, { backgroundColor: '#28C2FF' }]}
+                onPress={() => router.push(`/patients/paraclinique_create?patientId=${consultation.patient_id}&consultationId=${consultation.id}`)}
+              >
+                <Ionicons name="flask-outline" size={16} color="#0F2C3D" />
+                <Text style={styles.smallAddButtonText}>+ Paraclinique</Text>
+              </TouchableOpacity>
               <TouchableOpacity
                 style={styles.smallAddButton}
                 onPress={() => setModalExamVisible(true)}

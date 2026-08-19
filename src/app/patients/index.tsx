@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   StyleSheet,
   View,
@@ -23,6 +23,15 @@ import { useSecurity } from '../../security/SecurityContext';
 export default function PatientsListScreen() {
   const router = useRouter();
   const { user } = useSecurity();
+  const isMountedRef = useRef(true);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
   const [patients, setPatients] = useState<Patient[]>([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
@@ -38,16 +47,22 @@ export default function PatientsListScreen() {
   const loadPatients = async () => {
     try {
       const list = await getPatients();
-      setPatients(Array.isArray(list) ? list : []);
+      if (isMountedRef.current) {
+        setPatients(Array.isArray(list) ? list : []);
+      }
 
       // Audit read list
       logAuditEvent('READ', 'patients', null, 'Lecture de la liste des patients').catch(() => {});
     } catch (error) {
       console.error('Failed to load patients:', error);
-      setPatients([]);
+      if (isMountedRef.current) {
+        setPatients([]);
+      }
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      if (isMountedRef.current) {
+        setLoading(false);
+        setRefreshing(false);
+      }
     }
   };
 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   StyleSheet,
   View,
@@ -11,7 +11,7 @@ import {
   Modal,
   Platform,
 } from 'react-native';
-import { useLocalSearchParams, useRouter, Link } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
@@ -31,6 +31,14 @@ export default function ConsultationDetailsScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { user } = useSecurity();
+  const isMountedRef = useRef(true);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   const showAlert = (title: string, message: string, buttons?: { text: string; onPress?: () => void }[]) => {
     if (Platform.OS === 'web') {
@@ -198,11 +206,12 @@ export default function ConsultationDetailsScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <Link href={`/patients/${consultation.patient_id}`} style={styles.backButton}>
-          <View pointerEvents="none">
-            <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
-          </View>
-        </Link>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => router.push(`/patients/${consultation.patient_id}`)}
+        >
+          <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+        </TouchableOpacity>
         <Text style={styles.title}>Détail de la Visite</Text>
         <View style={styles.placeholder} />
       </View>
@@ -257,18 +266,22 @@ export default function ConsultationDetailsScreen() {
             {consultation.traitement || 'Aucun traitement médicamenteux saisi.'}
           </Text>
 
-          <Link
-            href={{
-              pathname: '/ordonnances/create',
-              params: { consultationId: id, patientId: patient.id },
+          <TouchableOpacity
+            style={styles.prescriptionButton}
+            onPress={() => {
+              router.push({
+                pathname: '/ordonnances/create',
+                params: {
+                  consultationId: id,
+                  patientId: patient.id,
+                  treatment: encodeURIComponent(consultation.traitement || ''),
+                },
+              });
             }}
-            asChild
           >
-            <TouchableOpacity style={styles.prescriptionButton}>
-              <Ionicons name="document-text-outline" size={20} color="#0F2C3D" />
-              <Text style={styles.prescriptionButtonText}>Générer l'Ordonnance PDF</Text>
-            </TouchableOpacity>
-          </Link>
+            <Ionicons name="document-text-outline" size={20} color="#0F2C3D" />
+            <Text style={styles.prescriptionButtonText}>Générer l'Ordonnance PDF</Text>
+          </TouchableOpacity>
         </View>
 
         {/* Section 4: Examens Complémentaires & Pièces Jointes */}

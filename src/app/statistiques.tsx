@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   StyleSheet,
   View,
@@ -27,6 +27,15 @@ interface Stats {
 export default function StatistiquesScreen() {
   const router = useRouter();
   const { user } = useSecurity();
+  const isMountedRef = useRef(true);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
   const [stats, setStats] = useState<Stats>({
     totalPatients: 0,
     visitesAujourdhui: 0,
@@ -91,18 +100,22 @@ export default function StatistiquesScreen() {
         .sort((a, b) => b.count - a.count)
         .slice(0, 5);
 
-      setStats({
-        totalPatients: allPatients.length,
-        visitesAujourdhui: visitsToday,
-        nouveauxMois: newMois,
-        patientsM: mCount,
-        patientsF: fCount,
-        topPathologies,
-      });
+      if (isMountedRef.current) {
+        setStats({
+          totalPatients: allPatients.length,
+          visitesAujourdhui: visitsToday,
+          nouveauxMois: newMois,
+          patientsM: mCount,
+          patientsF: fCount,
+          topPathologies,
+        });
+      }
     } catch (e) {
       console.error('Failed to load stats:', e);
     } finally {
-      setLoading(false);
+      if (isMountedRef.current) {
+        setLoading(false);
+      }
     }
   };
 

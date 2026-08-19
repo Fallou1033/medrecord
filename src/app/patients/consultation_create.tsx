@@ -73,6 +73,14 @@ export default function CreateConsultationScreen() {
   const router = useRouter();
   const { patientId } = useLocalSearchParams<{ patientId: string }>();
   const { user } = useSecurity();
+  const isMountedRef = useRef(true);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   const [patient, setPatient] = useState<Patient | null>(null);
   const [loadingPatient, setLoadingPatient] = useState(true);
@@ -388,7 +396,18 @@ export default function CreateConsultationScreen() {
         style={styles.container}
       >
         <View style={styles.header}>
-          <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => {
+              if (patientId) {
+                router.push(`/patients/${patientId}`);
+              } else if (selectedPatientId) {
+                router.push(`/patients/${selectedPatientId}`);
+              } else {
+                router.back();
+              }
+            }}
+          >
             <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
           </TouchableOpacity>
           <Text style={styles.title}>Nouvelle Visite</Text>

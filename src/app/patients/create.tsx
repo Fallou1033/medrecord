@@ -87,12 +87,20 @@ export default function CreatePatientScreen() {
   const [hasRestoredDraft, setHasRestoredDraft] = useState(false);
 
   const isInitialMount = useRef(true);
+  const isMountedRef = useRef(true);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   // Restore draft on initial load
   useEffect(() => {
     (async () => {
       const draft = await loadPatientDraft();
-      if (draft) {
+      if (draft && isMountedRef.current) {
         if (draft.nom) setNom(draft.nom);
         if (draft.prenom) setPrenom(draft.prenom);
         if (draft.sexe) setSexe(draft.sexe);
@@ -244,11 +252,12 @@ export default function CreatePatientScreen() {
         style={styles.container}
       >
         <View style={styles.header}>
-          <Link href="/patients" style={styles.backButton}>
-            <View pointerEvents="none">
-              <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
-            </View>
-          </Link>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => router.push('/patients')}
+          >
+            <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+          </TouchableOpacity>
           <Text style={styles.title}>Nouveau Patient</Text>
           <TouchableOpacity onPress={handleResetForm} style={styles.headerResetBtn} accessibilityLabel="Réinitialiser">
             <Ionicons name="trash-outline" size={20} color="#FF6B6B" />

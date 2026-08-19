@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   StyleSheet,
   View,
@@ -34,6 +34,14 @@ export default function CreateParacliniqueScreen() {
   const router = useRouter();
   const { patientId: initialPatientId, consultationId } = useLocalSearchParams<{ patientId?: string; consultationId?: string }>();
   const { user } = useSecurity();
+  const isMountedRef = useRef(true);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   const showAlert = (title: string, message: string, buttons?: { text: string; onPress?: () => void }[]) => {
     if (Platform.OS === 'web') {
@@ -227,7 +235,18 @@ export default function CreateParacliniqueScreen() {
 
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => {
+            if (initialPatientId) {
+              router.push(`/patients/${initialPatientId}`);
+            } else if (selectedPatientId) {
+              router.push(`/patients/${selectedPatientId}`);
+            } else {
+              router.back();
+            }
+          }}
+        >
           <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Nouvel Examen Paraclinique</Text>

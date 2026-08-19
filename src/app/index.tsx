@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import {
   StyleSheet,
   View,
@@ -37,6 +37,14 @@ let dashboardCache: {
 export default function DashboardScreen() {
   const router = useRouter();
   const { user, lock, logout } = useSecurity();
+  const isMountedRef = useRef(true);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   const [stats, setStats] = useState<Stats>(() => dashboardCache?.stats || {
     totalPatients: 0,
@@ -184,8 +192,10 @@ export default function DashboardScreen() {
         }
       } catch (e) {}
 
-      setFavorites(loadedFavs);
-      setRecents(loadedRecents);
+      if (isMountedRef.current) {
+        setFavorites(loadedFavs);
+        setRecents(loadedRecents);
+      }
 
       dashboardCache = {
         stats: {
@@ -204,11 +214,14 @@ export default function DashboardScreen() {
     } catch (err) {
       console.error('Failed to load dashboard data:', err);
     } finally {
-      setLoading(false);
+      if (isMountedRef.current) {
+        setLoading(false);
+      }
     }
   };
 
   const handleSync = async () => {
+    if (syncing) return;
     setSyncing(true);
     try {
       await loadDashboardData();
@@ -216,7 +229,9 @@ export default function DashboardScreen() {
     } catch (error) {
       Alert.alert('Erreur', 'La synchronisation cloud a rencontré une difficulté.');
     } finally {
-      setSyncing(false);
+      if (isMountedRef.current) {
+        setSyncing(false);
+      }
     }
   };
 
