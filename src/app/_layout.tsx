@@ -134,11 +134,13 @@ function MainAppContent() {
 
   // Calcul direct et fiable de l'état d'authentification
   const isSessionActive = Boolean(
-    user && safeStorageGet(STORAGE_KEYS.SESSION_ACTIVE) === 'true'
+    user ||
+    safeStorageGet(STORAGE_KEYS.SESSION_ACTIVE) === 'true' ||
+    activeView === 'dashboard'
   );
 
-  // 1. Si une session praticien est active :
-  if (isSessionActive) {
+  // 1. Si une session praticien est active OU activeView est 'dashboard' :
+  if (isSessionActive && (user || safeStorageGet(STORAGE_KEYS.SESSION_ACTIVE) === 'true')) {
     if (isLocked) {
       return <LockScreen />;
     }
@@ -147,6 +149,11 @@ function MainAppContent() {
 
   // 2. Si aucune session active (déconnecté ou première installation) :
   switch (activeView) {
+    case 'dashboard':
+      if (isLocked) {
+        return <LockScreen />;
+      }
+      return <AppTabs />;
     case 'login':
       return (
         <View style={{ flex: 1, backgroundColor: '#0F172A' }}>
