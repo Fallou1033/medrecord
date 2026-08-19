@@ -103,15 +103,22 @@ class WebDatabaseMock {
         let countList = list;
         if (countWhereMatch) {
           const whereClause = countWhereMatch[1];
-          const matchEqual = whereClause.match(/([\w.]+)\s*=\s*\?/);
-          const matchGreaterEqual = whereClause.match(/([\w.]+)\s*>=\s*\?/);
-          if (matchEqual) {
-            const field = matchEqual[1].toLowerCase().replace(/.*\./, '');
-            countList = countList.filter((row: any) => row[field] === params[0]);
-          } else if (matchGreaterEqual) {
-            const field = matchGreaterEqual[1].toLowerCase().replace(/.*\./, '');
-            countList = countList.filter((row: any) => row[field] >= params[0]);
-          }
+          // Handle compound WHERE with AND (e.g. medecin_id = ? AND date >= ?)
+          const conditions = whereClause.split(/\s+AND\s+/i);
+          let pIdx = 0;
+          conditions.forEach((cond) => {
+            const mEq = cond.match(/([\w.]+)\s*=\s*\?/);
+            const mGte = cond.match(/([\w.]+)\s*>=\s*\?/);
+            if (mEq) {
+              const field = mEq[1].toLowerCase().replace(/.*\./, '');
+              const val = params[pIdx++];
+              countList = countList.filter((row: any) => row[field] === val || (field === 'doctor_id' && row['medecin_id'] === val) || (field === 'medecin_id' && row['doctor_id'] === val));
+            } else if (mGte) {
+              const field = mGte[1].toLowerCase().replace(/.*\./, '');
+              const val = params[pIdx++];
+              countList = countList.filter((row: any) => row[field] >= val);
+            }
+          });
         }
         return [{ count: countList.length }];
       }
@@ -150,21 +157,48 @@ class WebDatabaseMock {
           const val2 = params[1];
           list = list.filter((row: any) => row[field] >= val1 && row[field] <= val2);
         }
-        // 4. Check for equality (e.g. "id = ?" or "LOWER(field) = ?")
+        // 4. Check for compound AND conditions (e.g., patient_id = ? AND medecin_id = ?)
+        else if (whereClause.includes(' AND ') || whereClause.includes(' and ')) {
+          const conditions = whereClause.split(/\s+AND\s+/i);
+          let pIdx = 0;
+          conditions.forEach((cond) => {
+            const mEq = cond.match(/(?:LOWER\()?([\w.]+)\)?\s*=\s*(?:LOWER\()?(\?|'[^']*')\)?/i);
+            const mGte = cond.match(/([\w.]+)\s*>=\s*\?/i);
+            if (mEq) {
+              const field = mEq[1].replace(/.*\./, '').toLowerCase();
+              const val = mEq[2] === '?' ? params[pIdx++] : mEq[2].replace(/'/g, '');
+              const isLower = cond.toUpperCase().includes('LOWER');
+              list = list.filter((row: any) => {
+                const rowVal = row[field] ?? (field === 'doctor_id' ? row['medecin_id'] : field === 'medecin_id' ? row['doctor_id'] : undefined);
+                if (rowVal === undefined || rowVal === null) return false;
+                if (isLower && typeof rowVal === 'string' && typeof val === 'string') {
+                  return rowVal.toLowerCase() === val.toLowerCase();
+                }
+                return rowVal === val;
+              });
+            } else if (mGte) {
+              const field = mGte[1].replace(/.*\./, '').toLowerCase();
+              const val = params[pIdx++];
+              list = list.filter((row: any) => row[field] >= val);
+            }
+          });
+        }
+        // 5. Check for single equality (e.g. "id = ?" or "doctor_id = ?")
         else if (/(?:LOWER\()?([\w.]+)\)?\s*=\s*(?:LOWER\()?(\?|'[^']*')\)?/i.test(whereClause)) {
           const matchEqual = whereClause.match(/(?:LOWER\()?([\w.]+)\)?\s*=\s*(?:LOWER\()?(\?|'[^']*')\)?/i)!;
           const field = matchEqual[1].replace(/.*\./, '').toLowerCase();
-          const val = params[0] !== undefined ? params[0] : matchEqual[2].replace(/'/g, '');
+          const val = matchEqual[2] === '?' ? params[0] : matchEqual[2].replace(/'/g, '');
           const isLower = whereClause.toUpperCase().includes('LOWER');
           list = list.filter((row: any) => {
-            if (row[field] === undefined || row[field] === null) return false;
-            if (isLower && typeof row[field] === 'string' && typeof val === 'string') {
-              return row[field].toLowerCase() === val.toLowerCase();
+            const rowVal = row[field] ?? (field === 'doctor_id' ? row['medecin_id'] : field === 'medecin_id' ? row['doctor_id'] : undefined);
+            if (rowVal === undefined || rowVal === null) return false;
+            if (isLower && typeof rowVal === 'string' && typeof val === 'string') {
+              return rowVal.toLowerCase() === val.toLowerCase();
             }
-            return row[field] === val;
+            return rowVal === val;
           });
         }
-        // 5. Check for greater or equal (e.g. "date >= ?")
+        // 6. Check for greater or equal (e.g. "date >= ?")
         else if (/([\w.]+)\s*>=\s*\?/i.test(whereClause)) {
           const matchGreaterEqual = whereClause.match(/([\w.]+)\s*>=\s*\?/i)!;
           const field = matchGreaterEqual[1].replace(/.*\./, '').toLowerCase();
@@ -283,6 +317,8 @@ export async function initDatabase(): Promise<void> {
     -- 2. Table Patients
     CREATE TABLE IF NOT EXISTS patients (
       id TEXT PRIMARY KEY,
+      medecin_id TEXT,
+      doctor_id TEXT,
       numero_dossier TEXT UNIQUE NOT NULL,
       nom TEXT NOT NULL,
       prenom TEXT NOT NULL,

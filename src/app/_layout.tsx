@@ -26,33 +26,22 @@ function MainAppContent() {
 
   const [activeView, setActiveView] = React.useState<AppView>(() => {
     const isSessionActive = safeStorageGet(STORAGE_KEYS.SESSION_ACTIVE) === 'true';
-    const hasCurrentUser = Boolean(
-      safeStorageGet(STORAGE_KEYS.CURRENT_USER) ||
-      safeStorageGet(STORAGE_KEYS.DOCTOR_PROFILE)
-    );
+    const hasCurrentUser = Boolean(safeStorageGet(STORAGE_KEYS.CURRENT_USER));
     return isSessionActive && hasCurrentUser ? 'dashboard' : 'welcome';
   });
 
   const [currentDoctor, setCurrentDoctor] = React.useState<any>(() => {
     const isSessionActive = safeStorageGet(STORAGE_KEYS.SESSION_ACTIVE) === 'true';
     if (!isSessionActive) return null;
-    return (
-      safeStorageGet(STORAGE_KEYS.CURRENT_USER) ||
-      safeStorageGet(STORAGE_KEYS.DOCTOR_PROFILE) ||
-      user
-    );
+    return safeStorageGet(STORAGE_KEYS.CURRENT_USER) || user;
   });
 
   // Sync state when security context finishes loading or when user logs out
   useEffect(() => {
     if (!loading) {
       SplashScreen.hideAsync().catch(() => {});
-      const isSessionActive = safeStorageGet(STORAGE_KEYS.SESSION_ACTIVE) === 'true';
-      const hasStoredProfile = Boolean(
-        safeStorageGet(STORAGE_KEYS.CURRENT_USER) ||
-        safeStorageGet(STORAGE_KEYS.DOCTOR_PROFILE)
-      );
-      if (isSessionActive && (user || hasStoredProfile)) {
+      const isSessionActive = Boolean(user && safeStorageGet(STORAGE_KEYS.SESSION_ACTIVE) === 'true');
+      if (isSessionActive) {
         setActiveView('dashboard');
       } else {
         setActiveView('welcome');
@@ -144,10 +133,7 @@ function MainAppContent() {
 
   // Calcul direct et fiable de l'état d'authentification
   const isSessionActive = Boolean(
-    user ||
-    safeStorageGet(STORAGE_KEYS.SESSION_ACTIVE) === 'true' ||
-    safeStorageGet(STORAGE_KEYS.CURRENT_USER) ||
-    safeStorageGet(STORAGE_KEYS.DOCTOR_PROFILE)
+    user && safeStorageGet(STORAGE_KEYS.SESSION_ACTIVE) === 'true'
   );
 
   // 1. Si une session praticien est active :

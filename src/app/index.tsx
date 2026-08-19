@@ -68,8 +68,9 @@ export default function DashboardScreen() {
       setLoading(true);
     }
     try {
+      const doctorId = user?.id;
       const db = await getDatabase();
-      const allPatients = await getPatients();
+      const allPatients = await getPatients(doctorId);
       const patientCount = allPatients.length;
 
       // 1. Calculate Gender stats
@@ -85,10 +86,13 @@ export default function DashboardScreen() {
       todayStart.setHours(0, 0, 0, 0);
       const todayStartStr = todayStart.toISOString();
 
-      const todayVisitsRow = (await db.getFirstAsync(
-        'SELECT COUNT(*) as count FROM consultations WHERE date >= ?;',
-        [todayStartStr]
-      )) as { count: number } | null;
+      let visitsQuery = 'SELECT COUNT(*) as count FROM consultations WHERE date >= ?;';
+      let visitsParams: any[] = [todayStartStr];
+      if (doctorId) {
+        visitsQuery = 'SELECT COUNT(*) as count FROM consultations WHERE (medecin_id = ? OR doctor_id = ?) AND date >= ?;';
+        visitsParams = [doctorId, doctorId, todayStartStr];
+      }
+      const todayVisitsRow = (await db.getFirstAsync(visitsQuery, visitsParams)) as { count: number } | null;
       const visitsToday = todayVisitsRow?.count || 0;
 
       // 3. New patients this month
@@ -97,15 +101,23 @@ export default function DashboardScreen() {
       monthStart.setHours(0, 0, 0, 0);
       const monthStartStr = monthStart.toISOString();
 
-      const newPatientsRow = (await db.getFirstAsync(
-        'SELECT COUNT(*) as count FROM patients WHERE created_at >= ?;',
-        [monthStartStr]
-      )) as { count: number } | null;
+      let newPatientsQuery = 'SELECT COUNT(*) as count FROM patients WHERE created_at >= ?;';
+      let newPatientsParams: any[] = [monthStartStr];
+      if (doctorId) {
+        newPatientsQuery = 'SELECT COUNT(*) as count FROM patients WHERE (medecin_id = ? OR doctor_id = ?) AND created_at >= ?;';
+        newPatientsParams = [doctorId, doctorId, monthStartStr];
+      }
+      const newPatientsRow = (await db.getFirstAsync(newPatientsQuery, newPatientsParams)) as { count: number } | null;
       const newMois = newPatientsRow?.count || 0;
 
-      // 4. Compute Top Pathologies from all consultations
-      // We need to fetch and decrypt diagnostics
-      const consRows = (await db.getAllAsync('SELECT diagnostic FROM consultations WHERE diagnostic IS NOT NULL;')) as any[];
+      // 4. Compute Top Pathologies from doctor's consultations
+      let consQuery = 'SELECT diagnostic FROM consultations WHERE diagnostic IS NOT NULL;';
+      let consParams: any[] = [];
+      if (doctorId) {
+        consQuery = 'SELECT diagnostic FROM consultations WHERE (medecin_id = ? OR doctor_id = ?) AND diagnostic IS NOT NULL;';
+        consParams = [doctorId, doctorId];
+      }
+      const consRows = (await db.getAllAsync(consQuery, consParams)) as any[];
       const pathCounts: Record<string, number> = {};
 
       const { decryptData } = require('../security/encryption');
@@ -313,6 +325,7 @@ export default function DashboardScreen() {
             onPress={() => {
               if (Platform.OS === 'web' && typeof window !== 'undefined') {
                 if (window.confirm("Voulez-vous vous déconnecter de votre cabinet ?")) {
+                  dashboardCache = null;
                   logout();
                 }
               } else {
@@ -321,7 +334,7 @@ export default function DashboardScreen() {
                   'Voulez-vous vous déconnecter de votre cabinet ?',
                   [
                     { text: 'Annuler', style: 'cancel' },
-                    { text: 'Déconnexion', style: 'destructive', onPress: logout },
+                    { text: 'Déconnexion', style: 'destructive', onPress: () => { dashboardCache = null; logout(); } },
                   ]
                 );
               }

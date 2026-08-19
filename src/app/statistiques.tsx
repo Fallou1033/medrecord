@@ -13,6 +13,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { getPatients, getConsultations } from '../database/SQLiteDatabaseManager';
+import { useSecurity } from '../security/SecurityContext';
 
 interface Stats {
   totalPatients: number;
@@ -25,6 +26,7 @@ interface Stats {
 
 export default function StatistiquesScreen() {
   const router = useRouter();
+  const { user } = useSecurity();
   const [stats, setStats] = useState<Stats>({
     totalPatients: 0,
     visitesAujourdhui: 0,
@@ -38,14 +40,14 @@ export default function StatistiquesScreen() {
   useFocusEffect(
     React.useCallback(() => {
       loadStats();
-    }, [])
+    }, [user?.id])
   );
 
   const loadStats = async () => {
     setLoading(true);
     try {
-      const allPatients = await getPatients();
-      const allVisites = await getConsultations();
+      const allPatients = await getPatients(user?.id);
+      const allVisites = await getConsultations(user?.id);
 
       const todayStr = new Date().toISOString().split('T')[0];
       const now = new Date();

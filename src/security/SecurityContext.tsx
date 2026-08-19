@@ -332,16 +332,17 @@ export const SecurityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           user.id
         ).catch(() => {});
       }
-      purgeActiveSession();
-      setUser(null);
-      setIsSetup(false);
-      setIsLocked(false);
-    } catch (e) {
-      console.error('Logout error:', e);
-      setUser(null);
-      setIsSetup(false);
-      setIsLocked(false);
-    }
+    } catch (e) {}
+
+    try {
+      const { clearActiveDoctorSession } = require('../services/storageService');
+      clearActiveDoctorSession();
+    } catch (e) {}
+
+    purgeActiveSession();
+    setUser(null);
+    setIsSetup(false);
+    setIsLocked(false);
   };
 
   const toggleBiometrics = async (enabled: boolean) => {

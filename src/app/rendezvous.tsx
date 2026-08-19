@@ -142,7 +142,7 @@ export default function RendezVousScreen() {
       const list = await getRendezVous(user.id);
       setRdvs(list);
       
-      const pList = await getPatients();
+      const pList = await getPatients(user.id);
       setPatients(pList);
       setFilteredPatients(pList);
     } catch (err) {

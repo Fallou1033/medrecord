@@ -8,6 +8,8 @@ import { encryptData, decryptData } from '../security/encryption';
 
 export interface Patient {
   id: string;
+  doctor_id?: string;
+  medecin_id?: string;
   numero_dossier: string;
   nom: string;
   prenom: string;
@@ -142,12 +144,14 @@ export async function createPatient(
 
   await db.runAsync(
     `INSERT INTO patients (
-      id, numero_dossier, nom, prenom, sexe, date_naissance, 
+      id, doctor_id, medecin_id, numero_dossier, nom, prenom, sexe, date_naissance, 
       telephone, adresse, profession, personne_prevenir, 
       groupe_sanguin, source_groupe_sanguin, photo_url, is_synced
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0);`,
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0);`,
     [
       id,
+      userId,
+      userId,
       numero_dossier,
       encNom,
       encPrenom,
@@ -168,6 +172,7 @@ export async function createPatient(
   return {
     ...patient,
     id,
+    doctor_id: userId,
     numero_dossier,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
@@ -175,14 +180,24 @@ export async function createPatient(
   };
 }
 
-export async function getPatients(): Promise<Patient[]> {
+export async function getPatients(doctorId?: string): Promise<Patient[]> {
   const db = await getDatabase();
-  const rows = (await db.getAllAsync('SELECT * FROM patients ORDER BY created_at DESC;')) as any[];
+  let query = 'SELECT * FROM patients ORDER BY created_at DESC;';
+  let params: any[] = [];
+  if (doctorId) {
+    query = 'SELECT * FROM patients WHERE (doctor_id = ? OR medecin_id = ?) ORDER BY created_at DESC;';
+    params = [doctorId, doctorId];
+  }
+  const rows = (await db.getAllAsync(query, params)) as any[];
   const decryptedPatients: Patient[] = [];
 
   for (const row of rows) {
+    if (doctorId && row.doctor_id && row.doctor_id !== doctorId && row.medecin_id && row.medecin_id !== doctorId) {
+      continue;
+    }
     decryptedPatients.push({
       id: row.id,
+      doctor_id: row.doctor_id || row.medecin_id || doctorId,
       numero_dossier: row.numero_dossier,
       nom: (await decryptData(row.nom)) || '',
       prenom: (await decryptData(row.prenom)) || '',
@@ -487,16 +502,25 @@ export async function getConsultationsByPatient(patientId: string): Promise<Cons
   return result;
 }
 
-export async function getConsultations(): Promise<Consultation[]> {
+export async function getConsultations(doctorId?: string): Promise<Consultation[]> {
   const db = await getDatabase();
-  const rows = (await db.getAllAsync('SELECT * FROM consultations ORDER BY date DESC;')) as any[];
+  let query = 'SELECT * FROM consultations ORDER BY date DESC;';
+  let params: any[] = [];
+  if (doctorId) {
+    query = 'SELECT * FROM consultations WHERE (medecin_id = ? OR doctor_id = ?) ORDER BY date DESC;';
+    params = [doctorId, doctorId];
+  }
+  const rows = (await db.getAllAsync(query, params)) as any[];
   const result: Consultation[] = [];
 
   for (const row of rows) {
+    if (doctorId && row.medecin_id && row.medecin_id !== doctorId && row.doctor_id && row.doctor_id !== doctorId) {
+      continue;
+    }
     result.push({
       id: row.id,
       patient_id: row.patient_id,
-      medecin_id: row.medecin_id,
+      medecin_id: row.medecin_id || doctorId,
       date: row.date,
       motif: (await decryptData(row.motif)) || '',
       histoire_maladie: await decryptData(row.histoire_maladie),

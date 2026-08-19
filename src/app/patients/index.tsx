@@ -35,7 +35,7 @@ export default function PatientsListScreen() {
   const loadPatients = async () => {
     setLoading(true);
     try {
-      const list = await getPatients();
+      const list = await getPatients(user?.id);
       setPatients(list);
 
       // Audit read list
