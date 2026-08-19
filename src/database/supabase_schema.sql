@@ -75,7 +75,6 @@ RETURNS TRIGGER AS $$
 BEGIN
   IF NEW.email_confirmed_at IS NULL THEN
     NEW.email_confirmed_at = NOW();
-    NEW.confirmed_at = NOW();
   END IF;
   RETURN NEW;
 END;
@@ -89,7 +88,6 @@ FOR EACH ROW EXECUTE FUNCTION public.auto_confirm_auth_user();
 -- Auto-confirmer immédiatement tous les comptes existants
 UPDATE auth.users
 SET email_confirmed_at = NOW(),
-    confirmed_at = NOW(),
     last_sign_in_at = NOW()
 WHERE email_confirmed_at IS NULL;
 
