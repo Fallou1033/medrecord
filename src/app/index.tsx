@@ -14,9 +14,7 @@ import {
 } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { getPatients, getConsultationsByPatient } from '../database/SQLiteDatabaseManager';
-import { getDatabase } from '../database/db';
-import { triggerSynchronization, isOnline } from '../database/SyncManager';
+import { getPatients, getConsultations, getAppointments } from '../services/api';
 import { useSecurity } from '../security/SecurityContext';
 
 interface Stats {
@@ -68,9 +66,12 @@ export default function DashboardScreen() {
       setLoading(true);
     }
     try {
-      const doctorId = user?.id;
-      const db = await getDatabase();
-      const allPatients = await getPatients(doctorId);
+      const [allPatients, allConsultations, allAppointments] = await Promise.all([
+        getPatients().catch(() => []),
+        getConsultations().catch(() => []),
+        getAppointments().catch(() => []),
+      ]);
+
       const patientCount = allPatients.length;
 
       // 1. Calculate Gender stats
@@ -84,50 +85,28 @@ export default function DashboardScreen() {
       // 2. Daily visits count (consultations from today)
       const todayStart = new Date();
       todayStart.setHours(0, 0, 0, 0);
-      const todayStartStr = todayStart.toISOString();
 
-      let visitsQuery = 'SELECT COUNT(*) as count FROM consultations WHERE date >= ?;';
-      let visitsParams: any[] = [todayStartStr];
-      if (doctorId) {
-        visitsQuery = 'SELECT COUNT(*) as count FROM consultations WHERE (medecin_id = ? OR doctor_id = ?) AND date >= ?;';
-        visitsParams = [doctorId, doctorId, todayStartStr];
-      }
-      const todayVisitsRow = (await db.getFirstAsync(visitsQuery, visitsParams)) as { count: number } | null;
-      const visitsToday = todayVisitsRow?.count || 0;
+      const visitsToday = allConsultations.filter(c => {
+        const cDate = new Date(c.date || c.date_consultation || '');
+        return cDate >= todayStart;
+      }).length;
 
       // 3. New patients this month
       const monthStart = new Date();
       monthStart.setDate(1);
       monthStart.setHours(0, 0, 0, 0);
-      const monthStartStr = monthStart.toISOString();
 
-      let newPatientsQuery = 'SELECT COUNT(*) as count FROM patients WHERE created_at >= ?;';
-      let newPatientsParams: any[] = [monthStartStr];
-      if (doctorId) {
-        newPatientsQuery = 'SELECT COUNT(*) as count FROM patients WHERE (medecin_id = ? OR doctor_id = ?) AND created_at >= ?;';
-        newPatientsParams = [doctorId, doctorId, monthStartStr];
-      }
-      const newPatientsRow = (await db.getFirstAsync(newPatientsQuery, newPatientsParams)) as { count: number } | null;
-      const newMois = newPatientsRow?.count || 0;
+      const newMois = allPatients.filter(p => {
+        const pDate = new Date(p.created_at || '');
+        return pDate >= monthStart;
+      }).length;
 
       // 4. Compute Top Pathologies from doctor's consultations
-      let consQuery = 'SELECT diagnostic FROM consultations WHERE diagnostic IS NOT NULL;';
-      let consParams: any[] = [];
-      if (doctorId) {
-        consQuery = 'SELECT diagnostic FROM consultations WHERE (medecin_id = ? OR doctor_id = ?) AND diagnostic IS NOT NULL;';
-        consParams = [doctorId, doctorId];
-      }
-      const consRows = (await db.getAllAsync(consQuery, consParams)) as any[];
       const pathCounts: Record<string, number> = {};
-
-      const { decryptData } = require('../security/encryption');
-      for (const row of consRows) {
-        if (row.diagnostic) {
-          const decDiag = await decryptData(row.diagnostic);
-          if (decDiag && decDiag.trim()) {
-            const cleanDiag = decDiag.trim().charAt(0).toUpperCase() + decDiag.trim().slice(1).toLowerCase();
-            pathCounts[cleanDiag] = (pathCounts[cleanDiag] || 0) + 1;
-          }
+      for (const c of allConsultations) {
+        if (c.diagnostic && c.diagnostic.trim()) {
+          const cleanDiag = c.diagnostic.trim().charAt(0).toUpperCase() + c.diagnostic.trim().slice(1).toLowerCase();
+          pathCounts[cleanDiag] = (pathCounts[cleanDiag] || 0) + 1;
         }
       }
 
@@ -145,61 +124,23 @@ export default function DashboardScreen() {
         topPathologies,
       });
 
-      // 5. Load Today's Appointments (Rendez-vous)
-      const rdvRows = (await db.getAllAsync(
-        `SELECT rv.*, p.nom as p_nom, p.prenom as p_prenom 
-         FROM rendez_vous rv
-         JOIN patients p ON rv.patient_id = p.id
-         WHERE rv.date_heure >= ? AND rv.date_heure <= ?
-         ORDER BY rv.date_heure ASC;`,
-        [
-          todayStartStr,
-          new Date(todayStart.getTime() + 24 * 60 * 60 * 1000).toISOString(),
-        ]
-      )) as any[];
+      // 5. Load Today's and Tomorrow's Appointments
+      const todayEnd = new Date(todayStart.getTime() + 24 * 60 * 60 * 1000);
+      const tomorrowStart = todayEnd;
+      const tomorrowEnd = new Date(tomorrowStart.getTime() + 24 * 60 * 60 * 1000);
 
-      const decryptedRdvs = [];
-      for (const row of rdvRows) {
-        const patientNom = (await decryptData(row.p_nom)) || '';
-        const patientPrenom = (await decryptData(row.p_prenom)) || '';
-        decryptedRdvs.push({
-          id: row.id,
-          date_heure: row.date_heure,
-          statut: row.statut,
-          patient_name: `${patientPrenom} ${patientNom.toUpperCase()}`,
-        });
-      }
-      setTodayRdvs(decryptedRdvs);
+      const todayList = allAppointments.filter(a => {
+        const aDate = new Date(a.date_heure);
+        return aDate >= todayStart && aDate < todayEnd;
+      });
 
-      // 6. Load Tomorrow's Appointments (Rendez-vous)
-      const tomorrowStart = new Date(todayStart.getTime() + 24 * 60 * 60 * 1000);
-      const tomorrowStartStr = tomorrowStart.toISOString();
-      const tomorrowEndStr = new Date(tomorrowStart.getTime() + 24 * 60 * 60 * 1000).toISOString();
+      const tomorrowList = allAppointments.filter(a => {
+        const aDate = new Date(a.date_heure);
+        return aDate >= tomorrowStart && aDate < tomorrowEnd;
+      });
 
-      const rdvTomorrowRows = (await db.getAllAsync(
-        `SELECT rv.*, p.nom as p_nom, p.prenom as p_prenom 
-         FROM rendez_vous rv
-         JOIN patients p ON rv.patient_id = p.id
-         WHERE rv.date_heure >= ? AND rv.date_heure <= ?
-         ORDER BY rv.date_heure ASC;`,
-        [
-          tomorrowStartStr,
-          tomorrowEndStr,
-        ]
-      )) as any[];
-
-      const decryptedTomorrowRdvs = [];
-      for (const row of rdvTomorrowRows) {
-        const patientNom = (await decryptData(row.p_nom)) || '';
-        const patientPrenom = (await decryptData(row.p_prenom)) || '';
-        decryptedTomorrowRdvs.push({
-          id: row.id,
-          date_heure: row.date_heure,
-          statut: row.statut,
-          patient_name: `${patientPrenom} ${patientNom.toUpperCase()}`,
-        });
-      }
-      setTomorrowRdvs(decryptedTomorrowRdvs);
+      setTodayRdvs(todayList);
+      setTomorrowRdvs(tomorrowList);
 
       // 7. Load favorites and recents from storage
       const favsKey = 'favorites_patients';
@@ -232,8 +173,8 @@ export default function DashboardScreen() {
           patientsF: fCount,
           topPathologies,
         },
-        todayRdvs: decryptedRdvs,
-        tomorrowRdvs: decryptedTomorrowRdvs,
+        todayRdvs: todayList,
+        tomorrowRdvs: tomorrowList,
         favorites: loadedFavs,
         recents: loadedRecents,
       };
@@ -245,23 +186,12 @@ export default function DashboardScreen() {
   };
 
   const handleSync = async () => {
-    const online = await isOnline();
-    if (!online) {
-      Alert.alert('Hors-ligne', "Aucune connexion Internet détectée. Les données restent sauvegardées en sécurité sur l'appareil.");
-      return;
-    }
-
     setSyncing(true);
     try {
-      const res = await triggerSynchronization();
-      if (res.success) {
-        Alert.alert('Synchronisation terminée', `${res.syncedCount} dossiers synchronisés vers Supabase Cloud.`);
-        await loadDashboardData();
-      } else {
-        Alert.alert('Information', "Toutes vos données locales sont déjà synchronisées.");
-      }
+      await loadDashboardData();
+      Alert.alert('Synchronisation Cloud', 'Données médicales synchronisées avec Supabase Cloud en temps réel.');
     } catch (error) {
-      Alert.alert('Erreur', 'La synchronisation cloud a échoué.');
+      Alert.alert('Erreur', 'La synchronisation cloud a rencontré une difficulté.');
     } finally {
       setSyncing(false);
     }

@@ -1,10 +1,13 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { AppState, AppStateStatus, Platform } from 'react-native';
+import { supabase } from '../lib/supabase';
 import {
   isPinSetup,
   verifyPIN,
   authenticateBiometric,
-  setupPIN,
+  signUpDoctor,
+  signInDoctor,
+  signOutDoctor,
   getActiveUserProfile,
   updateLastActiveTime,
   checkSessionTimeout,
@@ -29,7 +32,7 @@ interface SecurityContextType {
   biometricsEnabled: boolean;
   autoLockMinutes: number;
   loading: boolean;
-  loginUser: (identifier: string, pin: string) => Promise<any>;
+  loginUser: (identifier: string, pin: string, password?: string) => Promise<any>;
   setupSecurity: (pin: string, nom: string, prenom: string, email: string, telephone?: string | null) => Promise<any>;
   unlockWithPin: (pin: string) => Promise<boolean>;
   unlockWithBiometrics: () => Promise<boolean>;
@@ -43,65 +46,53 @@ const SecurityContext = createContext<SecurityContextType | null>(null);
 
 export const SecurityProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [isSetup, setIsSetup] = useState<boolean>(() => {
-    const { getAnyStoredDoctorProfile } = require('../utils/storage');
-    const isSessionActive = safeStorageGet(STORAGE_KEYS.SESSION_ACTIVE) === 'true';
-    const profile = getAnyStoredDoctorProfile();
-    return Boolean(isSessionActive || profile);
+    return safeStorageGet(STORAGE_KEYS.SESSION_ACTIVE) === 'true';
   });
 
   const [user, setUser] = useState<UserProfile | null>(() => {
-    const { getAnyStoredDoctorProfile, safeStorageGet, STORAGE_KEYS } = require('../utils/storage');
-    const profile = safeStorageGet(STORAGE_KEYS.CURRENT_USER) || safeStorageGet(STORAGE_KEYS.DOCTOR_PROFILE) || getAnyStoredDoctorProfile();
-    if (!profile) return null;
-    return {
-      id: profile.id || 'dr_main',
-      email: profile.email || 'dr@cabinet.sn',
-      nom: cleanRawName(profile.nom) || 'Diéye',
-      prenom: cleanRawName(profile.prenom) || 'Mami',
-      telephone: profile.telephone || null,
-      role: profile.role || 'MEDECIN',
-      biometrie_active: Boolean(profile.biometrie_active),
-    };
+    const cached = safeStorageGet(STORAGE_KEYS.CURRENT_USER);
+    if (!cached) return null;
+    return cached;
   });
 
-  // Always start locked if an active practitioner profile exists, prompting for 4-digit PIN
   const [isLocked, setIsLocked] = useState<boolean>(() => {
-    const { getAnyStoredDoctorProfile } = require('../utils/storage');
-    const isSessionActive = safeStorageGet(STORAGE_KEYS.SESSION_ACTIVE) === 'true';
-    const profile = getAnyStoredDoctorProfile();
-    return Boolean(isSessionActive || profile);
+    return safeStorageGet(STORAGE_KEYS.SESSION_ACTIVE) === 'true';
   });
 
   const [biometricsEnabled, setBiometricsEnabled] = useState(false);
   const [autoLockMinutes, setAutoLockMinutesState] = useState<number>(2);
   const [loading, setLoading] = useState(true);
 
-  // Initialize security state
+  // Initialisation de la session Supabase
   const initializeSecurity = async () => {
     try {
-      const pinConfigured = await isPinSetup();
-      setIsSetup(pinConfigured);
+      const { data: sessionData } = await supabase.auth.getSession();
+      const session = sessionData?.session;
 
-      if (pinConfigured) {
+      if (session?.user) {
         const profile = await getActiveUserProfile();
         if (profile) {
           setUser(profile);
+          setIsSetup(true);
           persistActiveSession(profile);
+          // Requiert le code PIN local à l'ouverture du site pour sécurité
+          setIsLocked(true);
+        } else {
+          setIsSetup(false);
+          setIsLocked(false);
         }
-        const bioEnabled = await isBiometricEnabled();
-        setBiometricsEnabled(bioEnabled);
-
-        const mins = await getAutoLockTimeoutMinutes();
-        setAutoLockMinutesState(mins);
-
-        // Require PIN verification when opening or returning to the site
-        setIsLocked(true);
       } else {
-        // Not configured, user must set up PIN
+        setIsSetup(false);
         setIsLocked(false);
       }
+
+      const bioEnabled = await isBiometricEnabled();
+      setBiometricsEnabled(bioEnabled);
+
+      const mins = await getAutoLockTimeoutMinutes();
+      setAutoLockMinutesState(mins);
     } catch (error) {
-      console.error('MedRecord: Security initialization failed:', error);
+      console.error('MedRecord: Supabase auth initialization failed:', error);
     } finally {
       setLoading(false);
     }
@@ -110,28 +101,44 @@ export const SecurityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   useEffect(() => {
     initializeSecurity();
 
-    // Forced unblock fallback timer (500ms max)
+    // Abonnement aux changements d'état d'authentification Supabase
+    const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === 'SIGNED_IN' && session?.user) {
+        const profile = await getActiveUserProfile();
+        if (profile) {
+          setUser(profile);
+          setIsSetup(true);
+          persistActiveSession(profile);
+        }
+      } else if (event === 'SIGNED_OUT') {
+        setUser(null);
+        setIsSetup(false);
+        setIsLocked(false);
+        purgeActiveSession();
+      }
+    });
+
     const fallbackTimer = setTimeout(() => {
       setLoading(false);
-    }, 500);
+    }, 800);
 
-    return () => clearTimeout(fallbackTimer);
+    return () => {
+      authListener?.subscription?.unsubscribe();
+      clearTimeout(fallbackTimer);
+    };
   }, []);
 
-  // Listen to AppState (background/foreground) to manage auto-lock
+  // Gestion du verrouillage automatique après inactivité
   useEffect(() => {
     const handleAppStateChange = async (nextAppState: AppStateStatus) => {
       if (nextAppState === 'background') {
-        // Save the timestamp when the app goes to background
         await updateLastActiveTime();
       } else if (nextAppState === 'active') {
-        if (await isPinSetup()) {
+        if (user) {
           const timedOut = await checkSessionTimeout();
           if (timedOut) {
-            console.log('MedRecord: Inactivity timeout, locking app...');
             setIsLocked(true);
           } else {
-            // Keep unlocked and refresh timestamp
             await updateLastActiveTime();
           }
         }
@@ -142,77 +149,33 @@ export const SecurityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     return () => {
       subscription.remove();
     };
-  }, []);
+  }, [user]);
 
-  // Listen to tab visibility changes on Web
+  // Support Web pour l'inactivité
   useEffect(() => {
-    if (Platform.OS !== 'web' || typeof document === 'undefined') return;
+    if (Platform.OS !== 'web' || typeof window === 'undefined') return;
 
-    const handleVisibilityChange = async () => {
-      if (document.visibilityState === 'hidden') {
-        await updateLastActiveTime();
-      } else if (document.visibilityState === 'visible') {
-        const pinConfigured = await isPinSetup();
-        if (pinConfigured) {
-          const timedOut = await checkSessionTimeout();
-          if (timedOut) {
-            console.log('MedRecord: Tab visibility changed, locking screen...');
-            setIsLocked(true);
-          }
-        }
+    let lastThrottled = 0;
+    const onUserInteraction = () => {
+      const now = Date.now();
+      if (now - lastThrottled > 2000) {
+        lastThrottled = now;
+        updateLastActiveTime().catch(() => {});
       }
     };
 
-    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('mousemove', onUserInteraction, { passive: true });
+    window.addEventListener('mousedown', onUserInteraction, { passive: true });
+    window.addEventListener('keydown', onUserInteraction, { passive: true });
+    window.addEventListener('touchstart', onUserInteraction, { passive: true });
+
     return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('mousemove', onUserInteraction);
+      window.removeEventListener('mousedown', onUserInteraction);
+      window.removeEventListener('keydown', onUserInteraction);
+      window.removeEventListener('touchstart', onUserInteraction);
     };
   }, []);
-
-  // Track user interactions on Web to keep the activity timestamp fresh
-  useEffect(() => {
-    if (Platform.OS !== 'web' || typeof window !== 'undefined') {
-      let lastThrottled = 0;
-      const onUserInteraction = () => {
-        const now = Date.now();
-        if (now - lastThrottled > 2000) {
-          lastThrottled = now;
-          updateLastActiveTime().catch(() => {});
-        }
-      };
-
-      if (typeof window !== 'undefined') {
-        window.addEventListener('mousemove', onUserInteraction, { passive: true });
-        window.addEventListener('mousedown', onUserInteraction, { passive: true });
-        window.addEventListener('keydown', onUserInteraction, { passive: true });
-        window.addEventListener('touchstart', onUserInteraction, { passive: true });
-        window.addEventListener('scroll', onUserInteraction, { passive: true });
-
-        return () => {
-          window.removeEventListener('mousemove', onUserInteraction);
-          window.removeEventListener('mousedown', onUserInteraction);
-          window.removeEventListener('keydown', onUserInteraction);
-          window.removeEventListener('touchstart', onUserInteraction);
-          window.removeEventListener('scroll', onUserInteraction);
-        };
-      }
-    }
-  }, []);
-
-  // Periodic check of inactivity timeout every 4 seconds
-  useEffect(() => {
-    if (!isSetup || !user || isLocked || autoLockMinutes === 0) return;
-
-    const interval = setInterval(async () => {
-      const timedOut = await checkSessionTimeout();
-      if (timedOut) {
-        console.log('MedRecord: Inactivity timeout reached, locking screen...');
-        setIsLocked(true);
-      }
-    }, 4000);
-
-    return () => clearInterval(interval);
-  }, [isSetup, user, isLocked, autoLockMinutes]);
 
   const updateAutoLockTimeout = async (minutes: number) => {
     await setAutoLockTimeoutMinutes(minutes);
@@ -220,34 +183,23 @@ export const SecurityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     await updateLastActiveTime();
   };
 
-  const loginUser = async (identifier: string, pin: string) => {
+  const loginUser = async (identifier: string, pin: string, password?: string) => {
     try {
-      const { loginExistingUser } = require('./auth');
-      const { logAuditEvent } = require('./auditLogger');
-      // STRICT AUTHENTICATION: Will throw if user does not exist or PIN does not match
-      const profile = await loginExistingUser(identifier, pin);
+      const profile = await signInDoctor({
+        email: identifier,
+        password,
+        pin,
+      });
 
-      // Persist authenticated active session
       persistActiveSession(profile);
-
       setUser(profile);
       setIsSetup(true);
       setIsLocked(false);
       await updateLastActiveTime();
 
-      // Journal d'audit : Connexion réussie
-      logAuditEvent(
-        'LOGIN_SUCCESS',
-        'utilisateurs',
-        profile.id,
-        `Connexion réussie du Dr ${profile.prenom || ''} ${profile.nom || ''} (${profile.email})`,
-        'SUCCESS',
-        profile.id
-      ).catch(() => {});
-
       return profile;
     } catch (error) {
-      console.error('MedRecord: Failed login attempt:', error);
+      console.error('MedRecord: Failed Supabase login attempt:', error);
       throw error;
     }
   };
@@ -255,28 +207,23 @@ export const SecurityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const setupSecurity = async (pin: string, nom: string, prenom: string, email: string, telephone?: string | null) => {
     setLoading(true);
     try {
-      const { logAuditEvent } = require('./auditLogger');
-      const profile = await setupPIN(pin, nom, prenom, email, telephone || '+221 77 123 4567');
-      persistActiveSession(profile);
+      const profile = await signUpDoctor({
+        email,
+        nom,
+        prenom,
+        telephone: telephone || null,
+        pin,
+      });
 
+      persistActiveSession(profile);
       setUser(profile);
       setIsSetup(true);
       setIsLocked(false);
       await updateLastActiveTime();
 
-      // Journal d'audit : Initialisation du cabinet
-      logAuditEvent(
-        'CABINET_SETUP',
-        'utilisateurs',
-        profile.id,
-        `Création & activation du cabinet par le Dr ${profile.prenom || ''} ${profile.nom || ''}`,
-        'SUCCESS',
-        profile.id
-      ).catch(() => {});
-
       return profile;
     } catch (error) {
-      console.error('MedRecord: Failed to set up security:', error);
+      console.error('MedRecord: Failed Supabase setup:', error);
       throw error;
     } finally {
       setLoading(false);
@@ -291,8 +238,6 @@ export const SecurityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       if (profile) {
         setUser(profile);
         persistActiveSession(profile);
-      } else if (user) {
-        persistActiveSession(user);
       }
       await updateLastActiveTime();
     }
@@ -307,8 +252,6 @@ export const SecurityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       if (profile) {
         setUser(profile);
         persistActiveSession(profile);
-      } else if (user) {
-        persistActiveSession(user);
       }
       await updateLastActiveTime();
     }
@@ -320,26 +263,7 @@ export const SecurityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   };
 
   const logout = async () => {
-    try {
-      const { logAuditEvent } = require('./auditLogger');
-      if (user) {
-        logAuditEvent(
-          'LOGOUT',
-          'utilisateurs',
-          user.id,
-          `Déconnexion du cabinet du Dr ${user.prenom || ''} ${user.nom || ''}`,
-          'INFO',
-          user.id
-        ).catch(() => {});
-      }
-    } catch (e) {}
-
-    try {
-      const { clearActiveDoctorSession } = require('../services/storageService');
-      clearActiveDoctorSession();
-    } catch (e) {}
-
-    purgeActiveSession();
+    await signOutDoctor();
     setUser(null);
     setIsSetup(false);
     setIsLocked(false);

@@ -17,14 +17,14 @@ import {
 import { useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import {
-  getRendezVous,
-  addRendezVous,
-  updateRendezVousStatut,
-  updateRendezVous,
-  getPatients,
-  Patient,
-  RendezVous,
-} from '../database/SQLiteDatabaseManager';
+  getAppointments,
+  createAppointment,
+  updateAppointment,
+  deleteAppointment,
+} from '../services/api/appointmentsService';
+import { getPatients } from '../services/api/patientsService';
+import { logAuditEvent } from '../services/api/auditService';
+import { Patient, RendezVous } from '../types';
 import { useSecurity } from '../security/SecurityContext';
 import { formatDateFR } from '../utils/helpers';
 import DatePickerDOB from '../components/DatePickerDOB';
@@ -107,14 +107,10 @@ export default function RendezVousScreen() {
     const fullDateTime = `${editDateStr.trim()}T${editTimeStr.trim()}:00`;
     setEditSaving(true);
     try {
-      await updateRendezVous(
-        selectedRdv.id,
-        {
-          date_heure: fullDateTime,
-          statut: editStatus,
-        },
-        user.id
-      );
+      await updateAppointment(selectedRdv.id, {
+        date_heure: fullDateTime,
+        statut: editStatus as any,
+      });
       setEditModalVisible(false);
       Alert.alert('Succès', 'Le rendez-vous a été modifié avec succès.');
       loadData();
@@ -129,20 +125,18 @@ export default function RendezVousScreen() {
   // Load appointments
   useFocusEffect(
     useCallback(() => {
-      if (user) {
-        loadData();
-      }
-    }, [user])
+      loadData();
+    }, [])
   );
 
   const loadData = async () => {
     setLoading(true);
     try {
-      if (!user) return;
-      const list = await getRendezVous(user.id);
+      const [list, pList] = await Promise.all([
+        getAppointments().catch(() => []),
+        getPatients().catch(() => []),
+      ]);
       setRdvs(list);
-      
-      const pList = await getPatients(user.id);
       setPatients(pList);
       setFilteredPatients(pList);
     } catch (err) {
@@ -178,23 +172,17 @@ export default function RendezVousScreen() {
       return;
     }
 
-    if (!user) return;
-
     setSaving(true);
     try {
       const combinedDateTime = `${dateStr}T${timeStr}:00.000Z`;
-      await addRendezVous(
-        {
-          patient_id: selectedPatient.id,
-          medecin_id: user.id,
-          date_heure: combinedDateTime,
-          statut: status,
-        },
-        user.id
-      );
+      await createAppointment({
+        patient_id: selectedPatient.id,
+        date_heure: combinedDateTime,
+        statut: status as any,
+      });
 
       // Reload appointments
-      const list = await getRendezVous(user.id);
+      const list = await getAppointments();
       setRdvs(list);
 
       // Reset form
@@ -211,10 +199,9 @@ export default function RendezVousScreen() {
   };
 
   const handleUpdateStatus = async (rdvId: string, nextStatus: RendezVous['statut']) => {
-    if (!user) return;
     try {
-      await updateRendezVousStatut(rdvId, nextStatus, user.id);
-      const list = await getRendezVous(user.id);
+      await updateAppointment(rdvId, { statut: nextStatus as any });
+      const list = await getAppointments();
       setRdvs(list);
     } catch (err) {
       console.error(err);
@@ -237,8 +224,8 @@ export default function RendezVousScreen() {
   };
 
   const handleSendWhatsApp = (item: RendezVous) => {
-    const patientName = `${item.patient_prenom || ''} ${item.patient_nom || ''}`.trim() || 'Patient';
-    const docName = user ? `Dr ${user.prenom} ${user.nom}` : 'Dr Mohamadou Bamba Diop';
+    const patientName = item.patient_name || `${item.patient_prenom || ''} ${item.patient_nom || ''}`.trim() || 'Patient';
+    const docName = user ? `Dr ${user.prenom} ${user.nom}` : 'Dr Mami Diéye';
     const dateObj = new Date(item.date_heure);
     const dateFormatted = formatDateFR(dateObj);
     const timeFormatted = dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -264,8 +251,8 @@ export default function RendezVousScreen() {
   };
 
   const handleSendSMS = (item: RendezVous) => {
-    const patientName = `${item.patient_prenom || ''} ${item.patient_nom || ''}`.trim() || 'Patient';
-    const docName = user ? `Dr ${user.prenom} ${user.nom}` : 'Dr Mohamadou Bamba Diop';
+    const patientName = item.patient_name || `${item.patient_prenom || ''} ${item.patient_nom || ''}`.trim() || 'Patient';
+    const docName = user ? `Dr ${user.prenom} ${user.nom}` : 'Dr Mami Diéye';
     const dateObj = new Date(item.date_heure);
     const dateFormatted = formatDateFR(dateObj);
     const timeFormatted = dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -283,7 +270,7 @@ export default function RendezVousScreen() {
   const filteredRdvs = rdvs.filter((r) => {
     if (!searchQuery.trim()) return true;
     const q = searchQuery.toLowerCase().trim();
-    const patientName = `${r.patient_prenom || ''} ${r.patient_nom || ''}`.toLowerCase();
+    const patientName = (r.patient_name || `${r.patient_prenom || ''} ${r.patient_nom || ''}`).toLowerCase();
     const dossierNum = (r.patient_numero_dossier || '').toLowerCase();
     const statutStr = r.statut.toLowerCase();
     const dateStr = formatDateFR(r.date_heure).toLowerCase();
@@ -300,8 +287,8 @@ export default function RendezVousScreen() {
     const dateFormatted = formatDateFR(dateObj);
     const timeFormatted = dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
-    let statusColor = '#8AC8F9'; // PROGRAMME
-    if (item.statut === 'CONFIRME') statusColor = '#28C2FF';
+    let statusColor = '#8AC8F9';
+    if (item.statut === 'CONFIRME' || item.statut === 'HONORE') statusColor = '#28C2FF';
     if (item.statut === 'REALISE') statusColor = '#2ECC71';
     if (item.statut === 'ANNULE') statusColor = '#FF6B6B';
 
@@ -317,7 +304,7 @@ export default function RendezVousScreen() {
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
           <View style={{ flex: 1, marginRight: 8 }}>
             <Text style={styles.patientName}>
-              {`${item.patient_prenom || ''} ${(item.patient_nom || '').toUpperCase()}`}
+              {item.patient_name || `${item.patient_prenom || ''} ${(item.patient_nom || '').toUpperCase()}`}
             </Text>
             {!!item.patient_numero_dossier && (
               <Text style={{ color: '#28C2FF', fontSize: 12, fontWeight: 'bold', marginTop: 2, marginBottom: 4 }}>
@@ -611,7 +598,7 @@ export default function RendezVousScreen() {
             {selectedRdv && (
               <View style={{ backgroundColor: '#0F2C3D', padding: 12, borderRadius: 8, marginBottom: 16, borderWidth: 1, borderColor: '#2F5C77' }}>
                 <Text style={{ color: '#FFFFFF', fontWeight: 'bold', fontSize: 15 }}>
-                  Patient : {selectedRdv.patient_prenom} {selectedRdv.patient_nom?.toUpperCase()}
+                  Patient : {selectedRdv.patient_name || `${selectedRdv.patient_prenom || ''} ${selectedRdv.patient_nom?.toUpperCase() || ''}`.trim()}
                 </Text>
                 {selectedRdv.patient_numero_dossier && (
                   <Text style={{ color: '#28C2FF', fontSize: 13, fontWeight: 'bold', marginTop: 4 }}>

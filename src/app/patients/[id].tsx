@@ -16,26 +16,24 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, useRouter, Link } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { getPatientById, updatePatient } from '../../services/api/patientsService';
+import { getConsultations } from '../../services/api/consultationsService';
+import { logAuditEvent } from '../../services/api/auditService';
+import { Patient, Consultation } from '../../types';
 import {
-  getPatientById,
-  updatePatient,
   getAntecedentsByPatient,
   addAntecedent,
-  getConsultationsByPatient,
   getVaccinationsByPatient,
   addVaccination,
   getExamensParacliniquesByPatient,
   addExamenParaclinique,
   deleteExamenParaclinique,
-  Patient,
   Antecedent,
-  Consultation,
   Vaccination,
   ExamenParaclinique,
 } from '../../database/SQLiteDatabaseManager';
 import { calculateAge, formatDateFR } from '../../utils/helpers';
 import { useSecurity } from '../../security/SecurityContext';
-import { writeAuditLog, getDatabase } from '../../database/db';
 import DatePickerDOB from '../../components/DatePickerDOB';
 import PhoneInputInternational from '../../components/PhoneInputInternational';
 
@@ -273,35 +271,27 @@ export default function PatientDetailsScreen() {
 
     setEditLoading(true);
     try {
-      await updatePatient(
-        patient.id,
-        {
-          nom: editNom.trim(),
-          prenom: editPrenom.trim(),
-          sexe: editSexe,
-          date_naissance: editDateNaissance.trim() || null,
-          telephone: editTelephone.trim() || null,
-          adresse: editAdresse.trim() || null,
-          profession: editProfession.trim() || null,
-          personne_prevenir: editPersonnePrevenir.trim() || null,
-          groupe_sanguin: editGroupeSanguin || 'Inconnu',
-          source_groupe_sanguin: editSourceGroupeSanguin,
-        },
-        user.id
-      );
+      await updatePatient(patient.id, {
+        nom: editNom.trim(),
+        prenom: editPrenom.trim(),
+        sexe: editSexe,
+        date_naissance: editDateNaissance.trim() || null,
+        telephone: editTelephone.trim() || null,
+        adresse: editAdresse.trim() || null,
+        profession: editProfession.trim() || null,
+        personne_prevenir: editPersonnePrevenir.trim() || null,
+        groupe_sanguin: editGroupeSanguin || 'Inconnu',
+        source_groupe_sanguin: editSourceGroupeSanguin,
+      });
 
       // Journal d'audit : Mise à jour du dossier patient
-      try {
-        const { logAuditEvent } = require('../../security/auditLogger');
-        logAuditEvent(
-          'PATIENT_UPDATE',
-          'patients',
-          patient.id,
-          `Mise à jour des informations administratives : ${editPrenom.trim()} ${editNom.trim()}`,
-          'INFO',
-          user.id
-        ).catch(() => {});
-      } catch (e) {}
+      logAuditEvent(
+        'UPDATE',
+        'patients',
+        patient.id,
+        `Mise à jour des informations administratives : ${editPrenom.trim()} ${editNom.trim()}`,
+        'INFO'
+      );
 
       setEditModalVisible(false);
       showAlert('Succès', 'Le dossier du patient a été mis à jour.');
@@ -398,28 +388,25 @@ export default function PatientDetailsScreen() {
         console.error(e);
       }
 
-      const ant = await getAntecedentsByPatient(id);
+      const ant = await getAntecedentsByPatient(id).catch(() => []);
       setAntecedents(ant);
 
-      const cons = await getConsultationsByPatient(id);
+      const cons = await getConsultations(id).catch(() => []);
       setConsultations(cons);
 
-      const vacs = await getVaccinationsByPatient(id);
+      const vacs = await getVaccinationsByPatient(id).catch(() => []);
       setVaccinations(vacs);
 
-      const para = await getExamensParacliniquesByPatient(id);
+      const para = await getExamensParacliniquesByPatient(id).catch(() => []);
       setExamensParacliniques(para);
 
       // Audit read file
-      if (user) {
-        await writeAuditLog(
-          user.id,
-          'READ',
-          'patients',
-          id,
-          `Consultation du dossier patient de ${p.prenom} ${p.nom} (${p.numero_dossier})`
-        );
-      }
+      logAuditEvent(
+        'READ',
+        'patients',
+        id,
+        `Consultation du dossier patient de ${p.prenom} ${p.nom} (${p.numero_dossier})`
+      );
     } catch (error) {
       console.error('Failed to load patient data:', error);
     } finally {
@@ -483,25 +470,15 @@ export default function PatientDetailsScreen() {
         let latestVisitText = 'Aucune consultation antérieure enregistrée.';
         if (consultations.length > 0) {
           // Sort consultations by date descending
-          const sortedVisits = [...consultations].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+          const sortedVisits = [...consultations].sort((a, b) => new Date(b.date || b.date_consultation || '').getTime() - new Date(a.date || a.date_consultation || '').getTime());
           const lastV = sortedVisits[0];
           
-          // Try to load constants for this last visit
-          const db = await getDatabase();
-          const constRow = (await db.getFirstAsync(
-            'SELECT * FROM constantes WHERE consultation_id = ?;',
-            [lastV.id]
-          )) as any;
-          
           let constText = 'non renseignées';
-          if (constRow) {
-            const parts = [];
-            if (constRow.tension_arterielle) parts.push(`TA ${constRow.tension_arterielle} mmHg`);
-            if (constRow.temperature) parts.push(`Temp ${constRow.temperature}°C`);
-            if (constRow.poids) parts.push(`Poids ${constRow.poids}kg`);
-            if (constRow.imc) parts.push(`IMC ${constRow.imc}`);
-            if (parts.length > 0) constText = parts.join(', ');
-          }
+          const parts = [];
+          if (lastV.pression_arterielle) parts.push(`TA ${lastV.pression_arterielle} mmHg`);
+          if (lastV.temperature) parts.push(`Temp ${lastV.temperature}°C`);
+          if (lastV.poids_kg) parts.push(`Poids ${lastV.poids_kg}kg`);
+          if (parts.length > 0) constText = parts.join(', ');
           
           const decMotif = lastV.motif || 'Consultation médicale';
           const decDiag = lastV.diagnostic || 'Non renseigné';

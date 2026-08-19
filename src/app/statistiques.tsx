@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { getPatients, getConsultations } from '../database/SQLiteDatabaseManager';
+import { getPatients, getConsultations } from '../services/api';
 import { useSecurity } from '../security/SecurityContext';
 
 interface Stats {
@@ -40,14 +40,16 @@ export default function StatistiquesScreen() {
   useFocusEffect(
     React.useCallback(() => {
       loadStats();
-    }, [user?.id])
+    }, [])
   );
 
   const loadStats = async () => {
     setLoading(true);
     try {
-      const allPatients = await getPatients(user?.id);
-      const allVisites = await getConsultations(user?.id);
+      const [allPatients, allVisites] = await Promise.all([
+        getPatients().catch(() => []),
+        getConsultations().catch(() => []),
+      ]);
 
       const todayStr = new Date().toISOString().split('T')[0];
       const now = new Date();

@@ -15,7 +15,10 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, useRouter, Link } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { createConsultation, getPatientById, getPatients, Patient } from '../../database/SQLiteDatabaseManager';
+import { createConsultation } from '../../services/api/consultationsService';
+import { getPatientById, getPatients } from '../../services/api/patientsService';
+import { logAuditEvent } from '../../services/api/auditService';
+import { Patient } from '../../types';
 import { calculateIMC } from '../../utils/helpers';
 import { useSecurity } from '../../security/SecurityContext';
 import DatePickerDOB from '../../components/DatePickerDOB';
@@ -313,35 +316,31 @@ export default function CreateConsultationScreen() {
           }
         : null;
 
-      const newConsultation = await createConsultation(
-        {
-          patient_id: patientId,
-          medecin_id: user.id,
-          date: new Date().toISOString(),
-          motif: motif.trim(),
-          histoire_maladie: histoire.trim() || null,
-          examen_clinique: examenClinique.trim() || null,
-          diagnostic: diagnostic.trim() || null,
-          traitement: traitement.trim() || null,
-          conseils: conseils.trim() || null,
-          date_controle: dateControle.trim() || null,
-        },
-        constantesDetails,
-        user.id
-      );
+      const newConsultation = await createConsultation({
+        patient_id: patientId || selectedPatientId,
+        date: new Date().toISOString(),
+        motif: motif.trim(),
+        histoire_maladie: histoire.trim() || null,
+        examen_clinique: examenClinique.trim() || null,
+        diagnostic: diagnostic.trim() || null,
+        traitement: traitement.trim() || null,
+        conseils: conseils.trim() || null,
+        date_controle: dateControle.trim() || null,
+        poids_kg: parseFloat(cleanW) || null,
+        taille_cm: parseFloat(cleanH) || null,
+        pression_arterielle: tension.trim() || null,
+        frequence_cardiaque: parseInt(cleanPulse, 10) || null,
+        temperature: parseFloat(cleanTemp) || null,
+      });
 
       // Journal d'audit : Consultation médicale enregistrée
-      try {
-        const { logAuditEvent } = require('../../security/auditLogger');
-        logAuditEvent(
-          'CONSULTATION_CREATE',
-          'consultations',
-          newConsultation?.id || null,
-          `Consultation enregistrée pour ${patient ? `${patient.prenom} ${patient.nom}` : 'le patient'} (Motif: ${motif.trim()})`,
-          'SUCCESS',
-          user.id
-        ).catch(() => {});
-      } catch (e) {}
+      logAuditEvent(
+        'CREATE',
+        'consultations',
+        newConsultation?.id || null,
+        `Consultation enregistrée pour ${patient ? `${patient.prenom} ${patient.nom}` : 'le patient'} (Motif: ${motif.trim()})`,
+        'SUCCESS'
+      );
 
       // Clear draft on successful save
       if (patientId) {

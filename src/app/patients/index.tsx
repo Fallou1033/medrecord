@@ -13,9 +13,10 @@ import {
 } from 'react-native';
 import { useRouter, useFocusEffect, Link } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { getPatients, Patient } from '../../database/SQLiteDatabaseManager';
+import { getPatients } from '../../services/api/patientsService';
+import { logAuditEvent } from '../../services/api/auditService';
+import { Patient } from '../../types';
 import { calculateAge, formatDateFR } from '../../utils/helpers';
-import { writeAuditLog } from '../../database/db';
 import { useSecurity } from '../../security/SecurityContext';
 
 export default function PatientsListScreen() {
@@ -35,13 +36,11 @@ export default function PatientsListScreen() {
   const loadPatients = async () => {
     setLoading(true);
     try {
-      const list = await getPatients(user?.id);
+      const list = await getPatients();
       setPatients(list);
 
       // Audit read list
-      if (user) {
-        await writeAuditLog(user.id, 'READ', 'patients', null, 'Lecture de la liste des patients');
-      }
+      logAuditEvent('READ', 'patients', null, 'Lecture de la liste des patients');
     } catch (error) {
       console.error('Failed to load patients:', error);
     } finally {

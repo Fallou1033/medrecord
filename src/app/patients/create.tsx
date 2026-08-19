@@ -15,7 +15,8 @@ import {
 import { useRouter, Link } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as SecureStore from 'expo-secure-store';
-import { createPatient } from '../../database/SQLiteDatabaseManager';
+import { createPatient } from '../../services/api/patientsService';
+import { logAuditEvent } from '../../services/api/auditService';
 import { useSecurity } from '../../security/SecurityContext';
 import DatePickerDOB from '../../components/DatePickerDOB';
 import PhoneInputInternational from '../../components/PhoneInputInternational';
@@ -183,35 +184,28 @@ export default function CreatePatientScreen() {
 
     setLoading(true);
     try {
-      const newPatient = await createPatient(
-        {
-          nom: nom.trim(),
-          prenom: prenom.trim(),
-          sexe,
-          date_naissance: dateNaissance.trim() || null,
-          telephone: telephone.trim() || null,
-          adresse: adresse.trim() || null,
-          profession: profession.trim() || null,
-          personne_prevenir: personnePrevenir.trim() || null,
-          groupe_sanguin: groupeSanguin || 'Inconnu',
-          source_groupe_sanguin: sourceGroupeSanguin,
-          photo_url: null, // Photo profile optional in V1
-        },
-        user.id
-      );
+      const newPatient = await createPatient({
+        nom: nom.trim(),
+        prenom: prenom.trim(),
+        sexe,
+        date_naissance: dateNaissance.trim() || null,
+        telephone: telephone.trim() || null,
+        adresse: adresse.trim() || null,
+        profession: profession.trim() || null,
+        personne_prevenir: personnePrevenir.trim() || null,
+        groupe_sanguin: groupeSanguin || 'Inconnu',
+        source_groupe_sanguin: sourceGroupeSanguin,
+        photo_url: null,
+      });
 
       // Journal d'audit : Création de patient
-      try {
-        const { logAuditEvent } = require('../../security/auditLogger');
-        logAuditEvent(
-          'PATIENT_CREATE',
-          'patients',
-          newPatient?.id || null,
-          `Création du dossier patient : ${prenom.trim()} ${nom.trim()}`,
-          'SUCCESS',
-          user.id
-        ).catch(() => {});
-      } catch (e) {}
+      logAuditEvent(
+        'CREATE',
+        'patients',
+        newPatient?.id || null,
+        `Création du dossier patient : ${prenom.trim()} ${nom.trim()}`,
+        'SUCCESS'
+      );
 
       // Clear draft on successful creation
       await clearPatientDraft();

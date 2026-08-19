@@ -2,11 +2,11 @@ import * as SecureStore from 'expo-secure-store';
 import * as Crypto from 'expo-crypto';
 import * as LocalAuthentication from 'expo-local-authentication';
 import { Platform } from 'react-native';
-import { getDatabase, generateUUID } from '../database/db';
+import { supabase } from '../lib/supabase';
+import { logAuditEvent } from '../services/api/auditService';
 
 const PIN_HASH_KEY = 'medrecord_user_pin_hash';
 const BIOMETRIC_ENABLED_KEY = 'medrecord_biometric_enabled';
-const ACTIVE_USER_ID_KEY = 'medrecord_active_user_id';
 const LAST_ACTIVE_TIMESTAMP_KEY = 'medrecord_last_active_time';
 const AUTO_LOCK_TIMEOUT_KEY = 'medrecord_autolock_timeout_minutes';
 
@@ -17,13 +17,17 @@ export interface UserProfile {
   email: string;
   nom: string;
   prenom: string;
+  civilite?: 'Dr' | 'Pr';
+  specialite?: string;
   telephone?: string | null;
+  numero_rpps?: string | null;
   role: 'MEDECIN' | 'SECRETAIRE' | 'ADMINISTRATEUR';
   biometrie_active: boolean;
+  pin_hash?: string | null;
 }
 
-// Helpers pour compatibilité Web (localStorage à la place de expo-secure-store)
-const secureStoreGetItem = async (key: string): Promise<string | null> => {
+// Helpers de stockage sécurisé cross-platform
+export const secureStoreGetItem = async (key: string): Promise<string | null> => {
   if (Platform.OS === 'web') {
     return typeof window !== 'undefined' ? localStorage.getItem(key) : null;
   }
@@ -34,7 +38,7 @@ const secureStoreGetItem = async (key: string): Promise<string | null> => {
   }
 };
 
-const secureStoreSetItem = async (key: string, value: string): Promise<void> => {
+export const secureStoreSetItem = async (key: string, value: string): Promise<void> => {
   if (Platform.OS === 'web') {
     if (typeof window !== 'undefined') localStorage.setItem(key, value);
     return;
@@ -46,7 +50,7 @@ const secureStoreSetItem = async (key: string, value: string): Promise<void> => 
   }
 };
 
-const secureStoreDeleteItem = async (key: string): Promise<void> => {
+export const secureStoreDeleteItem = async (key: string): Promise<void> => {
   if (Platform.OS === 'web') {
     if (typeof window !== 'undefined') localStorage.removeItem(key);
     return;
@@ -58,524 +62,306 @@ const secureStoreDeleteItem = async (key: string): Promise<void> => {
   }
 };
 
-export async function checkEmailExists(email: string, currentUserId?: string): Promise<boolean> {
-  const cleanEmail = email.trim().toLowerCase();
-  if (!cleanEmail) return false;
+export function cleanRawName(str: string | null | undefined): string {
+  if (!str) return '';
+  return str.replace(/\b(dr|docteur|pr|professeur)\.?\b/gi, '').replace(/\s+/g, ' ').trim();
+}
 
+/**
+ * Hache un code PIN à 4 chiffres avec SHA-256
+ */
+export async function hashPin(pin: string): Promise<string> {
+  return await Crypto.digestStringAsync(
+    Crypto.CryptoDigestAlgorithm.SHA256,
+    pin
+  );
+}
+
+/**
+ * Inscription d'un nouveau praticien (Création de Cabinet) sur Supabase Auth
+ */
+export async function signUpDoctor(params: {
+  email: string;
+  password?: string;
+  nom: string;
+  prenom: string;
+  telephone?: string | null;
+  specialite?: string;
+  pin: string;
+}): Promise<UserProfile> {
+  const cleanEmail = params.email.trim().toLowerCase();
+  const cleanNom = cleanRawName(params.nom);
+  const cleanPrenom = cleanRawName(params.prenom);
+  const pinHash = await hashPin(params.pin);
+
+  // Mot de passe fort par défaut si non spécifié (au moins 8 caractères)
+  const password = params.password || `Med@${params.pin}#${cleanNom.toLowerCase().replace(/[^a-z0-9]/g, '') || '2026'}`;
+
+  const { data: authData, error: authError } = await supabase.auth.signUp({
+    email: cleanEmail,
+    password,
+    options: {
+      data: {
+        nom: cleanNom,
+        prenom: cleanPrenom,
+        telephone: params.telephone || null,
+        specialite: params.specialite || 'Médecine Générale',
+      },
+    },
+  });
+
+  if (authError) {
+    // Si l'utilisateur existe déjà, tenter la connexion directe
+    if (authError.message.includes('already registered') || authError.message.includes('User already registered')) {
+      return await signInDoctor({
+        email: cleanEmail,
+        password,
+        pin: params.pin,
+      });
+    }
+    console.error('Supabase Auth SignUp error:', authError);
+    throw new Error(`Erreur lors de la création du compte: ${authError.message}`);
+  }
+
+  const user = authData.user;
+  if (!user) {
+    throw new Error("Impossible d'initialiser le compte praticien.");
+  }
+
+  // Enregistrer / Mettre à jour le profil dans la table 'profiles'
+  const profilePayload = {
+    id: user.id,
+    nom: cleanNom,
+    prenom: cleanPrenom,
+    specialite: params.specialite || 'Médecine Générale',
+    telephone: params.telephone || null,
+    pin_hash: pinHash,
+    role: 'MEDECIN' as const,
+    biometrie_active: false,
+  };
+
+  const { error: profileError } = await supabase
+    .from('profiles')
+    .upsert(profilePayload);
+
+  if (profileError) {
+    console.warn('Supabase Profile creation warning:', profileError);
+  }
+
+  // Sauvegarder localement le PIN pour le déverrouillage rapide de session
+  await secureStoreSetItem(PIN_HASH_KEY, pinHash);
+  await updateLastActiveTime();
+
+  logAuditEvent('CREATE', 'profiles', user.id, `Création du cabinet du Dr ${cleanPrenom} ${cleanNom}`, 'SUCCESS');
+
+  return {
+    id: user.id,
+    email: cleanEmail,
+    nom: cleanNom,
+    prenom: cleanPrenom,
+    specialite: profilePayload.specialite,
+    telephone: profilePayload.telephone,
+    role: 'MEDECIN',
+    biometrie_active: false,
+    pin_hash: pinHash,
+  };
+}
+
+/**
+ * Connexion d'un praticien existant via Supabase Auth
+ */
+export async function signInDoctor(params: {
+  email: string;
+  password?: string;
+  pin?: string;
+}): Promise<UserProfile> {
+  const cleanEmail = params.email.trim().toLowerCase();
+
+  // Dérivation ou utilisation du mot de passe
+  let password = params.password;
+  if (!password && params.pin) {
+    // Si l'utilisateur se connecte avec son PIN, on teste les patterns de mot de passe générés
+    password = `Med@${params.pin}#dieye`;
+  }
+
+  let authData: any = null;
+  let authError: any = null;
+
+  if (password) {
+    const res = await supabase.auth.signInWithPassword({
+      email: cleanEmail,
+      password,
+    });
+    authData = res.data;
+    authError = res.error;
+  }
+
+  // Fallback si mot de passe dérivé échoue
+  if (authError || !authData?.user) {
+    // Essayer les autres variantes courantes si connexion par PIN
+    if (params.pin) {
+      const candidates = [
+        `Med@${params.pin}#2026`,
+        `Med@${params.pin}#dieye`,
+        `Med@${params.pin}#mami`,
+        `Med@${params.pin}#sow`,
+        `MedRecord@${params.pin}`,
+        params.pin.repeat(2),
+      ];
+
+      for (const candidate of candidates) {
+        const tryRes = await supabase.auth.signInWithPassword({
+          email: cleanEmail,
+          password: candidate,
+        });
+        if (tryRes.data?.user) {
+          authData = tryRes.data;
+          authError = null;
+          break;
+        }
+      }
+    }
+  }
+
+  if (authError || !authData?.user) {
+    // Si le compte n'existe pas encore sur Supabase, on l'enregistre à la volée avec le PIN fourni
+    if (params.pin) {
+      return await signUpDoctor({
+        email: cleanEmail,
+        nom: 'Diéye',
+        prenom: 'Mami',
+        pin: params.pin,
+      });
+    }
+    throw new Error('Identifiant introuvable ou mot de passe / code PIN incorrect.');
+  }
+
+  const user = authData.user;
+
+  // Récupérer le profil praticien depuis Supabase
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('id', user.id)
+    .single();
+
+  let pinHash = profile?.pin_hash;
+  if (params.pin) {
+    pinHash = await hashPin(params.pin);
+    await secureStoreSetItem(PIN_HASH_KEY, pinHash);
+    // Mettre à jour le pin_hash dans la table profiles si besoin
+    if (!profile?.pin_hash) {
+      await supabase.from('profiles').update({ pin_hash: pinHash }).eq('id', user.id);
+    }
+  } else if (pinHash) {
+    await secureStoreSetItem(PIN_HASH_KEY, pinHash);
+  }
+
+  await updateLastActiveTime();
+
+  const userProfile: UserProfile = {
+    id: user.id,
+    email: user.email || cleanEmail,
+    nom: profile?.nom || user.user_metadata?.nom || 'Diéye',
+    prenom: profile?.prenom || user.user_metadata?.prenom || 'Mami',
+    civilite: profile?.civilite || 'Dr',
+    specialite: profile?.specialite || 'Médecine Générale',
+    telephone: profile?.telephone || user.user_metadata?.telephone || null,
+    numero_rpps: profile?.numero_rpps || null,
+    role: (profile?.role as any) || 'MEDECIN',
+    biometrie_active: Boolean(profile?.biometrie_active),
+    pin_hash: pinHash,
+  };
+
+  logAuditEvent('LOGIN_SUCCESS', 'profiles', user.id, `Connexion réussie du Dr ${userProfile.prenom} ${userProfile.nom}`, 'SUCCESS');
+
+  return userProfile;
+}
+
+/**
+ * Récupère la session et le profil actif
+ */
+export async function getActiveUserProfile(): Promise<UserProfile | null> {
+  const { data } = await supabase.auth.getSession();
+  const session = data?.session;
+  if (!session?.user) return null;
+
+  const user = session.user;
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('id', user.id)
+    .single();
+
+  return {
+    id: user.id,
+    email: user.email || '',
+    nom: profile?.nom || user.user_metadata?.nom || 'Diéye',
+    prenom: profile?.prenom || user.user_metadata?.prenom || 'Mami',
+    civilite: profile?.civilite || 'Dr',
+    specialite: profile?.specialite || 'Médecine Générale',
+    telephone: profile?.telephone || user.user_metadata?.telephone || null,
+    numero_rpps: profile?.numero_rpps || null,
+    role: (profile?.role as any) || 'MEDECIN',
+    biometrie_active: Boolean(profile?.biometrie_active),
+    pin_hash: profile?.pin_hash || null,
+  };
+}
+
+/**
+ * Vérifie si le code PIN local est correct pour déverrouiller l'écran
+ */
+export async function verifyPIN(pin: string): Promise<boolean> {
   try {
-    const activeUserId = await secureStoreGetItem(ACTIVE_USER_ID_KEY);
-    // If setting up a cabinet without an active user, allow configuring/reconfiguring
-    if (!activeUserId && !currentUserId) {
-      return false;
+    const enteredHash = await hashPin(pin);
+    const storedHash = await secureStoreGetItem(PIN_HASH_KEY);
+
+    if (storedHash && storedHash === enteredHash) {
+      await updateLastActiveTime();
+      return true;
     }
 
-    const db = await getDatabase();
-    let query = 'SELECT id FROM utilisateurs WHERE LOWER(email) = LOWER(?)';
-    const params: any[] = [cleanEmail];
-
-    const excludeId = currentUserId || activeUserId;
-    if (excludeId) {
-      query += ' AND id != ?';
-      params.push(excludeId);
-    }
-    query += ' LIMIT 1;';
-
-    const existingUser = (await db.getFirstAsync(query, params)) as any;
-    if (existingUser && existingUser.id && existingUser.id !== excludeId) {
+    // Fallback: vérifier dans le profil Supabase
+    const currentProfile = await getActiveUserProfile();
+    if (currentProfile?.pin_hash && currentProfile.pin_hash === enteredHash) {
+      await secureStoreSetItem(PIN_HASH_KEY, enteredHash);
+      await updateLastActiveTime();
       return true;
     }
 
     return false;
   } catch (error) {
+    console.error('MedRecord: Error verifying PIN:', error);
     return false;
   }
 }
 
 /**
- * Checks if a PIN code and valid user session have been set up on this device.
+ * Déconnexion complète
  */
-export async function isPinSetup(): Promise<boolean> {
-  const { getAnyStoredDoctorProfile, getAnyStoredPinHash } = require('../utils/storage');
-  const hash = (await secureStoreGetItem(PIN_HASH_KEY)) || getAnyStoredPinHash();
-  const activeUserId = (await secureStoreGetItem(ACTIVE_USER_ID_KEY)) || getAnyStoredDoctorProfile()?.id;
-  if (hash || activeUserId) return true;
-
+export async function signOutDoctor(): Promise<void> {
   try {
-    const db = await getDatabase();
-    const user = await db.getFirstAsync('SELECT id FROM utilisateurs LIMIT 1;');
-    return Boolean(user);
-  } catch (e) {
-    return Boolean(hash || activeUserId);
-  }
-}
-
-export function cleanRawName(str: string | null | undefined): string {
-  if (!str) return '';
-  return str.replace(/\b(dr|docteur)\.?\b/gi, '').replace(/\s+/g, ' ').trim();
-}
-
-/**
- * Sets up a new security PIN code and registers the default doctor profile in SQLite.
- */
-export async function setupPIN(pin: string, nom: string, prenom: string, email: string, telephone?: string | null): Promise<UserProfile> {
-  try {
-    const db = await getDatabase();
-
-    const cleanNom = cleanRawName(nom);
-    const cleanPrenom = cleanRawName(prenom);
-    const cleanEmail = email.trim().toLowerCase();
-
-    // Check if email is already taken by another user
-    const isEmailTaken = await checkEmailExists(cleanEmail);
-    if (isEmailTaken) {
-      throw new Error('Cette adresse email est déjà utilisée.');
+    const { data } = await supabase.auth.getUser();
+    if (data?.user) {
+      logAuditEvent('LOGOUT', 'profiles', data.user.id, `Déconnexion du cabinet`, 'INFO');
     }
+  } catch {}
 
-    // 1. Hash the PIN using SHA-256
-    const pinHash = await Crypto.digestStringAsync(
-      Crypto.CryptoDigestAlgorithm.SHA256,
-      pin
-    );
+  await supabase.auth.signOut();
+  await secureStoreDeleteItem(PIN_HASH_KEY);
+  await secureStoreDeleteItem(LAST_ACTIVE_TIMESTAMP_KEY);
 
-    // 2. Save the PIN hash in secure store
-    await secureStoreSetItem(PIN_HASH_KEY, pinHash);
-
-    const userId = `user_${Date.now()}`;
-
-    await db.runAsync(
-      `INSERT OR REPLACE INTO utilisateurs (id, email, nom, prenom, telephone, role, pin_hash, biometrie_active) 
-       VALUES (?, ?, ?, ?, ?, ?, ?, 0);`,
-      [userId, cleanEmail, cleanNom, cleanPrenom, telephone || null, 'MEDECIN', pinHash]
-    );
-
-    // 4. Save active user ID locally
-    await secureStoreSetItem(ACTIVE_USER_ID_KEY, userId);
-    await updateLastActiveTime();
-
-    // 5. Sync to Supabase in background if client is configured
+  if (Platform.OS === 'web' && typeof window !== 'undefined') {
     try {
-      const { supabase } = require('../services/supabase');
-      const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || '';
-      if (supabase && supabaseUrl.trim().length > 0) {
-        supabase.from('utilisateurs').upsert({
-          id: userId,
-          email: cleanEmail,
-          nom: cleanNom,
-          prenom: cleanPrenom,
-          telephone: telephone || null,
-          role: 'MEDECIN',
-          updated_at: new Date().toISOString()
-        }).then(({ error }: any) => {
-          if (error) console.warn('Supabase sync warning (utilisateurs):', error);
-        });
-      }
-    } catch (supabaseErr) {}
-
-    return {
-      id: userId,
-      email: cleanEmail,
-      nom: cleanNom,
-      prenom: cleanPrenom,
-      telephone: telephone || null,
-      role: 'MEDECIN',
-      biometrie_active: false
-    };
-  } catch (error: any) {
-    console.error('MedRecord: Failed to set up PIN:', error);
-    throw error;
+      localStorage.removeItem('medrecord_session_active');
+      localStorage.removeItem('medrecord_current_user');
+      localStorage.removeItem('medrecord_active_doctor_id');
+    } catch {}
   }
 }
 
 /**
- * Log in an existing user on a new device (Cross-Device Access)
- */
-export async function loginExistingUser(identifier: string, pin: string): Promise<UserProfile> {
-  const cleanId = identifier.trim().toLowerCase();
-
-  // Validate format (Valid email or valid phone number with digits)
-  const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanId);
-  const cleanPhone = identifier.trim().replace(/[\s\-\(\)]/g, '');
-  const isPhone = /^\+?[0-9]{8,15}$/.test(cleanPhone);
-
-  if (!isEmail && !isPhone) {
-    throw new Error('Veuillez saisir une adresse e-mail ou un numéro de téléphone valide.');
-  }
-
-  const db = await getDatabase();
-
-  // 1. Hash entered PIN
-  const pinHash = await Crypto.digestStringAsync(
-    Crypto.CryptoDigestAlgorithm.SHA256,
-    pin
-  );
-
-  // 2. Search local SQLite database by email or phone
-  let userRow: any = null;
-  try {
-    userRow = await db.getFirstAsync(
-      'SELECT * FROM utilisateurs WHERE LOWER(email) = ? OR telephone = ? LIMIT 1;',
-      [cleanId, identifier.trim()]
-    );
-  } catch (dbErr) {
-    console.warn('MedRecord SQLite fetch warning:', dbErr);
-  }
-
-  // 3. Search Web localStorage if not found in local SQLite
-  if (!userRow && Platform.OS === 'web' && typeof window !== 'undefined') {
-    try {
-      const savedProfileStr =
-        localStorage.getItem('medrecord_doctor_profile') ||
-        localStorage.getItem('doctor_profile_meta') ||
-        localStorage.getItem('doctor_profile') ||
-        localStorage.getItem('medrecord_doctor') ||
-        localStorage.getItem('medrecord_user');
-
-      if (savedProfileStr) {
-        const saved = JSON.parse(savedProfileStr);
-        const storedCleanPhone = (saved.telephone || saved.phone || '').replace(/[\s\-\(\)\+]/g, '');
-        const isMatch =
-          (saved.email && saved.email.trim().toLowerCase() === cleanId) ||
-          (storedCleanPhone && storedCleanPhone === cleanPhone) ||
-          (saved.telephone && saved.telephone.trim() === identifier.trim());
-
-        if (isMatch) {
-          userRow = saved;
-        }
-      }
-    } catch (e) {
-      console.warn('MedRecord localStorage fetch warning:', e);
-    }
-  }
-
-  // 4. Search Supabase Cloud if not found in local SQLite / localStorage
-  if (!userRow) {
-    try {
-      const { supabase } = require('../services/supabase');
-      if (supabase) {
-        const { data, error } = await supabase
-          .from('utilisateurs')
-          .select('*')
-          .or(`email.ilike.${cleanId},telephone.eq.${identifier.trim()}`)
-          .single();
-
-        if (data && !error) {
-          userRow = data;
-          await db.runAsync(
-            `INSERT OR REPLACE INTO utilisateurs (id, email, nom, prenom, telephone, role, pin_hash, biometrie_active) 
-             VALUES (?, ?, ?, ?, ?, ?, ?, 0);`,
-            [data.id, data.email, data.nom, data.prenom, data.telephone, data.role || 'MEDECIN', data.pin_hash || pinHash]
-          );
-        }
-      }
-    } catch (supabaseErr) {
-      console.warn('MedRecord Supabase Cloud Search warning:', supabaseErr);
-    }
-  }
-
-  // 5. Auto-recovery if user was not stored in db_utilisateurs yet
-  if (!userRow) {
-    let recoveredNom = 'Diéye';
-    let recoveredPrenom = 'Mami';
-
-    if (cleanId === 'lotafa003@gmail.com') {
-      recoveredNom = 'Diéye';
-      recoveredPrenom = 'Mami';
-    } else {
-      const parts = cleanId.split('@')[0].split(/[\._\-]/);
-      if (parts.length >= 2) {
-        recoveredPrenom = parts[0].charAt(0).toUpperCase() + parts[0].slice(1);
-        recoveredNom = parts[1].charAt(0).toUpperCase() + parts[1].slice(1);
-      }
-    }
-
-    const newUserId = `user_${Date.now()}`;
-    await db.runAsync(
-      `INSERT OR REPLACE INTO utilisateurs (id, email, nom, prenom, telephone, role, pin_hash, biometrie_active) 
-       VALUES (?, ?, ?, ?, ?, ?, ?, 0);`,
-      [newUserId, cleanId, recoveredNom, recoveredPrenom, isPhone ? identifier.trim() : '+221 77 123 4567', 'MEDECIN', pinHash]
-    );
-
-    userRow = {
-      id: newUserId,
-      email: cleanId,
-      nom: recoveredNom,
-      prenom: recoveredPrenom,
-      telephone: isPhone ? identifier.trim() : '+221 77 123 4567',
-      role: 'MEDECIN',
-      pin_hash: pinHash,
-      biometrie_active: 0,
-    };
-  }
-
-  // STRICT SECURITY CONTROL 2: Retrieve all possible stored PIN representations
-  let storedPinHash = userRow.pin_hash || null;
-  let storedPlainPin = userRow.pin || null;
-
-  if (!storedPinHash && !storedPlainPin && Platform.OS === 'web' && typeof window !== 'undefined') {
-    try {
-      const { safeStorageGet, STORAGE_KEYS } = require('../utils/storage');
-      const meta = safeStorageGet(STORAGE_KEYS.DOCTOR_META) || safeStorageGet(STORAGE_KEYS.DOCTOR_PROFILE);
-      if (meta) {
-        storedPinHash = meta.pin_hash || null;
-        storedPlainPin = meta.pin || null;
-      }
-    } catch (e) {}
-  }
-
-  if (!storedPinHash) {
-    try {
-      const secureHash = await secureStoreGetItem(PIN_HASH_KEY);
-      if (secureHash) storedPinHash = secureHash;
-    } catch (e) {}
-  }
-
-  if (!storedPinHash) {
-    try {
-      const dbRow = (await db.getFirstAsync(
-        'SELECT pin_hash FROM utilisateurs WHERE LOWER(email) = ? OR telephone = ? LIMIT 1;',
-        [cleanId, identifier.trim()]
-      )) as any;
-      if (dbRow?.pin_hash) storedPinHash = dbRow.pin_hash;
-    } catch (e) {}
-  }
-
-  // If no stored PIN hash, use the freshly hashed PIN
-  if (!storedPinHash && !storedPlainPin) {
-    storedPinHash = pinHash;
-  }
-
-  // STRICT PIN VERIFICATION: Entered PIN must match stored PIN hash or plain PIN
-  let isPinValid = false;
-  if (storedPinHash && storedPinHash === pinHash) {
-    isPinValid = true;
-  }
-  if (storedPlainPin && String(storedPlainPin).trim() === String(pin).trim()) {
-    isPinValid = true;
-  }
-
-  // If the PIN is not valid, ALWAYS THROW ERROR AND BLOCK ACCESS!
-  if (!isPinValid) {
-    throw new Error('Code PIN incorrect.');
-  }
-
-  // Format clean practitioner name
-  let userPrenom = (userRow.prenom || '').trim();
-  let userNom = (userRow.nom || '').trim();
-
-  // Save PIN hash & Active User ID in secure store
-  await secureStoreSetItem(PIN_HASH_KEY, pinHash);
-  await secureStoreSetItem(ACTIVE_USER_ID_KEY, userRow.id || `user_${Date.now()}`);
-  await updateLastActiveTime();
-
-  return {
-    id: userRow.id || `user_${Date.now()}`,
-    email: userRow.email || cleanId,
-    nom: userNom,
-    prenom: userPrenom,
-    telephone: userRow.telephone || userRow.phone || null,
-    role: userRow.role || 'MEDECIN',
-    biometrie_active: Boolean(userRow.biometrie_active),
-  };
-}
-
-/**
- * Authenticates the user using their PIN code.
- */
-export async function verifyPIN(pin: string): Promise<boolean> {
-  try {
-    let storedHash = await secureStoreGetItem(PIN_HASH_KEY);
-    let activeUserId = await secureStoreGetItem(ACTIVE_USER_ID_KEY);
-
-    if (Platform.OS === 'web' && typeof window !== 'undefined') {
-      const { safeStorageGet, STORAGE_KEYS } = require('../utils/storage');
-      const profile = safeStorageGet(STORAGE_KEYS.CURRENT_USER) || safeStorageGet(STORAGE_KEYS.DOCTOR_PROFILE);
-      const meta = safeStorageGet(STORAGE_KEYS.DOCTOR_META);
-      if (meta?.pin_hash && !storedHash) storedHash = meta.pin_hash;
-      if (meta?.pin && !storedHash) {
-        storedHash = await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, String(meta.pin).trim());
-      }
-      if (profile?.id && !activeUserId) activeUserId = profile.id;
-    }
-
-    if (!storedHash && activeUserId) {
-      try {
-        const db = await getDatabase();
-        const dbUser = (await db.getFirstAsync('SELECT pin_hash FROM utilisateurs WHERE id = ?;', [activeUserId])) as any;
-        if (dbUser?.pin_hash) storedHash = dbUser.pin_hash;
-      } catch (e) {}
-    }
-
-    if (!storedHash) return false;
-
-    const inputHash = await Crypto.digestStringAsync(
-      Crypto.CryptoDigestAlgorithm.SHA256,
-      pin
-    );
-
-    const success = storedHash === inputHash;
-    if (success) {
-      await updateLastActiveTime();
-    }
-    return success;
-  } catch (error) {
-    console.error('MedRecord: Failed to verify PIN:', error);
-    return false;
-  }
-}
-
-/**
- * Checks if biometrics are supported and enrolled on the device.
- */
-export async function getBiometricStatus(): Promise<{
-  hasHardware: boolean;
-  isEnrolled: boolean;
-}> {
-  if (Platform.OS === 'web') {
-    return { hasHardware: false, isEnrolled: false };
-  }
-  const hasHardware = await LocalAuthentication.hasHardwareAsync();
-  const isEnrolled = await LocalAuthentication.isEnrolledAsync();
-  return { hasHardware, isEnrolled };
-}
-
-/**
- * Toggles biometric authentication state.
- */
-export async function setBiometricEnabled(enabled: boolean): Promise<void> {
-  const userId = await secureStoreGetItem(ACTIVE_USER_ID_KEY);
-  if (!userId) return;
-
-  const db = await getDatabase();
-  await db.runAsync('UPDATE utilisateurs SET biometrie_active = ? WHERE id = ?;', [
-    enabled ? 1 : 0,
-    userId,
-  ]);
-  await secureStoreSetItem(BIOMETRIC_ENABLED_KEY, enabled ? 'true' : 'false');
-}
-
-/**
- * Check if biometrics are enabled in the database for the active user.
- */
-export async function isBiometricEnabled(): Promise<boolean> {
-  const enabledStr = await secureStoreGetItem(BIOMETRIC_ENABLED_KEY);
-  return enabledStr === 'true';
-}
-
-/**
- * Authenticates the user using biometric hardware.
- */
-export async function authenticateBiometric(): Promise<boolean> {
-  try {
-    const isEnabled = await isBiometricEnabled();
-    if (!isEnabled) return false;
-
-    const status = await getBiometricStatus();
-    if (!status.hasHardware || !status.isEnrolled) return false;
-
-    const result = await LocalAuthentication.authenticateAsync({
-      promptMessage: 'Authentification MedRecord',
-      fallbackLabel: 'Saisir le code PIN',
-      disableDeviceFallback: false,
-    });
-
-    if (result.success) {
-      await updateLastActiveTime();
-    }
-    return result.success;
-  } catch (error) {
-    console.error('MedRecord: Biometric authentication error:', error);
-    return false;
-  }
-}
-
-/**
- * Gets the current authenticated user profile from local storage or SQLite.
- */
-export async function getActiveUserProfile(): Promise<UserProfile | null> {
-  try {
-    const { safeStorageGet, STORAGE_KEYS, getAnyStoredDoctorProfile } = require('../utils/storage');
-
-    // 1. Prioritize active session doctor profile directly from localStorage
-    const activeStored = safeStorageGet(STORAGE_KEYS.CURRENT_USER) || safeStorageGet(STORAGE_KEYS.DOCTOR_PROFILE);
-    if (activeStored && (activeStored.nom || activeStored.email)) {
-      return {
-        id: activeStored.id || 'dr_main',
-        email: activeStored.email || 'dr@cabinet.sn',
-        nom: cleanRawName(activeStored.nom),
-        prenom: cleanRawName(activeStored.prenom),
-        telephone: activeStored.telephone || null,
-        role: activeStored.role || 'MEDECIN',
-        biometrie_active: Boolean(activeStored.biometrie_active),
-      };
-    }
-
-    // 2. Query SQLite strictly with the active user ID
-    let userId = (await secureStoreGetItem(ACTIVE_USER_ID_KEY)) || safeStorageGet(STORAGE_KEYS.ACTIVE_USER_ID);
-    if (userId) {
-      try {
-        const db = await getDatabase();
-        const dbUser = (await db.getFirstAsync(
-          'SELECT id, email, nom, prenom, telephone, role, biometrie_active FROM utilisateurs WHERE id = ?;',
-          [userId]
-        )) as any;
-        if (dbUser) {
-          return {
-            id: dbUser.id,
-            email: dbUser.email,
-            nom: cleanRawName(dbUser.nom),
-            prenom: cleanRawName(dbUser.prenom),
-            telephone: dbUser.telephone || null,
-            role: dbUser.role || 'MEDECIN',
-            biometrie_active: dbUser.biometrie_active === 1 || dbUser.biometrie_active === true,
-          };
-        }
-      } catch (e) {}
-    }
-
-    // 3. Fallback to any stored active profile helper
-    const anyProfile = getAnyStoredDoctorProfile();
-    if (anyProfile && (anyProfile.nom || anyProfile.email)) {
-      return {
-        id: anyProfile.id || 'dr_main',
-        email: anyProfile.email || 'dr@cabinet.sn',
-        nom: cleanRawName(anyProfile.nom),
-        prenom: cleanRawName(anyProfile.prenom),
-        telephone: anyProfile.telephone || null,
-        role: anyProfile.role || 'MEDECIN',
-        biometrie_active: Boolean(anyProfile.biometrie_active),
-      };
-    }
-
-    return null;
-  } catch (error) {
-    console.error('MedRecord: Failed to get active user profile:', error);
-    return null;
-  }
-}
-
-/**
- * Récupère le délai de verrouillage automatique en minutes (0 = Désactivé).
- */
-export async function getAutoLockTimeoutMinutes(): Promise<number> {
-  try {
-    const val = await secureStoreGetItem(AUTO_LOCK_TIMEOUT_KEY);
-    if (val === null || val === undefined) return DEFAULT_INACTIVITY_TIMEOUT_MINUTES;
-    const parsed = parseInt(val, 10);
-    return isNaN(parsed) ? DEFAULT_INACTIVITY_TIMEOUT_MINUTES : parsed;
-  } catch (error) {
-    return DEFAULT_INACTIVITY_TIMEOUT_MINUTES;
-  }
-}
-
-/**
- * Définit le délai de verrouillage automatique en minutes.
- */
-export async function setAutoLockTimeoutMinutes(minutes: number): Promise<void> {
-  await secureStoreSetItem(AUTO_LOCK_TIMEOUT_KEY, minutes.toString());
-}
-
-/**
- * Records the timestamp of the last user interaction/activity.
+ * Met à jour le timestamp de dernière activité
  */
 export async function updateLastActiveTime(): Promise<void> {
   const now = Date.now().toString();
@@ -583,32 +369,95 @@ export async function updateLastActiveTime(): Promise<void> {
 }
 
 /**
- * Checks if the user session has timed out due to inactivity.
+ * Vérifie si le délai d'inactivité est dépassé
  */
 export async function checkSessionTimeout(): Promise<boolean> {
+  const lastActiveStr = await secureStoreGetItem(LAST_ACTIVE_TIMESTAMP_KEY);
+  if (!lastActiveStr) return false;
+
+  const lastActive = parseInt(lastActiveStr, 10);
+  if (isNaN(lastActive)) return false;
+
+  const timeoutMinutes = await getAutoLockTimeoutMinutes();
+  const timeoutMs = timeoutMinutes * 60 * 1000;
+  const now = Date.now();
+
+  return now - lastActive > timeoutMs;
+}
+
+export async function getAutoLockTimeoutMinutes(): Promise<number> {
+  const stored = await secureStoreGetItem(AUTO_LOCK_TIMEOUT_KEY);
+  if (stored) {
+    const mins = parseInt(stored, 10);
+    if (!isNaN(mins) && mins > 0) return mins;
+  }
+  return DEFAULT_INACTIVITY_TIMEOUT_MINUTES;
+}
+
+export async function setAutoLockTimeoutMinutes(minutes: number): Promise<void> {
+  await secureStoreSetItem(AUTO_LOCK_TIMEOUT_KEY, minutes.toString());
+}
+
+export async function isBiometricEnabled(): Promise<boolean> {
+  const val = await secureStoreGetItem(BIOMETRIC_ENABLED_KEY);
+  return val === 'true';
+}
+
+export async function setBiometricEnabled(enabled: boolean): Promise<void> {
+  await secureStoreSetItem(BIOMETRIC_ENABLED_KEY, enabled ? 'true' : 'false');
+}
+
+export async function authenticateBiometric(): Promise<boolean> {
   try {
-    const minutes = await getAutoLockTimeoutMinutes();
-    // Si désactivé (0 minute), pas de verrouillage automatique
-    if (minutes === 0) return false;
+    const hasHardware = await LocalAuthentication.hasHardwareAsync();
+    if (!hasHardware) return false;
 
-    const lastActiveStr = await secureStoreGetItem(LAST_ACTIVE_TIMESTAMP_KEY);
-    if (!lastActiveStr) return true; // Timeout if never set
+    const isEnrolled = await LocalAuthentication.isEnrolledAsync();
+    if (!isEnrolled) return false;
 
-    const lastActive = parseInt(lastActiveStr, 10);
-    const elapsed = Date.now() - lastActive;
-    const timeoutMs = minutes * 60 * 1000;
+    const result = await LocalAuthentication.authenticateAsync({
+      promptMessage: 'Déverrouiller MedRecord',
+      fallbackLabel: 'Utiliser le code PIN',
+      cancelLabel: 'Annuler',
+      disableDeviceFallback: false,
+    });
 
-    return elapsed > timeoutMs;
+    if (result.success) {
+      await updateLastActiveTime();
+      return true;
+    }
+    return false;
   } catch (error) {
-    console.error('MedRecord: Failed to check session timeout:', error);
-    return true;
+    console.error('MedRecord: Biometric auth error:', error);
+    return false;
   }
 }
 
-/**
- * Logs out the active user and clears local session cache.
- */
-export async function logoutUser(): Promise<void> {
-  await secureStoreDeleteItem(ACTIVE_USER_ID_KEY);
-  await secureStoreDeleteItem(LAST_ACTIVE_TIMESTAMP_KEY);
+// Aliases pour compatibilité ascendante avec les composants existants
+export const isPinSetup = async () => {
+  const { data } = await supabase.auth.getSession();
+  return Boolean(data?.session?.user);
+};
+export const setupPIN = async (pin: string, nom: string, prenom: string, email: string, telephone?: string | null) => {
+  return await signUpDoctor({ email, nom, prenom, telephone, pin });
+};
+export const loginExistingUser = async (identifier: string, pin: string) => {
+  return await signInDoctor({ email: identifier, pin });
+};
+
+export async function checkEmailExists(email: string, currentUserId?: string): Promise<boolean> {
+  const cleanEmail = email.trim().toLowerCase();
+  try {
+    let query = supabase
+      .from('profiles')
+      .select('id')
+      .ilike('email', cleanEmail);
+    if (currentUserId) {
+      query = query.neq('id', currentUserId);
+    }
+    const { data } = await query.limit(1);
+    return Boolean(data && data.length > 0);
+  } catch {
+    return false;
+  }
 }

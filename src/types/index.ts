@@ -6,15 +6,15 @@ export interface DoctorProfile {
   id: string;
   civilite: 'Dr' | 'Pr';
   specialite: string;
-  numero_rpps?: string;
+  numero_rpps?: string | null;
   nom: string;
   prenom: string;
   email: string;
-  telephone: string;
-  phone?: string;
+  telephone: string | null;
+  phone?: string | null;
   role: UserRole;
   pin?: string;
-  pin_hash?: string;
+  pin_hash?: string | null;
   biometrie_active?: boolean;
 }
 
@@ -78,9 +78,13 @@ export interface RendezVous {
   doctor_id?: string;
   medecin_id?: string;
   patient_name?: string;
+  patient_nom?: string;
+  patient_prenom?: string;
+  patient_telephone?: string | null;
+  patient_numero_dossier?: string;
   date_heure: string;
   motif?: string | null;
-  statut: 'PLANIFIE' | 'HONORE' | 'ANNULE';
+  statut: 'PLANIFIE' | 'HONORE' | 'ANNULE' | 'PROGRAMME' | 'CONFIRME' | 'REALISE';
   notes?: string | null;
   created_at?: string;
   updated_at?: string;
