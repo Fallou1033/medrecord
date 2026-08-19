@@ -209,6 +209,8 @@ export default function SetupSecurityScreen({ onSetupSuccess }: { onSetupSuccess
       // 2. Sauvegarde des métadonnées du cabinet
       if (Platform.OS === 'web' && typeof window !== 'undefined') {
         const { STORAGE_KEYS, safeStorageSet, persistActiveSession } = require('../utils/storage');
+        const { saveActiveDoctorSession } = require('../services/storageService');
+        saveActiveDoctorSession(docProfileData);
         safeStorageSet(STORAGE_KEYS.DOCTOR_META, docProfileData);
         safeStorageSet(STORAGE_KEYS.DOCTOR_PROFILE, docProfileData);
         safeStorageSet(STORAGE_KEYS.CURRENT_USER, docProfileData);

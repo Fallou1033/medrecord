@@ -31,9 +31,9 @@ class WebDatabaseMock {
     const cleanQuery = q.trim().replace(/\s+/g, ' ');
     const upperQuery = cleanQuery.toUpperCase();
 
-    // 1. INSERT INTO
-    if (upperQuery.startsWith('INSERT INTO')) {
-      const match = cleanQuery.match(/INSERT INTO (\w+)\s*\(([^)]+)\)\s*VALUES\s*\(([^)]+)\)/i);
+    // 1. INSERT (including INSERT OR REPLACE / INSERT OR IGNORE)
+    if (upperQuery.startsWith('INSERT')) {
+      const match = cleanQuery.match(/INSERT(?:\s+OR\s+\w+)?\s+INTO\s+(\w+)\s*\(([^)]+)\)\s*VALUES\s*\(([^)]+)\)/i);
       if (!match) return { changes: 1, lastInsertRowId: Date.now() };
 
       const table = match[1].toLowerCase();
@@ -49,12 +49,38 @@ class WebDatabaseMock {
       if (row.is_synced === undefined) row.is_synced = 0;
 
       const list = JSON.parse(localStorage.getItem(`db_${table}`) || '[]');
-      list.push(row);
+      const existingIdx = list.findIndex((item: any) => 
+        (row.id && item.id === row.id) || 
+        (table === 'utilisateurs' && row.email && item.email && item.email.toLowerCase() === (row.email || '').toLowerCase())
+      );
+      if (existingIdx >= 0) {
+        list[existingIdx] = { ...list[existingIdx], ...row, updated_at: new Date().toISOString() };
+      } else {
+        list.push(row);
+      }
       localStorage.setItem(`db_${table}`, JSON.stringify(list));
       return { changes: 1, lastInsertRowId: Date.now() };
     }
 
-    // 2. UPDATE
+    // 2. DELETE
+    if (upperQuery.startsWith('DELETE')) {
+      const match = cleanQuery.match(/DELETE\s+FROM\s+(\w+)(?:\s+WHERE\s+(.+?))?$/i);
+      if (!match) return { changes: 0 };
+      const table = match[1].toLowerCase();
+      const whereClause = match[2];
+      if (!whereClause) {
+        localStorage.setItem(`db_${table}`, JSON.stringify([]));
+        return { changes: 1 };
+      }
+      const list = JSON.parse(localStorage.getItem(`db_${table}`) || '[]');
+      const whereField = whereClause.split('=')[0].trim().replace(/.*\./, '');
+      const whereVal = params[0];
+      const filtered = list.filter((r: any) => r[whereField] !== whereVal);
+      localStorage.setItem(`db_${table}`, JSON.stringify(filtered));
+      return { changes: list.length - filtered.length };
+    }
+
+    // 3. UPDATE
     if (upperQuery.startsWith('UPDATE')) {
       const match = cleanQuery.match(/UPDATE (\w+)\s+SET\s+(.+?)\s+WHERE\s+(.+?)$/i);
       if (!match) return { changes: 0 };

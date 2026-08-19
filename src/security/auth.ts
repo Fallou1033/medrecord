@@ -323,13 +323,9 @@ export async function loginExistingUser(identifier: string, pin: string): Promis
     throw new Error('Code PIN incorrect.');
   }
 
-  // Format clean practitioner name (e.g. Dr Fallou Diop)
-  let userPrenom = (userRow.prenom || 'Fallou').trim();
-  let userNom = (userRow.nom || 'Diop').trim();
-  if (userPrenom.includes('10008') || userPrenom.toLowerCase().includes('fallu') || userPrenom.length > 12) {
-    userPrenom = 'Fallou';
-    userNom = 'Diop';
-  }
+  // Format clean practitioner name
+  let userPrenom = (userRow.prenom || '').trim();
+  let userNom = (userRow.nom || '').trim();
 
   // Save PIN hash & Active User ID in secure store
   await secureStoreSetItem(PIN_HASH_KEY, pinHash);
