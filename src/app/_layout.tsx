@@ -141,19 +141,53 @@ function MainAppContent() {
 
   // 1. Si une session praticien est active OU activeView est 'dashboard' :
   if (isSessionActive && (user || safeStorageGet(STORAGE_KEYS.SESSION_ACTIVE) === 'true')) {
-    if (isLocked) {
-      return <LockScreen />;
-    }
-    return <AppTabs />;
+    return (
+      <View style={{ flex: 1 }}>
+        <AppTabs />
+        {isLocked && (
+          <View
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              zIndex: 999999,
+              elevation: 999999,
+              backgroundColor: '#0F172A',
+            }}
+          >
+            <LockScreen />
+          </View>
+        )}
+      </View>
+    );
   }
 
   // 2. Si aucune session active (déconnecté ou première installation) :
   switch (activeView) {
     case 'dashboard':
-      if (isLocked) {
-        return <LockScreen />;
-      }
-      return <AppTabs />;
+      return (
+        <View style={{ flex: 1 }}>
+          <AppTabs />
+          {isLocked && (
+            <View
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                zIndex: 999999,
+                elevation: 999999,
+                backgroundColor: '#0F172A',
+              }}
+            >
+              <LockScreen />
+            </View>
+          )}
+        </View>
+      );
     case 'login':
       return (
         <View style={{ flex: 1, backgroundColor: '#0F172A' }}>

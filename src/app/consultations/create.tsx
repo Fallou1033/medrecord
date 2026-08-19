@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   StyleSheet,
   View,
@@ -15,17 +15,64 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, useRouter, Link } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { createConsultation, getPatientById, getPatients, Patient } from '../../database/SQLiteDatabaseManager';
+import { createConsultation } from '../../services/api/consultationsService';
+import { getPatientById, getPatients } from '../../services/api/patientsService';
+import { logAuditEvent } from '../../services/api/auditService';
+import { Patient } from '../../types';
 import { calculateIMC } from '../../utils/helpers';
 import { useSecurity } from '../../security/SecurityContext';
 import DatePickerDOB from '../../components/DatePickerDOB';
+
+// Draft Auto-save Helpers
+async function saveConsultationDraft(pId: string, data: any) {
+  try {
+    const key = `draft_consultation_${pId || 'new'}`;
+    const jsonStr = JSON.stringify(data);
+    if (Platform.OS === 'web') {
+      if (typeof localStorage !== 'undefined') localStorage.setItem(key, jsonStr);
+    } else {
+      const SecureStore = require('expo-secure-store');
+      await SecureStore.setItemAsync(key, jsonStr);
+    }
+  } catch (e) {
+    console.warn('Failed to save consultation draft', e);
+  }
+}
+
+async function loadConsultationDraft(pId: string) {
+  try {
+    const key = `draft_consultation_${pId || 'new'}`;
+    let jsonStr: string | null = null;
+    if (Platform.OS === 'web') {
+      if (typeof localStorage !== 'undefined') jsonStr = localStorage.getItem(key);
+    } else {
+      const SecureStore = require('expo-secure-store');
+      jsonStr = await SecureStore.getItemAsync(key);
+    }
+    return jsonStr ? JSON.parse(jsonStr) : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+async function clearConsultationDraft(pId: string) {
+  try {
+    const key = `draft_consultation_${pId || 'new'}`;
+    if (Platform.OS === 'web') {
+      if (typeof localStorage !== 'undefined') localStorage.removeItem(key);
+    } else {
+      const SecureStore = require('expo-secure-store');
+      await SecureStore.deleteItemAsync(key);
+    }
+  } catch (e) {
+    console.warn('Failed to clear consultation draft', e);
+  }
+}
 
 export default function CreateConsultationScreen() {
   const router = useRouter();
   const { patientId } = useLocalSearchParams<{ patientId: string }>();
   const { user } = useSecurity();
-
-  console.log("MedRecord Debug: CreateConsultationScreen render", { patientId, user });
 
   const showAlert = (title: string, message: string, buttons?: { text: string; onPress?: () => void }[]) => {
     if (Platform.OS === 'web') {
@@ -40,6 +87,8 @@ export default function CreateConsultationScreen() {
 
   const [patient, setPatient] = useState<Patient | null>(null);
   const [loadingPatient, setLoadingPatient] = useState(true);
+  const [hasRestoredDraft, setHasRestoredDraft] = useState(false);
+  const isInitialMount = useRef(true);
 
   // Vitals State
   const [temperature, setTemperature] = useState('');
@@ -64,6 +113,8 @@ export default function CreateConsultationScreen() {
   const [allPatients, setAllPatients] = useState<any[]>([]);
   const [selectedPatientId, setSelectedPatientId] = useState<string>(patientId || '');
 
+  const effectivePatientId = patientId || selectedPatientId;
+
   useEffect(() => {
     if (patientId) {
       loadPatient(patientId);
@@ -71,6 +122,105 @@ export default function CreateConsultationScreen() {
       loadAllPatients();
     }
   }, [patientId]);
+
+  // Restore draft on initial mount
+  useEffect(() => {
+    (async () => {
+      const draft = await loadConsultationDraft(effectivePatientId);
+      if (draft) {
+        if (draft.temperature !== undefined) setTemperature(draft.temperature);
+        if (draft.tension !== undefined) setTension(draft.tension);
+        if (draft.pulsations !== undefined) setPulsations(draft.pulsations);
+        if (draft.saturation !== undefined) setSaturation(draft.saturation);
+        if (draft.glycemie !== undefined) setGlycemie(draft.glycemie);
+        if (draft.poids !== undefined) setPoids(draft.poids);
+        if (draft.taille !== undefined) setTaille(draft.taille);
+        if (draft.motif !== undefined) setMotif(draft.motif);
+        if (draft.histoire !== undefined) setHistoire(draft.histoire);
+        if (draft.examenClinique !== undefined) setExamenClinique(draft.examenClinique);
+        if (draft.diagnostic !== undefined) setDiagnostic(draft.diagnostic);
+        if (draft.traitement !== undefined) setTraitement(draft.traitement);
+        if (draft.conseils !== undefined) setConseils(draft.conseils);
+        if (draft.dateControle !== undefined) setDateControle(draft.dateControle);
+
+        const hasContent = Boolean(
+          (draft.motif && draft.motif.trim()) ||
+          (draft.diagnostic && draft.diagnostic.trim()) ||
+          (draft.traitement && draft.traitement.trim()) ||
+          (draft.histoire && draft.histoire.trim()) ||
+          (draft.examenClinique && draft.examenClinique.trim()) ||
+          (draft.poids && draft.poids.trim()) ||
+          (draft.temperature && draft.temperature.trim())
+        );
+
+        if (hasContent) {
+          setHasRestoredDraft(true);
+        }
+      }
+    })();
+  }, [effectivePatientId]);
+
+  // Auto-save draft on input change
+  useEffect(() => {
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return;
+    }
+
+    const draftData = {
+      temperature,
+      tension,
+      pulsations,
+      saturation,
+      glycemie,
+      poids,
+      taille,
+      motif,
+      histoire,
+      examenClinique,
+      diagnostic,
+      traitement,
+      conseils,
+      dateControle,
+    };
+
+    saveConsultationDraft(effectivePatientId, draftData);
+  }, [
+    effectivePatientId,
+    temperature,
+    tension,
+    pulsations,
+    saturation,
+    glycemie,
+    poids,
+    taille,
+    motif,
+    histoire,
+    examenClinique,
+    diagnostic,
+    traitement,
+    conseils,
+    dateControle,
+  ]);
+
+  const handleResetDraft = async () => {
+    setTemperature('');
+    setTension('');
+    setPulsations('');
+    setSaturation('');
+    setGlycemie('');
+    setPoids('');
+    setTaille('');
+    setMotif('');
+    setHistoire('');
+    setExamenClinique('');
+    setDiagnostic('');
+    setTraitement('');
+    setConseils('');
+    setDateControle('');
+    setHasRestoredDraft(false);
+    await clearConsultationDraft(effectivePatientId);
+  };
 
   const loadAllPatients = async () => {
     setLoadingPatient(true);
@@ -119,23 +269,22 @@ export default function CreateConsultationScreen() {
     }
   };
 
-
-
   const handleSubmit = async () => {
-    if (!motif.trim() || !diagnostic.trim()) {
-      showAlert('Champs requis', 'Veuillez renseigner au moins le motif et le diagnostic.');
+    if (!motif.trim()) {
+      showAlert('Champs requis', 'Veuillez au moins renseigner le motif de consultation.');
       return;
     }
 
-    if (!user) {
-      showAlert('Erreur', 'Session utilisateur non active.');
+    const currentPatientId = (patient as any)?.id || selectedPatientId || patientId;
+    if (!currentPatientId) {
+      showAlert('Erreur', 'Veuillez sélectionner un patient valide.');
       return;
     }
 
     // Validate control date if set
     if (dateControle.trim()) {
       const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
-      if (!dateRegex.test(dateControle)) {
+      if (!dateRegex.test(dateControle.trim())) {
         showAlert('Date invalide', 'La date de contrôle doit être au format AAAA-MM-JJ.');
         return;
       }
@@ -143,49 +292,47 @@ export default function CreateConsultationScreen() {
 
     setLoading(true);
     try {
-      // Build vitals structure
-      const hasVitals = temperature || tension || pulsations || saturation || glycemie || poids || taille;
-      const constantesDetails = hasVitals
-        ? {
-            temperature: parseFloat(temperature) || null,
-            tension_arterielle: tension.trim() || null,
-            frequence_cardiaque: parseInt(pulsations, 10) || null,
-            saturation: parseInt(saturation, 10) || null,
-            glycemie: parseFloat(glycemie) || null,
-            poids: parseFloat(poids) || null,
-            taille: parseFloat(taille) || null,
-          }
-        : null;
+      await createConsultation({
+        patient_id: currentPatientId,
+        date: new Date().toISOString(),
+        motif: motif.trim(),
+        histoire_maladie: histoire.trim() || null,
+        examen_clinique: examenClinique.trim() || null,
+        diagnostic: diagnostic.trim() || null,
+        traitement: traitement.trim() || null,
+        conseils: conseils.trim() || null,
+        date_controle: dateControle.trim() || null,
+        poids_kg: poids ? parseFloat(poids.replace(',', '.')) || null : null,
+        taille_cm: taille ? parseFloat(taille.replace(',', '.')) || null : null,
+        pression_arterielle: tension.trim() || null,
+        frequence_cardiaque: pulsations ? parseInt(pulsations, 10) || null : null,
+        temperature: temperature ? parseFloat(temperature.replace(',', '.')) || null : null,
+      });
 
-      await createConsultation(
-        {
-          patient_id: patientId,
-          medecin_id: user.id,
-          date: new Date().toISOString(),
-          motif: motif.trim(),
-          histoire_maladie: histoire.trim() || null,
-          examen_clinique: examenClinique.trim() || null,
-          diagnostic: diagnostic.trim() || null,
-          traitement: traitement.trim() || null,
-          conseils: conseils.trim() || null,
-          date_controle: dateControle.trim() || null,
-        },
-        constantesDetails,
-        user.id
+      // Journal d'audit : Consultation créée
+      logAuditEvent(
+        'CREATE',
+        'consultations',
+        currentPatientId,
+        `Nouvelle consultation enregistrée pour le patient ${patient?.prenom || ''} ${patient?.nom || ''}`,
+        'SUCCESS'
       );
 
-      showAlert('Succès', 'La consultation a été enregistrée avec succès.', [
+      // Effacer le brouillon de cette consultation après enregistrement réussi
+      await clearConsultationDraft(currentPatientId);
+      setHasRestoredDraft(false);
+
+      showAlert('Succès', 'La consultation a été enregistrée avec succès dans le dossier médical.', [
         {
           text: 'OK',
           onPress: () => {
-            // Redirect back to patient details
-            router.replace(`/patients/${patientId}`);
+            router.back();
           },
         },
       ]);
-    } catch (err) {
-      console.error(err);
-      showAlert('Erreur', "Impossible d'enregistrer la consultation.");
+    } catch (err: any) {
+      console.error('Failed to create consultation:', err);
+      showAlert('Erreur', err?.message || "Impossible d'enregistrer la consultation.");
     } finally {
       setLoading(false);
     }
@@ -268,6 +415,20 @@ export default function CreateConsultationScreen() {
         )}
 
         <ScrollView contentContainerStyle={styles.formContainer}>
+          {hasRestoredDraft && (
+            <View style={{ backgroundColor: 'rgba(40, 194, 255, 0.15)', borderWidth: 1, borderColor: '#28C2FF', borderRadius: 8, padding: 12, marginBottom: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}>
+                <Ionicons name="information-circle" size={20} color="#28C2FF" />
+                <Text style={{ color: '#E0F2FE', fontSize: 13, flex: 1 }}>
+                  Brouillon de consultation restauré automatiquement.
+                </Text>
+              </View>
+              <TouchableOpacity onPress={handleResetDraft} style={{ backgroundColor: '#EF4444', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 6 }}>
+                <Text style={{ color: '#FFFFFF', fontSize: 12, fontWeight: 'bold' }}>Effacer</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
           {/* Section 1: Vitals (Constantes) */}
           <Text style={styles.sectionTitle}>Constantes Physiologiques</Text>
           
