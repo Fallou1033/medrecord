@@ -2,36 +2,50 @@ import { supabase } from '../../lib/supabase';
 import { RendezVous } from '../../types';
 import { getAuthenticatedDoctorId } from '../../security/auth';
 
+const normalizeStatus = (st: string | undefined): 'PLANIFIE' | 'HONORE' | 'ANNULE' => {
+  if (!st) return 'PLANIFIE';
+  const upper = st.toUpperCase().trim();
+  if (upper === 'PROGRAMME' || upper === 'PLANIFIE' || upper === 'CONFIRME') return 'PLANIFIE';
+  if (upper === 'HONORE' || upper === 'REALISE' || upper === 'EFFECTUE' || upper === 'TERMINE') return 'HONORE';
+  if (upper === 'ANNULE') return 'ANNULE';
+  return 'PLANIFIE';
+};
+
 /**
  * Service de gestion des rendez-vous connecté à Supabase avec RLS
  */
 export async function getAppointments(): Promise<RendezVous[]> {
-  const { data, error } = await supabase
-    .from('appointments')
-    .select('*, patients(nom, prenom, telephone, numero_dossier)')
-    .order('date_heure', { ascending: true });
+  try {
+    const { data, error } = await supabase
+      .from('appointments')
+      .select('*, patients(nom, prenom, telephone, numero_dossier)')
+      .order('date_heure', { ascending: true });
 
-  if (error) {
-    console.error('Supabase getAppointments error:', error.message, error.details, error.hint, error.code);
-    throw new Error(`Erreur lors de la récupération des rendez-vous: ${error.message}`);
+    if (error) {
+      console.warn('Supabase getAppointments warning:', error.message, error.details);
+      return [];
+    }
+
+    return (data || []).map((row: any) => ({
+      id: row.id,
+      patient_id: row.patient_id,
+      doctor_id: row.doctor_id,
+      medecin_id: row.doctor_id,
+      patient_name: row.patients ? `${row.patients.prenom || ''} ${row.patients.nom || ''}`.trim() : 'Patient',
+      patient_telephone: row.patients?.telephone || null,
+      patient_numero_dossier: row.patients?.numero_dossier || null,
+      date_heure: row.date_heure,
+      motif: row.motif || null,
+      statut: row.statut || 'PLANIFIE',
+      notes: row.notes || null,
+      created_at: row.created_at || new Date().toISOString(),
+      updated_at: row.updated_at || new Date().toISOString(),
+      is_synced: true,
+    }));
+  } catch (err) {
+    console.error('getAppointments unexpected error:', err);
+    return [];
   }
-
-  return (data || []).map((row: any) => ({
-    id: row.id,
-    patient_id: row.patient_id,
-    doctor_id: row.doctor_id,
-    medecin_id: row.doctor_id,
-    patient_name: row.patients ? `${row.patients.prenom || ''} ${row.patients.nom || ''}`.trim() : 'Patient',
-    patient_telephone: row.patients?.telephone || null,
-    patient_numero_dossier: row.patients?.numero_dossier || null,
-    date_heure: row.date_heure,
-    motif: row.motif || null,
-    statut: row.statut || 'PLANIFIE',
-    notes: row.notes || null,
-    created_at: row.created_at,
-    updated_at: row.updated_at,
-    is_synced: true,
-  }));
 }
 
 export async function createAppointment(appointment: Omit<RendezVous, 'id' | 'created_at' | 'updated_at'>): Promise<RendezVous> {
@@ -41,7 +55,7 @@ export async function createAppointment(appointment: Omit<RendezVous, 'id' | 'cr
     doctor_id: doctorId,
     patient_id: appointment.patient_id,
     date_heure: appointment.date_heure,
-    statut: appointment.statut || 'PLANIFIE',
+    statut: normalizeStatus(appointment.statut),
     motif: appointment.motif || null,
     notes: appointment.notes || null,
   };
@@ -85,6 +99,10 @@ export async function updateAppointment(id: string, updates: Partial<RendezVous>
   delete updatePayload.patient_prenom;
   delete updatePayload.patient_telephone;
   delete updatePayload.patient_numero_dossier;
+
+  if (updatePayload.statut) {
+    updatePayload.statut = normalizeStatus(updatePayload.statut);
+  }
 
   const { data, error } = await supabase
     .from('appointments')

@@ -273,6 +273,12 @@ export default function CreateConsultationScreen() {
   };
 
   const handleSubmit = async () => {
+    const finalPatientId = patientId || selectedPatientId;
+    if (!finalPatientId) {
+      showAlert('Patient requis', 'Veuillez sélectionner un patient pour cette consultation.');
+      return;
+    }
+
     if (!motif.trim() || !diagnostic.trim()) {
       showAlert('Champs requis', 'Veuillez saisir le motif et le diagnostic de la consultation.');
       return;
@@ -317,7 +323,7 @@ export default function CreateConsultationScreen() {
         : null;
 
       const newConsultation = await createConsultation({
-        patient_id: patientId || selectedPatientId,
+        patient_id: finalPatientId,
         date: new Date().toISOString(),
         motif: motif.trim(),
         histoire_maladie: histoire.trim() || null,
@@ -343,21 +349,25 @@ export default function CreateConsultationScreen() {
       );
 
       // Clear draft on successful save
-      if (patientId) {
-        await clearConsultationDraft(patientId);
+      if (finalPatientId) {
+        await clearConsultationDraft(finalPatientId);
       }
 
       showAlert('Succès', 'La consultation a été enregistrée avec succès.', [
         {
           text: 'OK',
           onPress: () => {
-            router.replace(`/patients/${patientId}`);
+            if (finalPatientId) {
+              router.replace(`/patients/${finalPatientId}`);
+            } else {
+              router.replace('/patients');
+            }
           },
         },
       ]);
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      showAlert('Erreur', "Impossible d'enregistrer la consultation.");
+      showAlert('Erreur', err?.message || "Impossible d'enregistrer la consultation.");
     } finally {
       setLoading(false);
     }

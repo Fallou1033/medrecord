@@ -55,6 +55,17 @@ export default function RendezVousScreen() {
   const { user } = useSecurity();
   const router = useRouter();
 
+  const showAlert = (title: string, message: string, buttons?: { text: string; onPress?: () => void }[]) => {
+    if (Platform.OS === 'web') {
+      window.alert(`${title}\n\n${message}`);
+      if (buttons && buttons.length > 0 && buttons[0].onPress) {
+        buttons[0].onPress();
+      }
+    } else {
+      Alert.alert(title, message, buttons);
+    }
+  };
+
   const [rdvs, setRdvs] = useState<RendezVous[]>([]);
   const [loading, setLoading] = useState(true);
   
@@ -68,7 +79,7 @@ export default function RendezVousScreen() {
   // New Appointment Fields
   const [dateStr, setDateStr] = useState(new Date().toISOString().split('T')[0]); // YYYY-MM-DD
   const [timeStr, setTimeStr] = useState('09:00'); // HH:MM
-  const [status, setStatus] = useState<RendezVous['statut']>('PROGRAMME');
+  const [status, setStatus] = useState<RendezVous['statut']>('PLANIFIE');
   const [saving, setSaving] = useState(false);
 
   // Search query state for appointments
@@ -79,7 +90,7 @@ export default function RendezVousScreen() {
   const [selectedRdv, setSelectedRdv] = useState<RendezVous | null>(null);
   const [editDateStr, setEditDateStr] = useState('');
   const [editTimeStr, setEditTimeStr] = useState('');
-  const [editStatus, setEditStatus] = useState<RendezVous['statut']>('PROGRAMME');
+  const [editStatus, setEditStatus] = useState<RendezVous['statut']>('PLANIFIE');
   const [editSaving, setEditSaving] = useState(false);
 
   const openEditModal = (rdv: RendezVous) => {
@@ -98,13 +109,13 @@ export default function RendezVousScreen() {
   };
 
   const handleSaveEditRdv = async () => {
-    if (!user || !selectedRdv) return;
+    if (!selectedRdv) return;
     if (!editDateStr.trim() || !editTimeStr.trim()) {
-      Alert.alert('Erreur', 'Veuillez renseigner la date et l\'heure du rendez-vous.');
+      showAlert('Erreur', 'Veuillez renseigner la date et l\'heure du rendez-vous.');
       return;
     }
 
-    const fullDateTime = `${editDateStr.trim()}T${editTimeStr.trim()}:00`;
+    const fullDateTime = `${editDateStr.trim()}T${editTimeStr.trim()}:00.000Z`;
     setEditSaving(true);
     try {
       await updateAppointment(selectedRdv.id, {
@@ -112,11 +123,11 @@ export default function RendezVousScreen() {
         statut: editStatus as any,
       });
       setEditModalVisible(false);
-      Alert.alert('Succès', 'Le rendez-vous a été modifié avec succès.');
+      showAlert('Succès', 'Le rendez-vous a été modifié avec succès.');
       loadData();
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      Alert.alert('Erreur', 'Impossible de modifier le rendez-vous.');
+      showAlert('Erreur', err?.message || 'Impossible de modifier le rendez-vous.');
     } finally {
       setEditSaving(false);
     }
@@ -154,27 +165,27 @@ export default function RendezVousScreen() {
     }
     const query = searchPatient.toLowerCase();
     const filtered = patients.filter(
-      (p) => `${p.prenom} ${p.nom}`.toLowerCase().includes(query) || p.numero_dossier.toLowerCase().includes(query)
+      (p) => `${p.prenom} ${p.nom}`.toLowerCase().includes(query) || (p.numero_dossier || '').toLowerCase().includes(query)
     );
     setFilteredPatients(filtered);
   }, [searchPatient, patients]);
 
   const handleCreateAppointment = async () => {
     if (!selectedPatient) {
-      Alert.alert('Erreur', 'Veuillez sélectionner un patient.');
+      showAlert('Sélection requise', 'Veuillez sélectionner un patient.');
       return;
     }
 
     const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
     const timeRegex = /^\d{2}:\d{2}$/;
-    if (!dateRegex.test(dateStr) || !timeRegex.test(timeStr)) {
-      Alert.alert('Format invalide', 'Date (AAAA-MM-JJ) et Heure (HH:MM) requises.');
+    if (!dateRegex.test(dateStr.trim()) || !timeRegex.test(timeStr.trim())) {
+      showAlert('Format invalide', 'Date (AAAA-MM-JJ) et Heure (HH:MM) requises.');
       return;
     }
 
     setSaving(true);
     try {
-      const combinedDateTime = `${dateStr}T${timeStr}:00.000Z`;
+      const combinedDateTime = `${dateStr.trim()}T${timeStr.trim()}:00.000Z`;
       await createAppointment({
         patient_id: selectedPatient.id,
         date_heure: combinedDateTime,
@@ -189,10 +200,10 @@ export default function RendezVousScreen() {
       setSelectedPatient(null);
       setSearchPatient('');
       setModalVisible(false);
-      Alert.alert('Succès', 'Le rendez-vous a été enregistré.');
-    } catch (err) {
+      showAlert('Succès', 'Le rendez-vous a été enregistré.');
+    } catch (err: any) {
       console.error(err);
-      Alert.alert('Erreur', 'Impossible de planifier le rendez-vous.');
+      showAlert('Erreur', err?.message || 'Impossible de planifier le rendez-vous.');
     } finally {
       setSaving(false);
     }
@@ -203,9 +214,9 @@ export default function RendezVousScreen() {
       await updateAppointment(rdvId, { statut: nextStatus as any });
       const list = await getAppointments();
       setRdvs(list);
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      Alert.alert('Erreur', 'Impossible de modifier le statut.');
+      showAlert('Erreur', err?.message || 'Impossible de modifier le statut.');
     }
   };
 

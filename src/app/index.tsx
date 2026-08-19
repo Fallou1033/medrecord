@@ -297,7 +297,7 @@ export default function DashboardScreen() {
             <Ionicons name="person-add" size={15} color="#0F2C3D" />
             <Text style={styles.shortcutBtnPrimaryText}>+ Nouveau patient</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.shortcutBtnSecondary} onPress={() => router.push('/consultations')}>
+          <TouchableOpacity style={styles.shortcutBtnSecondary} onPress={() => router.push('/consultations/create')}>
             <Ionicons name="medical" size={15} color="#28C2FF" />
             <Text style={styles.shortcutBtnSecondaryText}>+ Nouvelle consultation</Text>
           </TouchableOpacity>
