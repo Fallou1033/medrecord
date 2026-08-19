@@ -570,11 +570,18 @@ export default function CreateCertificatScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <Link href={`/patients/${patientId}`} asChild>
-          <TouchableOpacity style={styles.backButton}>
-            <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
-          </TouchableOpacity>
-        </Link>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => {
+            if (patientId) {
+              router.push(`/patients/${patientId}`);
+            } else {
+              router.back();
+            }
+          }}
+        >
+          <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+        </TouchableOpacity>
         <Text style={styles.title}>Rédiger un Certificat</Text>
         <View style={styles.placeholder} />
       </View>

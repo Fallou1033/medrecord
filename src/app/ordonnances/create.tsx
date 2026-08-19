@@ -257,11 +257,20 @@ export default function CreateOrdonnanceScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <Link href={`/patients/${patientId}`} style={styles.backButton}>
-          <View pointerEvents="none">
-            <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
-          </View>
-        </Link>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => {
+            if (patientId) {
+              router.push(`/patients/${patientId}`);
+            } else if (patient?.id) {
+              router.push(`/patients/${patient.id}`);
+            } else {
+              router.back();
+            }
+          }}
+        >
+          <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+        </TouchableOpacity>
         <Text style={styles.title}>Rédiger l'Ordonnance</Text>
         <View style={styles.placeholder} />
       </View>
