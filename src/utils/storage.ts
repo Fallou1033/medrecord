@@ -35,16 +35,13 @@ export function safeStorageGet<T = any>(key: string, fallback: T | null = null):
 }
 
 /**
- * Retrieves the stored doctor profile across any legacy or new key.
+ * Retrieves the stored doctor profile across active session keys.
  */
 export function getAnyStoredDoctorProfile(): any | null {
   if (Platform.OS === 'web' && typeof window !== 'undefined') {
     return (
       safeStorageGet(STORAGE_KEYS.CURRENT_USER) ||
       safeStorageGet(STORAGE_KEYS.DOCTOR_PROFILE) ||
-      safeStorageGet(STORAGE_KEYS.DOCTOR_OFFICIAL) ||
-      safeStorageGet(STORAGE_KEYS.DOCTOR_META) ||
-      safeStorageGet(STORAGE_KEYS.DOCTOR_LEGACY) ||
       null
     );
   }

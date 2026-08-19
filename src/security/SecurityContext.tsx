@@ -12,6 +12,7 @@ import {
   isBiometricEnabled,
   getAutoLockTimeoutMinutes,
   setAutoLockTimeoutMinutes,
+  cleanRawName,
   UserProfile,
 } from './auth';
 import {
@@ -49,14 +50,14 @@ export const SecurityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   });
 
   const [user, setUser] = useState<UserProfile | null>(() => {
-    const { getAnyStoredDoctorProfile } = require('../utils/storage');
-    const profile = getAnyStoredDoctorProfile();
+    const { getAnyStoredDoctorProfile, safeStorageGet, STORAGE_KEYS } = require('../utils/storage');
+    const profile = safeStorageGet(STORAGE_KEYS.CURRENT_USER) || safeStorageGet(STORAGE_KEYS.DOCTOR_PROFILE) || getAnyStoredDoctorProfile();
     if (!profile) return null;
     return {
       id: profile.id || 'dr_main',
       email: profile.email || 'dr@cabinet.sn',
-      nom: profile.nom || 'Diéye',
-      prenom: profile.prenom || 'Mami',
+      nom: cleanRawName(profile.nom) || 'Diéye',
+      prenom: cleanRawName(profile.prenom) || 'Mami',
       telephone: profile.telephone || null,
       role: profile.role || 'MEDECIN',
       biometrie_active: Boolean(profile.biometrie_active),

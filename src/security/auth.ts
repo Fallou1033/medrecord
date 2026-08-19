@@ -458,49 +458,60 @@ export async function authenticateBiometric(): Promise<boolean> {
 }
 
 /**
- * Gets the current authenticated user profile from SQLite or local storage.
+ * Gets the current authenticated user profile from local storage or SQLite.
  */
 export async function getActiveUserProfile(): Promise<UserProfile | null> {
   try {
-    const { getAnyStoredDoctorProfile } = require('../utils/storage');
-    let userId = (await secureStoreGetItem(ACTIVE_USER_ID_KEY)) || getAnyStoredDoctorProfile()?.id;
-    let user: any = null;
+    const { safeStorageGet, STORAGE_KEYS, getAnyStoredDoctorProfile } = require('../utils/storage');
 
+    // 1. Prioritize active session doctor profile directly from localStorage
+    const activeStored = safeStorageGet(STORAGE_KEYS.CURRENT_USER) || safeStorageGet(STORAGE_KEYS.DOCTOR_PROFILE);
+    if (activeStored && (activeStored.nom || activeStored.email)) {
+      return {
+        id: activeStored.id || 'dr_main',
+        email: activeStored.email || 'dr@cabinet.sn',
+        nom: cleanRawName(activeStored.nom),
+        prenom: cleanRawName(activeStored.prenom),
+        telephone: activeStored.telephone || null,
+        role: activeStored.role || 'MEDECIN',
+        biometrie_active: Boolean(activeStored.biometrie_active),
+      };
+    }
+
+    // 2. Query SQLite strictly with the active user ID
+    let userId = (await secureStoreGetItem(ACTIVE_USER_ID_KEY)) || safeStorageGet(STORAGE_KEYS.ACTIVE_USER_ID);
     if (userId) {
       try {
         const db = await getDatabase();
-        user = (await db.getFirstAsync(
+        const dbUser = (await db.getFirstAsync(
           'SELECT id, email, nom, prenom, telephone, role, biometrie_active FROM utilisateurs WHERE id = ?;',
           [userId]
         )) as any;
+        if (dbUser) {
+          return {
+            id: dbUser.id,
+            email: dbUser.email,
+            nom: cleanRawName(dbUser.nom),
+            prenom: cleanRawName(dbUser.prenom),
+            telephone: dbUser.telephone || null,
+            role: dbUser.role || 'MEDECIN',
+            biometrie_active: dbUser.biometrie_active === 1 || dbUser.biometrie_active === true,
+          };
+        }
       } catch (e) {}
     }
 
-    if (!user) {
-      try {
-        const db = await getDatabase();
-        user = (await db.getFirstAsync(
-          'SELECT id, email, nom, prenom, telephone, role, biometrie_active FROM utilisateurs LIMIT 1;'
-        )) as any;
-      } catch (e) {}
-    }
-
-    if (!user && Platform.OS === 'web' && typeof window !== 'undefined') {
-      user = getAnyStoredDoctorProfile();
-    }
-
-    if (user) {
-      const cleanedNom = cleanRawName(user.nom);
-      const cleanedPrenom = cleanRawName(user.prenom);
-
+    // 3. Fallback to any stored active profile helper
+    const anyProfile = getAnyStoredDoctorProfile();
+    if (anyProfile && (anyProfile.nom || anyProfile.email)) {
       return {
-        id: user.id || 'dr_main',
-        email: user.email || 'dr@cabinet.sn',
-        nom: cleanedNom || 'Diéye',
-        prenom: cleanedPrenom || 'Mami',
-        telephone: user.telephone || null,
-        role: user.role || 'MEDECIN',
-        biometrie_active: user.biometrie_active === 1 || user.biometrie_active === true,
+        id: anyProfile.id || 'dr_main',
+        email: anyProfile.email || 'dr@cabinet.sn',
+        nom: cleanRawName(anyProfile.nom),
+        prenom: cleanRawName(anyProfile.prenom),
+        telephone: anyProfile.telephone || null,
+        role: anyProfile.role || 'MEDECIN',
+        biometrie_active: Boolean(anyProfile.biometrie_active),
       };
     }
 
