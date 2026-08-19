@@ -75,7 +75,8 @@ export const SecurityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           setUser(profile);
           setIsSetup(true);
           persistActiveSession(profile);
-          setIsLocked(false);
+          // Verrouillage systématique au démarrage de l'app si session existante
+          setIsLocked(true);
         } else {
           setIsSetup(false);
           setIsLocked(false);
@@ -93,7 +94,8 @@ export const SecurityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
               setUser(profile);
               setIsSetup(true);
               persistActiveSession(profile);
-              setIsLocked(false);
+              // Verrouillage systématique au démarrage de l'app si session existante
+              setIsLocked(true);
             }
           } catch {
             setUser(null);
@@ -150,19 +152,22 @@ export const SecurityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     };
   }, []);
 
-  // Gestion du verrouillage automatique après inactivité
+  // Gestion du verrouillage automatique dès qu'on quitte l'application ou la met en arrière-plan
   useEffect(() => {
     const handleAppStateChange = async (nextAppState: AppStateStatus) => {
-      if (nextAppState === 'background') {
-        await updateLastActiveTime();
+      if (nextAppState === 'background' || nextAppState === 'inactive') {
+        // Dès qu'on quitte l'application (changement d'application, écran d'accueil, mise en veille), verrouillage immédiat
+        const hasSession = Boolean(user || safeStorageGet(STORAGE_KEYS.SESSION_ACTIVE) === 'true');
+        if (hasSession) {
+          setIsLocked(true);
+          await updateLastActiveTime();
+        }
       } else if (nextAppState === 'active') {
-        if (user) {
-          const timedOut = await checkSessionTimeout();
-          if (timedOut) {
-            setIsLocked(true);
-          } else {
-            await updateLastActiveTime();
-          }
+        const hasSession = Boolean(user || safeStorageGet(STORAGE_KEYS.SESSION_ACTIVE) === 'true');
+        if (hasSession) {
+          // Au retour sur l'app, s'assurer que le verrouillage est actif
+          setIsLocked(true);
+          await updateLastActiveTime();
         }
       }
     };
@@ -173,9 +178,18 @@ export const SecurityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     };
   }, [user]);
 
-  // Support Web pour l'inactivité
+  // Support Web pour le verrouillage lors du changement d'onglet ou minimisation du navigateur
   useEffect(() => {
     if (Platform.OS !== 'web' || typeof window === 'undefined') return;
+
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        const hasSession = Boolean(user || safeStorageGet(STORAGE_KEYS.SESSION_ACTIVE) === 'true');
+        if (hasSession) {
+          setIsLocked(true);
+        }
+      }
+    };
 
     let lastThrottled = 0;
     const onUserInteraction = () => {
@@ -186,18 +200,20 @@ export const SecurityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       }
     };
 
+    document.addEventListener('visibilitychange', handleVisibilityChange);
     window.addEventListener('mousemove', onUserInteraction, { passive: true });
     window.addEventListener('mousedown', onUserInteraction, { passive: true });
     window.addEventListener('keydown', onUserInteraction, { passive: true });
     window.addEventListener('touchstart', onUserInteraction, { passive: true });
 
     return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('mousemove', onUserInteraction);
       window.removeEventListener('mousedown', onUserInteraction);
       window.removeEventListener('keydown', onUserInteraction);
       window.removeEventListener('touchstart', onUserInteraction);
     };
-  }, []);
+  }, [user]);
 
   const updateAutoLockTimeout = async (minutes: number) => {
     await setAutoLockTimeoutMinutes(minutes);
