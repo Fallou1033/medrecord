@@ -57,7 +57,16 @@ export const SecurityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     );
   });
 
-  const [isLocked, setIsLocked] = useState<boolean>(false);
+  // Always start locked if an active practitioner profile exists, prompting for 4-digit PIN
+  const [isLocked, setIsLocked] = useState<boolean>(() => {
+    const isSessionActive = safeStorageGet(STORAGE_KEYS.SESSION_ACTIVE) === 'true';
+    const hasStoredUser = Boolean(
+      safeStorageGet(STORAGE_KEYS.CURRENT_USER) ||
+      safeStorageGet(STORAGE_KEYS.DOCTOR_PROFILE)
+    );
+    return Boolean(isSessionActive && hasStoredUser);
+  });
+
   const [biometricsEnabled, setBiometricsEnabled] = useState(false);
   const [autoLockMinutes, setAutoLockMinutesState] = useState<number>(2);
   const [loading, setLoading] = useState(true);
@@ -80,8 +89,8 @@ export const SecurityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         const mins = await getAutoLockTimeoutMinutes();
         setAutoLockMinutesState(mins);
 
-        // Locked state
-        setIsLocked(false);
+        // Require PIN verification when opening or returning to the site
+        setIsLocked(true);
       } else {
         // Not configured, user must set up PIN
         setIsLocked(false);
@@ -127,6 +136,31 @@ export const SecurityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     const subscription = AppState.addEventListener('change', handleAppStateChange);
     return () => {
       subscription.remove();
+    };
+  }, []);
+
+  // Listen to tab visibility changes on Web
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof document === 'undefined') return;
+
+    const handleVisibilityChange = async () => {
+      if (document.visibilityState === 'hidden') {
+        await updateLastActiveTime();
+      } else if (document.visibilityState === 'visible') {
+        const pinConfigured = await isPinSetup();
+        if (pinConfigured) {
+          const timedOut = await checkSessionTimeout();
+          if (timedOut) {
+            console.log('MedRecord: Tab visibility changed, locking screen...');
+            setIsLocked(true);
+          }
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, []);
 
