@@ -185,7 +185,7 @@ export async function getPatients(doctorId?: string): Promise<Patient[]> {
   let query = 'SELECT * FROM patients ORDER BY created_at DESC;';
   let params: any[] = [];
   if (doctorId) {
-    query = 'SELECT * FROM patients WHERE (doctor_id = ? OR medecin_id = ?) ORDER BY created_at DESC;';
+    query = 'SELECT * FROM patients WHERE (doctor_id = ? OR medecin_id = ? OR doctor_id IS NULL OR medecin_id IS NULL) ORDER BY created_at DESC;';
     params = [doctorId, doctorId];
   }
   const rows = (await db.getAllAsync(query, params)) as any[];
