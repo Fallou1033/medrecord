@@ -48,41 +48,78 @@ export async function getConsultations(patientId?: string): Promise<Consultation
 }
 
 export async function getConsultationById(id: string): Promise<Consultation | null> {
-  const { data, error } = await supabase
-    .from('consultations')
-    .select('*, patients(nom, prenom, numero_dossier)')
-    .eq('id', id)
-    .single();
+  if (!id) return null;
+  try {
+    const { data, error } = await supabase
+      .from('consultations')
+      .select('*, patients(nom, prenom, numero_dossier)')
+      .eq('id', id)
+      .single();
 
-  if (error) {
-    if (error.code === 'PGRST116') return null;
-    console.error('Supabase getConsultationById error:', error.message, error.details, error.hint, error.code);
-    throw new Error(`Consultation introuvable: ${error.message}`);
+    if (error) {
+      console.warn('Supabase getConsultationById fallback to simple query:', error.message);
+      const { data: fallbackData, error: fallbackError } = await supabase
+        .from('consultations')
+        .select('*')
+        .eq('id', id)
+        .single();
+
+      if (fallbackError || !fallbackData) {
+        return null;
+      }
+
+      return {
+        id: fallbackData.id,
+        patient_id: fallbackData.patient_id,
+        doctor_id: fallbackData.doctor_id,
+        medecin_id: fallbackData.doctor_id,
+        date: fallbackData.date,
+        date_consultation: fallbackData.date,
+        motif: fallbackData.motif || '',
+        histoire_maladie: fallbackData.histoire_maladie,
+        examen_clinique: fallbackData.examen_clinique,
+        diagnostic: fallbackData.diagnostic,
+        traitement: fallbackData.traitement,
+        conseils: fallbackData.conseils,
+        date_controle: fallbackData.date_controle,
+        poids_kg: fallbackData.poids_kg ? Number(fallbackData.poids_kg) : null,
+        taille_cm: fallbackData.taille_cm ? Number(fallbackData.taille_cm) : null,
+        pression_arterielle: fallbackData.pression_arterielle,
+        frequence_cardiaque: fallbackData.frequence_cardiaque ? Number(fallbackData.frequence_cardiaque) : null,
+        temperature: fallbackData.temperature ? Number(fallbackData.temperature) : null,
+        created_at: fallbackData.created_at,
+        updated_at: fallbackData.updated_at,
+        is_synced: true,
+      };
+    }
+
+    return {
+      id: data.id,
+      patient_id: data.patient_id,
+      doctor_id: data.doctor_id,
+      medecin_id: data.doctor_id,
+      date: data.date,
+      date_consultation: data.date,
+      motif: data.motif || '',
+      histoire_maladie: data.histoire_maladie,
+      examen_clinique: data.examen_clinique,
+      diagnostic: data.diagnostic,
+      traitement: data.traitement,
+      conseils: data.conseils,
+      date_controle: data.date_controle,
+      poids_kg: data.poids_kg ? Number(data.poids_kg) : null,
+      taille_cm: data.taille_cm ? Number(data.taille_cm) : null,
+      pression_arterielle: data.pression_arterielle,
+      frequence_cardiaque: data.frequence_cardiaque ? Number(data.frequence_cardiaque) : null,
+      temperature: data.temperature ? Number(data.temperature) : null,
+      created_at: data.created_at,
+      updated_at: data.updated_at,
+      is_synced: true,
+    };
+  } catch (err) {
+    console.error('getConsultationById unexpected error:', err);
+    return null;
   }
-
-  return {
-    id: data.id,
-    patient_id: data.patient_id,
-    doctor_id: data.doctor_id,
-    medecin_id: data.doctor_id,
-    date: data.date,
-    date_consultation: data.date,
-    motif: data.motif || '',
-    histoire_maladie: data.histoire_maladie,
-    examen_clinique: data.examen_clinique,
-    diagnostic: data.diagnostic,
-    traitement: data.traitement,
-    conseils: data.conseils,
-    date_controle: data.date_controle,
-    poids_kg: data.poids_kg ? Number(data.poids_kg) : null,
-    taille_cm: data.taille_cm ? Number(data.taille_cm) : null,
-    pression_arterielle: data.pression_arterielle,
-    frequence_cardiaque: data.frequence_cardiaque ? Number(data.frequence_cardiaque) : null,
-    temperature: data.temperature ? Number(data.temperature) : null,
-    created_at: data.created_at,
-    updated_at: data.updated_at,
-    is_synced: true,
-  };
 }
 
 export async function createConsultation(consultation: Omit<Consultation, 'id' | 'created_at' | 'updated_at'>): Promise<Consultation> {
