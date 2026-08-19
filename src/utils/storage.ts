@@ -91,13 +91,16 @@ export function safeStorageRemove(key: string): void {
 }
 
 /**
- * Purges active session keys on logout while preserving practitioner profile metadata.
+ * Purges all active session and stored profile keys on logout.
  */
 export function purgeActiveSession(): void {
   if (Platform.OS === 'web' && typeof window !== 'undefined') {
     safeStorageRemove(STORAGE_KEYS.SESSION_ACTIVE);
     safeStorageRemove(STORAGE_KEYS.CURRENT_USER);
+    safeStorageRemove(STORAGE_KEYS.DOCTOR_PROFILE);
+    safeStorageRemove(STORAGE_KEYS.DOCTOR_META);
     safeStorageRemove(STORAGE_KEYS.DOCTOR_LEGACY);
+    safeStorageRemove(STORAGE_KEYS.DOCTOR_OFFICIAL);
     safeStorageRemove(STORAGE_KEYS.AUTH_TOKEN);
     safeStorageRemove(STORAGE_KEYS.ACTIVE_USER_ID);
     safeStorageRemove(STORAGE_KEYS.PIN_HASH);
@@ -121,9 +124,13 @@ export function persistActiveSession(doctorProfile: any): void {
     safeStorageSet(STORAGE_KEYS.DOCTOR_PROFILE, doctorProfile);
     safeStorageSet(STORAGE_KEYS.DOCTOR_LEGACY, doctorProfile);
     safeStorageSet(STORAGE_KEYS.DOCTOR_OFFICIAL, doctorProfile);
+    safeStorageSet(STORAGE_KEYS.DOCTOR_META, doctorProfile);
     safeStorageSet(STORAGE_KEYS.AUTH_TOKEN, 'true');
     if (doctorProfile?.id) {
       safeStorageSet(STORAGE_KEYS.ACTIVE_USER_ID, doctorProfile.id);
+    }
+    if (doctorProfile?.pin_hash) {
+      safeStorageSet(STORAGE_KEYS.PIN_HASH, doctorProfile.pin_hash);
     }
   }
 }
