@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   StyleSheet,
   View,
@@ -10,6 +10,7 @@ import {
   SafeAreaView,
   StatusBar,
   Platform,
+  RefreshControl,
 } from 'react-native';
 import { useRouter, useFocusEffect, Link } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -25,6 +26,7 @@ export default function PatientsListScreen() {
   const [patients, setPatients] = useState<Patient[]>([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
   // Load patients whenever screen is focused
   useFocusEffect(
@@ -34,31 +36,40 @@ export default function PatientsListScreen() {
   );
 
   const loadPatients = async () => {
-    setLoading(true);
     try {
       const list = await getPatients();
-      setPatients(list);
+      setPatients(Array.isArray(list) ? list : []);
 
       // Audit read list
-      logAuditEvent('READ', 'patients', null, 'Lecture de la liste des patients');
+      logAuditEvent('READ', 'patients', null, 'Lecture de la liste des patients').catch(() => {});
     } catch (error) {
       console.error('Failed to load patients:', error);
+      setPatients([]);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
 
+  const handleRefresh = () => {
+    setRefreshing(true);
+    loadPatients();
+  };
+
   // Perform search in memory with useMemo for 60 FPS typing
-  const filteredPatients = React.useMemo(() => {
-    if (!search.trim()) return patients;
+  const filteredPatients = useMemo(() => {
+    if (!Array.isArray(patients)) return [];
     const query = search.toLowerCase().trim();
+    if (!query) return patients;
+
     return patients.filter((p) => {
-      const fullName = `${p.prenom} ${p.nom}`.toLowerCase();
-      const folderNum = p.numero_dossier.toLowerCase();
+      if (!p) return false;
+      const fullName = `${p.prenom || ''} ${p.nom || ''}`.toLowerCase();
+      const folderNum = (p.numero_dossier || '').toLowerCase();
       const phone = (p.telephone || '').toLowerCase();
       const dobRaw = (p.date_naissance || '').toLowerCase();
-      const dobFormatted = formatDateFR(p.date_naissance).toLowerCase();
-      
+      const dobFormatted = formatDateFR(p.date_naissance || '').toLowerCase();
+
       return (
         fullName.includes(query) ||
         folderNum.includes(query) ||
@@ -70,10 +81,13 @@ export default function PatientsListScreen() {
   }, [search, patients]);
 
   const renderPatientItem = useCallback(({ item }: { item: Patient }) => {
+    if (!item) return null;
     return <MemoizedPatientCard item={item} />;
   }, []);
 
-  const keyExtractor = useCallback((item: Patient) => item.id, []);
+  const keyExtractor = useCallback((item: Patient, index: number) => {
+    return item?.id || `patient_${index}`;
+  }, []);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -81,15 +95,15 @@ export default function PatientsListScreen() {
       <View style={styles.header}>
         <Text style={styles.title}>Dossiers Patients</Text>
         <Link href="/patients/create" asChild>
-          <TouchableOpacity style={styles.addButton}>
-            <Ionicons name="person-add" size={20} color="#0F2C3D" />
+          <TouchableOpacity style={styles.addButton} activeOpacity={0.8}>
+            <Ionicons name="person-add" size={18} color="#0F2C3D" />
             <Text style={styles.addButtonText}>Nouveau</Text>
           </TouchableOpacity>
         </Link>
       </View>
 
       <View style={styles.searchBarContainer}>
-        <Ionicons name="search" size={20} color="#9ca3af" style={styles.searchIcon} />
+        <Ionicons name="search" size={18} color="#9ca3af" style={styles.searchIcon} />
         <TextInput
           style={styles.searchInput}
           placeholder="Rechercher par nom, dossier, téléphone..."
@@ -104,15 +118,32 @@ export default function PatientsListScreen() {
         )}
       </View>
 
-      {loading ? (
+      {loading && patients.length === 0 ? (
         <View style={styles.centerContainer}>
           <ActivityIndicator size="large" color="#28C2FF" />
-          <Text style={styles.loadingText}>Déchiffrement sécurisé en cours...</Text>
+          <Text style={styles.loadingText}>Synchronisation sécurisée des dossiers...</Text>
         </View>
       ) : filteredPatients.length === 0 ? (
         <View style={styles.centerContainer}>
-          <Ionicons name="people-outline" size={64} color="#2F5C77" />
-          <Text style={styles.emptyText}>Aucun patient trouvé</Text>
+          <View style={styles.emptyIconCircle}>
+            <Ionicons name="people-outline" size={48} color="#28C2FF" />
+          </View>
+          <Text style={styles.emptyTitle}>
+            {search.trim() ? 'Aucun résultat trouvé' : 'Aucun dossier patient'}
+          </Text>
+          <Text style={styles.emptySubtitle}>
+            {search.trim()
+              ? `Aucun patient ne correspond à "${search}".`
+              : 'Commencez par créer le premier dossier médical de votre patientèle.'}
+          </Text>
+          {!search.trim() && (
+            <Link href="/patients/create" asChild>
+              <TouchableOpacity style={styles.emptyActionButton} activeOpacity={0.8}>
+                <Ionicons name="add-circle" size={20} color="#0F2C3D" />
+                <Text style={styles.emptyActionButtonText}>Créer un dossier patient</Text>
+              </TouchableOpacity>
+            </Link>
+          )}
         </View>
       ) : (
         <FlatList
@@ -123,6 +154,14 @@ export default function PatientsListScreen() {
           maxToRenderPerBatch={10}
           windowSize={5}
           contentContainerStyle={styles.listContainer}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={handleRefresh}
+              tintColor="#28C2FF"
+              colors={['#28C2FF']}
+            />
+          }
         />
       )}
     </SafeAreaView>
@@ -131,41 +170,53 @@ export default function PatientsListScreen() {
 
 const MemoizedPatientCard = React.memo(({ item }: { item: Patient }) => {
   const age = calculateAge(item.date_naissance);
-  const genderIcon = item.sexe === 'M' ? 'male' : 'female';
-  const genderColor = item.sexe === 'M' ? '#8AC8F9' : '#FFB2C9';
+  const genderIcon = item.sexe === 'F' ? 'female' : 'male';
+  const genderColor = item.sexe === 'F' ? '#FFB2C9' : '#8AC8F9';
+  const prenom = (item.prenom || '').trim();
+  const nom = (item.nom || '').trim().toUpperCase();
+  const folderNum = item.numero_dossier || 'MED-0000';
 
   return (
     <Link href={`/patients/${item.id}`} asChild>
-      <TouchableOpacity style={styles.card}>
+      <TouchableOpacity style={styles.card} activeOpacity={0.75}>
         <View style={styles.cardHeader}>
-          <Text style={styles.folderNumber}>{item.numero_dossier}</Text>
+          <View style={styles.folderBadge}>
+            <Ionicons name="folder-outline" size={14} color="#28C2FF" />
+            <Text style={styles.folderNumber}>{folderNum}</Text>
+          </View>
           <View style={styles.syncStatus}>
             <Ionicons
               name={item.is_synced ? 'cloud-done-outline' : 'cloud-offline-outline'}
-              size={18}
+              size={16}
               color={item.is_synced ? '#2ECC71' : '#E67E22'}
             />
           </View>
         </View>
 
         <Text style={styles.name}>
-          {item.prenom} {item.nom.toUpperCase()}
+          {prenom} {nom}
         </Text>
 
         <View style={styles.cardFooter}>
           <View style={styles.metaInfo}>
             <Ionicons name={genderIcon} size={14} color={genderColor} />
             <Text style={styles.metaText}>
-              {item.sexe} • {age} ans
+              {item.sexe === 'F' ? 'Femme' : 'Homme'} {age !== null ? `• ${age} ans` : ''}
             </Text>
           </View>
 
-          {item.telephone && (
+          {item.telephone ? (
             <View style={styles.metaInfo}>
               <Ionicons name="call-outline" size={14} color="#8AC8F9" />
               <Text style={styles.metaText}>{item.telephone}</Text>
             </View>
-          )}
+          ) : null}
+
+          {item.groupe_sanguin && item.groupe_sanguin !== 'Inconnu' ? (
+            <View style={styles.bloodBadge}>
+              <Text style={styles.bloodBadgeText}>{item.groupe_sanguin}</Text>
+            </View>
+          ) : null}
         </View>
       </TouchableOpacity>
     </Link>
@@ -175,7 +226,7 @@ const MemoizedPatientCard = React.memo(({ item }: { item: Patient }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0F2C3D', // Deep medical dark blue
+    backgroundColor: '#0B1E2D', // Deep modern dark blue
     ...Platform.select({
       web: {
         paddingTop: 80,
@@ -189,19 +240,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 20,
     paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 24) + 12 : 20,
-    paddingBottom: 12,
+    paddingBottom: 16,
   },
   title: {
-    fontSize: 24,
+    fontSize: 26,
     fontWeight: 'bold',
     color: '#FFFFFF',
+    letterSpacing: -0.5,
   },
   addButton: {
     backgroundColor: '#28C2FF',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    paddingVertical: 12,
+    paddingVertical: 10,
     paddingHorizontal: 16,
     borderRadius: 8,
   },
@@ -213,12 +265,14 @@ const styles = StyleSheet.create({
   searchBarContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#1E3E52',
+    backgroundColor: '#163347',
     marginHorizontal: 20,
     marginBottom: 16,
-    paddingHorizontal: 12,
+    paddingHorizontal: 14,
     borderRadius: 10,
-    height: 44,
+    height: 46,
+    borderWidth: 1,
+    borderColor: '#1E4760',
   },
   searchIcon: {
     marginRight: 8,
@@ -232,35 +286,64 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 40,
+    paddingHorizontal: 32,
+    marginTop: -40,
   },
   loadingText: {
     color: '#8AC8F9',
-    marginTop: 12,
+    marginTop: 14,
     fontSize: 14,
   },
-  emptyText: {
+  emptyIconCircle: {
+    width: 90,
+    height: 90,
+    borderRadius: 45,
+    backgroundColor: 'rgba(40, 194, 255, 0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(40, 194, 255, 0.25)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 18,
+  },
+  emptyTitle: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: 'bold',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  emptySubtitle: {
     color: '#8AC8F9',
-    marginTop: 12,
-    fontSize: 16,
-    fontWeight: '500',
+    fontSize: 14,
+    textAlign: 'center',
+    lineHeight: 20,
+    marginBottom: 24,
+  },
+  emptyActionButton: {
+    backgroundColor: '#28C2FF',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 10,
+  },
+  emptyActionButtonText: {
+    color: '#0F2C3D',
+    fontWeight: 'bold',
+    fontSize: 15,
   },
   listContainer: {
     paddingHorizontal: 20,
-    paddingBottom: 24,
+    paddingBottom: 40,
     gap: 12,
   },
   card: {
-    backgroundColor: '#1E3E52',
-    borderRadius: 15,
+    backgroundColor: '#163347',
+    borderRadius: 12,
     padding: 16,
     borderWidth: 1,
-    borderColor: '#2F5C77',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 5,
-    elevation: 3,
+    borderColor: '#1E4760',
   },
   cardHeader: {
     flexDirection: 'row',
@@ -268,28 +351,35 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 8,
   },
-  folderNumber: {
-    color: '#28C2FF',
-    fontWeight: '600',
-    fontSize: 13,
-  },
-  syncStatus: {
+  folderBadge: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(40, 194, 255, 0.12)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  folderNumber: {
+    color: '#28C2FF',
+    fontSize: 12,
+    fontWeight: 'bold',
+    letterSpacing: 0.5,
+  },
+  syncStatus: {
+    padding: 2,
   },
   name: {
-    color: '#FFFFFF',
     fontSize: 18,
     fontWeight: 'bold',
-    marginBottom: 12,
+    color: '#FFFFFF',
+    marginBottom: 10,
   },
   cardFooter: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    borderTopWidth: 1,
-    borderTopColor: '#2F5C77',
-    paddingTop: 10,
+    flexWrap: 'wrap',
+    gap: 12,
   },
   metaInfo: {
     flexDirection: 'row',
@@ -297,7 +387,20 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   metaText: {
-    color: '#D1E6F3',
+    color: '#94A3B8',
     fontSize: 13,
+  },
+  bloodBadge: {
+    backgroundColor: 'rgba(239, 68, 68, 0.15)',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.3)',
+  },
+  bloodBadgeText: {
+    color: '#F87171',
+    fontSize: 11,
+    fontWeight: 'bold',
   },
 });
