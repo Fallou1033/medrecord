@@ -44,7 +44,8 @@ function MainAppContent() {
       if (isSessionActive) {
         setActiveView('dashboard');
       } else {
-        setActiveView('welcome');
+        // Only reset to welcome if previously on dashboard (i.e. user explicitly logged out)
+        setActiveView((prev) => (prev === 'dashboard' ? 'welcome' : prev));
       }
     }
   }, [loading, user]);
