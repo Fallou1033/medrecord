@@ -826,7 +826,12 @@ export default function PatientDetailsScreen() {
         </View>
 
         {/* Custom Tab Bar (Vaccins shown ONLY if age < 15) */}
-        <View style={styles.tabBar}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.tabBar}
+          contentContainerStyle={styles.tabBarScroll}
+        >
           {(
             (age !== null && age < 15)
               ? ['info', 'consultations', 'paraclinique', 'antecedents', 'documents', 'vaccinations']
@@ -852,7 +857,7 @@ export default function PatientDetailsScreen() {
               </TouchableOpacity>
             );
           })}
-        </View>
+        </ScrollView>
       </View>
 
       <ScrollView contentContainerStyle={styles.content}>
@@ -2687,13 +2692,17 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   tabBar: {
-    flexDirection: 'row',
     borderTopWidth: 1,
     borderTopColor: '#2F5C77',
   },
+  tabBarScroll: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+  },
   tabItem: {
-    flex: 1,
     paddingVertical: 14,
+    paddingHorizontal: 14,
     alignItems: 'center',
     borderBottomWidth: 3,
     borderBottomColor: 'transparent',

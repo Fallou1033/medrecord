@@ -323,36 +323,40 @@ export default function CreatePatientScreen() {
 
           {/* Mode de saisie de l'âge / Date de Naissance */}
           <View style={styles.inputGroup}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-              <Text style={styles.label}>Âge / Date de naissance</Text>
-              <View style={{ flexDirection: 'row', gap: 6 }}>
-                <TouchableOpacity
-                  style={{
-                    backgroundColor: dateNaissanceMode === 'DOB' ? '#28C2FF' : '#1E3E52',
-                    paddingHorizontal: 10,
-                    paddingVertical: 4,
-                    borderRadius: 6,
-                  }}
-                  onPress={() => setDateNaissanceMode('DOB')}
+            <Text style={styles.label}>Âge / Date de naissance *</Text>
+            <View style={styles.dateModeSelectorRow}>
+              <TouchableOpacity
+                style={[styles.dateModeBtn, dateNaissanceMode === 'DOB' && styles.dateModeBtnActive]}
+                onPress={() => setDateNaissanceMode('DOB')}
+              >
+                <Ionicons
+                  name="calendar-outline"
+                  size={15}
+                  color={dateNaissanceMode === 'DOB' ? '#0F2C3D' : '#8AC8F9'}
+                />
+                <Text
+                  style={[styles.dateModeBtnText, dateNaissanceMode === 'DOB' && styles.dateModeBtnTextActive]}
+                  numberOfLines={1}
                 >
-                  <Text style={{ color: dateNaissanceMode === 'DOB' ? '#0F2C3D' : '#8AC8F9', fontSize: 11, fontWeight: 'bold' }}>
-                    📅 Date de naissance
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={{
-                    backgroundColor: dateNaissanceMode === 'AGE' ? '#28C2FF' : '#1E3E52',
-                    paddingHorizontal: 10,
-                    paddingVertical: 4,
-                    borderRadius: 6,
-                  }}
-                  onPress={() => setDateNaissanceMode('AGE')}
+                  Date de naissance
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.dateModeBtn, dateNaissanceMode === 'AGE' && styles.dateModeBtnActive]}
+                onPress={() => setDateNaissanceMode('AGE')}
+              >
+                <Ionicons
+                  name="calculator-outline"
+                  size={15}
+                  color={dateNaissanceMode === 'AGE' ? '#0F2C3D' : '#8AC8F9'}
+                />
+                <Text
+                  style={[styles.dateModeBtnText, dateNaissanceMode === 'AGE' && styles.dateModeBtnTextActive]}
+                  numberOfLines={1}
                 >
-                  <Text style={{ color: dateNaissanceMode === 'AGE' ? '#0F2C3D' : '#8AC8F9', fontSize: 11, fontWeight: 'bold' }}>
-                    🔢 Âge (en années)
-                  </Text>
-                </TouchableOpacity>
-              </View>
+                  Âge (en années)
+                </Text>
+              </TouchableOpacity>
             </View>
 
             {dateNaissanceMode === 'DOB' ? (
@@ -656,6 +660,39 @@ const styles = StyleSheet.create({
     borderColor: '#2F5C77',
     paddingRight: 12,
   },
+  dateModeSelectorRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 4,
+    marginBottom: 8,
+  },
+  dateModeBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#1E3E52',
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#2F5C77',
+    gap: 6,
+    minHeight: 42,
+  },
+  dateModeBtnActive: {
+    backgroundColor: '#28C2FF',
+    borderColor: '#28C2FF',
+  },
+  dateModeBtnText: {
+    color: '#8AC8F9',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  dateModeBtnTextActive: {
+    color: '#0F2C3D',
+    fontWeight: 'bold',
+  },
   genderContainer: {
     flexDirection: 'row',
     gap: 12,
@@ -671,6 +708,7 @@ const styles = StyleSheet.create({
     borderColor: '#2F5C77',
     padding: 12,
     borderRadius: 10,
+    minHeight: 46,
   },
   genderBtnActive: {
     backgroundColor: '#28C2FF',
@@ -719,6 +757,8 @@ const styles = StyleSheet.create({
     padding: 16,
     alignItems: 'center',
     marginTop: 24,
+    minHeight: 52,
+    justifyContent: 'center',
   },
   submitButtonText: {
     color: '#0F2C3D',

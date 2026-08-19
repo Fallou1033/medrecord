@@ -118,7 +118,7 @@ export default function DatePickerDOB({ value, onChange, label = 'Date de naissa
             color="#28C2FF"
           />
           <Text style={styles.toggleText}>
-            {mode === 'dropdown' ? 'Saisie clavier' : 'Sélecteurs Jour/Mois/Année'}
+            {mode === 'dropdown' ? 'Saisie clavier' : 'Sélecteurs'}
           </Text>
         </TouchableOpacity>
       </View>
@@ -266,38 +266,47 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 6,
     marginBottom: 6,
   },
   label: {
     fontSize: 13,
     fontWeight: '600',
     color: '#8AC8F9',
+    flexShrink: 1,
   },
   toggleBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    paddingVertical: 2,
-    paddingHorizontal: 6,
+    paddingVertical: 3,
+    paddingHorizontal: 8,
+    backgroundColor: 'rgba(40, 194, 255, 0.1)',
+    borderRadius: 6,
+    flexShrink: 0,
   },
   toggleText: {
-    fontSize: 12,
+    fontSize: 11,
     color: '#28C2FF',
-    fontWeight: '500',
+    fontWeight: '600',
   },
   dropdownRowNative: {
     flexDirection: 'row',
-    gap: 8,
+    gap: 6,
+    width: '100%',
   },
   inputNative: {
     backgroundColor: '#1E3E52',
     color: '#FFFFFF',
     borderRadius: 10,
-    padding: 12,
-    fontSize: 15,
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+    fontSize: 14,
     borderWidth: 1,
     borderColor: '#2F5C77',
     textAlign: 'center',
+    minWidth: 0,
   },
   manualInputWrapper: {
     flexDirection: 'row',
