@@ -336,7 +336,8 @@ export default function PatientDetailsScreen() {
 
       // 1. Track recently viewed
       try {
-        const recentsKey = 'recents_patients';
+        const userKeySuffix = user?.id ? `_${user.id}` : '';
+        const recentsKey = `recents_patients${userKeySuffix}`;
         let list = [];
         if (Platform.OS === 'web') {
           list = JSON.parse(localStorage.getItem(recentsKey) || '[]');
@@ -346,7 +347,15 @@ export default function PatientDetailsScreen() {
           list = JSON.parse(data || '[]');
         }
         list = list.filter((item: any) => item.id !== id);
-        list.unshift({ id: p.id, prenom: p.prenom, nom: p.nom, numero_dossier: p.numero_dossier });
+        list.unshift({
+          id: p.id,
+          prenom: p.prenom,
+          nom: p.nom,
+          numero_dossier: p.numero_dossier,
+          sexe: p.sexe,
+          telephone: p.telephone,
+          adresse: p.adresse,
+        });
         list = list.slice(0, 5);
         if (Platform.OS === 'web') {
           localStorage.setItem(recentsKey, JSON.stringify(list));
@@ -360,7 +369,8 @@ export default function PatientDetailsScreen() {
 
       // 2. Check if is favorite
       try {
-        const favsKey = 'favorites_patients';
+        const userKeySuffix = user?.id ? `_${user.id}` : '';
+        const favsKey = `favorites_patients${userKeySuffix}`;
         let favs = [];
         if (Platform.OS === 'web') {
           favs = JSON.parse(localStorage.getItem(favsKey) || '[]');
@@ -417,7 +427,8 @@ export default function PatientDetailsScreen() {
   const toggleFavorite = async () => {
     if (!patient) return;
     try {
-      const favsKey = 'favorites_patients';
+      const userKeySuffix = user?.id ? `_${user.id}` : '';
+      const favsKey = `favorites_patients${userKeySuffix}`;
       let favs = [];
       if (Platform.OS === 'web') {
         favs = JSON.parse(localStorage.getItem(favsKey) || '[]');

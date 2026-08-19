@@ -142,15 +142,16 @@ export default function DashboardScreen() {
       setTodayRdvs(todayList);
       setTomorrowRdvs(tomorrowList);
 
-      // 7. Load favorites and recents from storage
-      const favsKey = 'favorites_patients';
-      const recentsKey = 'recents_patients';
+      // 7. Load favorites and recents from storage, strictly filtered by active doctor's patient list
+      const userKeySuffix = user?.id ? `_${user.id}` : '';
+      const favsKey = `favorites_patients${userKeySuffix}`;
+      const recentsKey = `recents_patients${userKeySuffix}`;
       let loadedFavs: any[] = [];
       let loadedRecents: any[] = [];
       try {
         if (Platform.OS === 'web') {
-          loadedFavs = JSON.parse(localStorage.getItem(favsKey) || '[]');
-          loadedRecents = JSON.parse(localStorage.getItem(recentsKey) || '[]');
+          loadedFavs = JSON.parse(localStorage.getItem(favsKey) || localStorage.getItem('favorites_patients') || '[]');
+          loadedRecents = JSON.parse(localStorage.getItem(recentsKey) || localStorage.getItem('recents_patients') || '[]');
         } else {
           const SecureStore = require('expo-secure-store');
           const favsData = await SecureStore.getItemAsync(favsKey);
@@ -161,6 +162,28 @@ export default function DashboardScreen() {
       } catch (e) {
         console.error('Failed to load favorites/recents on dashboard:', e);
       }
+
+      // Synchroniser avec la liste réelle de la base Supabase (élimine les fantômes d'anciens tests locaux)
+      const existingPatientMap = new Map(allPatients.map(p => [p.id, p]));
+      loadedFavs = loadedFavs
+        .filter(f => f && f.id && existingPatientMap.has(f.id))
+        .map(f => ({ ...f, ...(existingPatientMap.get(f.id) || {}) }));
+      loadedRecents = loadedRecents
+        .filter(r => r && r.id && existingPatientMap.has(r.id))
+        .map(r => ({ ...r, ...(existingPatientMap.get(r.id) || {}) }));
+
+      // Mettre à jour le cache local nettoyé
+      try {
+        if (Platform.OS === 'web') {
+          localStorage.setItem(favsKey, JSON.stringify(loadedFavs));
+          localStorage.setItem(recentsKey, JSON.stringify(loadedRecents));
+          if (userKeySuffix) {
+            localStorage.removeItem('favorites_patients');
+            localStorage.removeItem('recents_patients');
+          }
+        }
+      } catch (e) {}
+
       setFavorites(loadedFavs);
       setRecents(loadedRecents);
 
