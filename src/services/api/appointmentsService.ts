@@ -1,5 +1,6 @@
 import { supabase } from '../../lib/supabase';
 import { RendezVous } from '../../types';
+import { getAuthenticatedDoctorId } from '../../security/auth';
 
 /**
  * Service de gestion des rendez-vous connecté à Supabase avec RLS
@@ -34,17 +35,7 @@ export async function getAppointments(): Promise<RendezVous[]> {
 }
 
 export async function createAppointment(appointment: Omit<RendezVous, 'id' | 'created_at' | 'updated_at'>): Promise<RendezVous> {
-  const { data: userData } = await supabase.auth.getUser();
-  let doctorId = userData?.user?.id;
-
-  if (!doctorId) {
-    const { data: sessionData } = await supabase.auth.getSession();
-    doctorId = sessionData?.session?.user?.id;
-  }
-
-  if (!doctorId) {
-    throw new Error("Session praticien non authentifiée. Veuillez vous reconnecter.");
-  }
+  const doctorId = await getAuthenticatedDoctorId();
 
   const insertPayload: any = {
     doctor_id: doctorId,

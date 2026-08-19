@@ -1,5 +1,6 @@
 import { supabase } from '../../lib/supabase';
 import { Consultation } from '../../types';
+import { getAuthenticatedDoctorId } from '../../security/auth';
 
 /**
  * Service de gestion des consultations connecté à Supabase avec RLS
@@ -85,17 +86,7 @@ export async function getConsultationById(id: string): Promise<Consultation | nu
 }
 
 export async function createConsultation(consultation: Omit<Consultation, 'id' | 'created_at' | 'updated_at'>): Promise<Consultation> {
-  const { data: userData } = await supabase.auth.getUser();
-  let doctorId = userData?.user?.id;
-
-  if (!doctorId) {
-    const { data: sessionData } = await supabase.auth.getSession();
-    doctorId = sessionData?.session?.user?.id;
-  }
-
-  if (!doctorId) {
-    throw new Error("Session praticien non authentifiée. Veuillez vous reconnecter.");
-  }
+  const doctorId = await getAuthenticatedDoctorId();
 
   const insertPayload: any = {
     doctor_id: doctorId,

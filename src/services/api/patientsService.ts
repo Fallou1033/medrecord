@@ -1,5 +1,6 @@
 import { supabase } from '../../lib/supabase';
 import { Patient } from '../../types';
+import { getAuthenticatedDoctorId } from '../../security/auth';
 
 /**
  * Service de gestion des patients connecté à Supabase avec Row Level Security (RLS)
@@ -83,19 +84,8 @@ export async function getPatientById(id: string): Promise<Patient | null> {
 }
 
 export async function createPatient(patient: Partial<Patient> & { nom: string; prenom: string; sexe: 'M' | 'F' }): Promise<Patient> {
-  // Récupération obligatoire de l'identifiant du médecin connecté
-  const { data: userData, error: userError } = await supabase.auth.getUser();
-  let doctorId = userData?.user?.id;
-
-  if (!doctorId) {
-    const { data: sessionData } = await supabase.auth.getSession();
-    doctorId = sessionData?.session?.user?.id;
-  }
-
-  if (!doctorId) {
-    console.error('Supabase createPatient: User not authenticated', userError);
-    throw new Error("Session praticien non authentifiée ou expirée. Veuillez vous reconnecter.");
-  }
+  // Récupération asynchrone et infaillible de l'identifiant du médecin connecté
+  const doctorId = await getAuthenticatedDoctorId();
 
   // Formatage de la date de naissance au format ISO YYYY-MM-DD
   let cleanDateNaissance: string | null = null;

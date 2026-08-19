@@ -6,58 +6,58 @@ const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || 'sb_publish
 
 /**
  * Adaptateur de stockage cross-platform pour persister les sessions Supabase (JWT)
- * de manière sécurisée aussi bien sur le Web que sur mobile.
+ * de manière sécurisée aussi bien sur le Web (localStorage standard) que sur mobile (expo-secure-store).
  */
 const customStorageAdapter = {
-  getItem: (key: string): string | null => {
-    if (Platform.OS === 'web') {
-      if (typeof window !== 'undefined' && window.localStorage) {
-        return localStorage.getItem(key);
+  getItem: (key: string): string | null | Promise<string | null> => {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      return window.localStorage.getItem(key);
+    }
+    if (Platform.OS !== 'web') {
+      try {
+        const SecureStore = require('expo-secure-store');
+        return SecureStore.getItemAsync(key);
+      } catch {
+        return null;
       }
-      return null;
     }
-    try {
-      const SecureStore = require('expo-secure-store');
-      return SecureStore.getItem(key);
-    } catch {
-      return null;
-    }
+    return null;
   },
-  setItem: (key: string, value: string): void => {
-    if (Platform.OS === 'web') {
-      if (typeof window !== 'undefined' && window.localStorage) {
-        localStorage.setItem(key, value);
-      }
+  setItem: (key: string, value: string): void | Promise<void> => {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      window.localStorage.setItem(key, value);
       return;
     }
-    try {
-      const SecureStore = require('expo-secure-store');
-      SecureStore.setItem(key, value);
-    } catch {}
+    if (Platform.OS !== 'web') {
+      try {
+        const SecureStore = require('expo-secure-store');
+        return SecureStore.setItemAsync(key, value);
+      } catch {}
+    }
   },
-  removeItem: (key: string): void => {
-    if (Platform.OS === 'web') {
-      if (typeof window !== 'undefined' && window.localStorage) {
-        localStorage.removeItem(key);
-      }
+  removeItem: (key: string): void | Promise<void> => {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      window.localStorage.removeItem(key);
       return;
     }
-    try {
-      const SecureStore = require('expo-secure-store');
-      SecureStore.deleteItemAsync(key);
-    } catch {}
+    if (Platform.OS !== 'web') {
+      try {
+        const SecureStore = require('expo-secure-store');
+        return SecureStore.deleteItemAsync(key);
+      } catch {}
+    }
   },
 };
 
 /**
- * Client Supabase Singleton avec gestion sécurisée des sessions JWT
+ * Client Supabase Singleton avec persistance automatique et rafraîchissement des tokens
  */
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
     storage: customStorageAdapter,
     autoRefreshToken: true,
     persistSession: true,
-    detectSessionInUrl: false,
+    detectSessionInUrl: true,
   },
 });
 
