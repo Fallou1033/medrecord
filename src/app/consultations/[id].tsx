@@ -16,16 +16,14 @@ import { Ionicons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 import * as Sharing from 'expo-sharing';
+import { getPatientById } from '../../services/api/patientsService';
+import { getConsultationById } from '../../services/api/consultationsService';
 import {
-  getPatientById,
   getExamensByConsultation,
   addExamen,
-  Patient,
-  Consultation,
   Examen,
 } from '../../database/SQLiteDatabaseManager';
-import { getDatabase } from '../../database/db';
-import { decryptData } from '../../security/encryption';
+import { Patient, Consultation } from '../../types';
 import { formatDateFR } from '../../utils/helpers';
 import { useSecurity } from '../../security/SecurityContext';
 
@@ -64,75 +62,52 @@ export default function ConsultationDetailsScreen() {
   const loadConsultationData = async () => {
     setLoading(true);
     try {
-      const db = await getDatabase();
-      
-      // 1. Fetch consultation row
-      const row = (await db.getFirstAsync(
-        'SELECT * FROM consultations WHERE id = ?;',
-        [id]
-      )) as any;
+      // 1. Charger la consultation depuis Supabase
+      const c = await getConsultationById(id);
 
-      if (!row) {
+      if (!c) {
         showAlert('Erreur', 'Consultation non trouvée');
         router.back();
         return;
       }
 
-      // 2. Fetch corresponding constants
-      const constRow = (await db.getFirstAsync(
-        'SELECT * FROM constantes WHERE consultation_id = ?;',
-        [id]
-      )) as any;
+      // Calcul de l'IMC si poids et taille présents
+      let imcVal: string | null = null;
+      if (c.poids_kg && c.taille_cm) {
+        const hM = c.taille_cm / 100;
+        imcVal = (c.poids_kg / (hM * hM)).toFixed(1);
+      }
 
-      const constantes = constRow
-        ? {
-            id: constRow.id,
-            consultation_id: constRow.consultation_id,
-            temperature: constRow.temperature,
-            tension_arterielle: constRow.tension_arterielle,
-            frequence_cardiaque: constRow.frequence_cardiaque,
-            saturation: constRow.saturation,
-            glycemie: constRow.glycemie,
-            poids: constRow.poids,
-            taille: constRow.taille,
-            imc: constRow.imc,
-            created_at: constRow.created_at,
-            updated_at: constRow.updated_at,
-            is_synced: constRow.is_synced === 1,
-          }
-        : null;
-
-      // Decrypt clinical fields
-      const loadedConsultation: Consultation = {
-        id: row.id,
-        patient_id: row.patient_id,
-        medecin_id: row.medecin_id,
-        date: row.date,
-        motif: (await decryptData(row.motif)) || '',
-        histoire_maladie: await decryptData(row.histoire_maladie),
-        examen_clinique: await decryptData(row.examen_clinique),
-        diagnostic: await decryptData(row.diagnostic),
-        traitement: await decryptData(row.traitement),
-        conseils: await decryptData(row.conseils),
-        date_controle: row.date_controle,
-        created_at: row.created_at,
-        updated_at: row.updated_at,
-        is_synced: row.is_synced === 1,
-        constantes,
+      const formattedConsultation: Consultation = {
+        ...c,
+        constantes: {
+          temperature: c.temperature,
+          tension_arterielle: c.pression_arterielle,
+          frequence_cardiaque: c.frequence_cardiaque,
+          saturation: c.constantes?.saturation || null,
+          glycemie: c.constantes?.glycemie || null,
+          poids: c.poids_kg,
+          taille: c.taille_cm,
+          imc: imcVal,
+        },
       };
 
-      setConsultation(loadedConsultation);
+      setConsultation(formattedConsultation);
 
-      // 3. Fetch patient profile
-      const p = await getPatientById(row.patient_id);
+      // 2. Charger le dossier patient associé depuis Supabase
+      const p = await getPatientById(c.patient_id);
       setPatient(p);
 
-      // 4. Fetch attached exams
-      const exList = await getExamensByConsultation(id);
-      setExamens(exList);
-    } catch (err) {
-      console.error(err);
-      Alert.alert('Erreur', 'Impossible de charger la consultation.');
+      // 3. Charger les examens / pièces jointes
+      try {
+        const exList = await getExamensByConsultation(id);
+        setExamens(exList || []);
+      } catch (e) {
+        setExamens([]);
+      }
+    } catch (err: any) {
+      console.error('Failed to load consultation details:', err);
+      showAlert('Erreur', 'Impossible de charger la consultation.');
     } finally {
       setLoading(false);
     }
