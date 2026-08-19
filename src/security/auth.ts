@@ -125,9 +125,11 @@ export async function signUpDoctor(params: {
       },
     });
 
-    if (signUpError && !signUpError.message.includes('already registered')) {
-      console.error('Supabase Auth SignUp error:', signUpError);
-      throw new Error(`Erreur lors de la création du compte: ${signUpError.message}`);
+    if (signUpError) {
+      console.warn('Supabase Auth SignUp message:', signUpError.message);
+      if (!signUpError.message.includes('already registered')) {
+        throw new Error(`Erreur lors de la création du compte: ${signUpError.message}`);
+      }
     }
 
     authUser = signUpData?.user;
@@ -144,7 +146,15 @@ export async function signUpDoctor(params: {
   }
 
   if (!authUser) {
-    throw new Error("Impossible d'authentifier le compte praticien sur Supabase.");
+    // Tenter la connexion de repli
+    try {
+      return await signInDoctor({
+        email: cleanEmail,
+        pin: params.pin,
+      });
+    } catch (e: any) {
+      throw new Error("Ce compte existe déjà avec un ancien mot de passe. Veuillez supprimer l'utilisateur dans Supabase Auth ou vous connecter.");
+    }
   }
 
   // 4. Enregistrer dans la table profiles
@@ -194,22 +204,26 @@ export async function signInDoctor(params: {
   password?: string;
   pin: string;
 }): Promise<UserProfile> {
-  const cleanEmail = params.email.trim().toLowerCase();
+  const rawInput = params.email.trim().toLowerCase();
+  const cleanEmail = rawInput.includes('@') ? rawInput : `${rawInput.replace(/[^a-z0-9]/g, '')}@gmail.com`;
   const cleanIdentifier = cleanEmail.replace(/[^a-z0-9]/g, '');
 
   // 1. Liste complète et ordonnée des schémas de mots de passe dérivés possibles
   const candidatePasswords = [
     params.password,
     getDoctorPassword(params.pin, cleanEmail),
+    getDoctorPassword(params.pin, rawInput),
     `MedRecord#${params.pin}#${cleanIdentifier}`,
+    `MedRecord@${params.pin}`,
+    `MedRecord#${params.pin}`,
     `Med@${params.pin}#dieye`,
     `Med@${params.pin}#mami`,
     `Med@${params.pin}#sow`,
     `Med@${params.pin}#2026`,
-    `MedRecord@${params.pin}`,
-    params.pin.repeat(2),
     `Med@${params.pin}#falludiop10008`,
     `MedRecord@2026#${params.pin}`,
+    params.pin.repeat(2),
+    params.pin,
   ].filter(Boolean) as string[];
 
   let authData: any = null;
@@ -237,7 +251,7 @@ export async function signInDoctor(params: {
       throw new Error("Identifiant ou code PIN incorrect. Veuillez vérifier votre saisie.");
     }
     if (authError?.message?.includes('Email not confirmed')) {
-      throw new Error("Compte en attente de validation d'e-mail sur Supabase (désactivez 'Confirm email' dans Authentication > Providers > Email).");
+      throw new Error("Compte en attente de confirmation d'e-mail dans Supabase Auth (exécutez le script SQL d'auto-confirmation).");
     }
     throw new Error(authError?.message || "Identifiant ou code PIN incorrect.");
   }
