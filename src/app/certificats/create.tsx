@@ -42,6 +42,14 @@ export default function CreateCertificatScreen() {
   const [ittJours, setIttJours] = useState('5'); // Incapacité Totale de Travail en jours
   const [signature, setSignature] = useState('');
 
+  const showAlert = (title: string, message: string) => {
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      window.alert(`${title}\n\n${message}`);
+    } else {
+      Alert.alert(title, message);
+    }
+  };
+
   const formatDoctorName = (nameStr: string) => {
     const clean = nameStr.replace(/\b(dr|docteur)\.?\b/gi, '').replace(/\s+/g, ' ').trim();
     return clean ? `Dr ${clean}` : 'Dr Mohamadou Bamba Diop';
@@ -468,15 +476,21 @@ export default function CreateCertificatScreen() {
   };
 
   const handleShareWhatsApp = async () => {
-    if (!patient) return;
+    if (!patient) {
+      showAlert('Patient introuvable', 'Les informations du patient sont en cours de chargement. Veuillez patienter un instant.');
+      return;
+    }
     if (!description.trim()) {
-      Alert.alert('Certificat vide', 'Veuillez rédiger le contenu du certificat avant de le partager.');
+      showAlert('Certificat vide', 'Veuillez rédiger le contenu du certificat avant de le partager.');
       return;
     }
 
     const phoneRaw = patient.telephone ? patient.telephone.trim() : '';
     if (!phoneRaw) {
-      Alert.alert('Aucun numéro', 'Aucun numéro de téléphone n\'est renseigné pour ce patient.');
+      showAlert(
+        'Numéro manquant',
+        `Aucun numéro de téléphone n'est renseigné pour ${patient.prenom} ${patient.nom.toUpperCase()}.\n\nVeuillez renseigner son numéro de téléphone dans sa fiche patient pour pouvoir lui transmettre son certificat sur WhatsApp.`
+      );
       return;
     }
 
@@ -730,11 +744,19 @@ export default function CreateCertificatScreen() {
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[styles.actionBtn, styles.whatsappBtn]}
+            style={[styles.actionBtn, styles.whatsappBtn, generating && styles.disabledButton]}
             onPress={handleShareWhatsApp}
+            disabled={generating}
+            activeOpacity={0.7}
           >
-            <Ionicons name="logo-whatsapp" size={20} color="#FFFFFF" />
-            <Text style={styles.whatsappBtnText}>📲 Partager WhatsApp</Text>
+            {generating ? (
+              <ActivityIndicator color="#FFFFFF" />
+            ) : (
+              <>
+                <Ionicons name="logo-whatsapp" size={20} color="#FFFFFF" />
+                <Text style={styles.whatsappBtnText}>📲 Partager WhatsApp</Text>
+              </>
+            )}
           </TouchableOpacity>
         </View>
       </ScrollView>

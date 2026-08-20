@@ -779,11 +779,19 @@ export default function CreateOrdonnanceScreen() {
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[styles.actionBtn, styles.whatsappBtn]}
+            style={[styles.actionBtn, styles.whatsappBtn, generating && styles.disabledButton]}
             onPress={handleShareWhatsApp}
+            disabled={generating}
+            activeOpacity={0.7}
           >
-            <Ionicons name="logo-whatsapp" size={20} color="#FFFFFF" />
-            <Text style={styles.whatsappBtnText}>Partager WhatsApp</Text>
+            {generating ? (
+              <ActivityIndicator color="#FFFFFF" />
+            ) : (
+              <>
+                <Ionicons name="logo-whatsapp" size={20} color="#FFFFFF" />
+                <Text style={styles.whatsappBtnText}>📲 Partager WhatsApp</Text>
+              </>
+            )}
           </TouchableOpacity>
         </View>
       </ScrollView>
