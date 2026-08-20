@@ -979,13 +979,13 @@ export default function PatientDetailsScreen() {
 
             {/* 1. Antécédents Médicaux */}
             <View style={styles.card}>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <View style={styles.cardHeaderRow}>
+                <View style={styles.cardTitleGroup}>
                   <Ionicons name="medical-outline" size={20} color="#28C2FF" />
-                  <Text style={styles.cardTitle}>Antécédents Médicaux</Text>
+                  <Text style={styles.cardTitle} numberOfLines={1}>Antécédents Médicaux</Text>
                 </View>
                 <TouchableOpacity
-                  style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
+                  style={styles.neantBtn}
                   onPress={() => {
                     const val = !neantMedical;
                     setNeantMedical(val);
@@ -993,7 +993,7 @@ export default function PatientDetailsScreen() {
                   }}
                 >
                   <Ionicons name={neantMedical ? "checkbox" : "square-outline"} size={20} color={neantMedical ? "#2ECC71" : "#8AC8F9"} />
-                  <Text style={{ color: neantMedical ? "#2ECC71" : "#8AC8F9", fontSize: 13, fontWeight: 'bold' }}>Néant</Text>
+                  <Text style={[styles.neantText, neantMedical && styles.neantTextActive]}>Néant</Text>
                 </TouchableOpacity>
               </View>
 
@@ -1017,13 +1017,13 @@ export default function PatientDetailsScreen() {
 
             {/* 2. Antécédents Chirurgicaux (6 champs détaillés) */}
             <View style={styles.card}>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <View style={styles.cardHeaderRow}>
+                <View style={styles.cardTitleGroup}>
                   <Ionicons name="cut-outline" size={20} color="#8AC8F9" />
-                  <Text style={styles.cardTitle}>Antécédents Chirurgicaux</Text>
+                  <Text style={styles.cardTitle} numberOfLines={1}>Antécédents Chirurgicaux</Text>
                 </View>
                 <TouchableOpacity
-                  style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
+                  style={styles.neantBtn}
                   onPress={() => {
                     const val = !neantChirurgical;
                     setNeantChirurgical(val);
@@ -1031,7 +1031,7 @@ export default function PatientDetailsScreen() {
                   }}
                 >
                   <Ionicons name={neantChirurgical ? "checkbox" : "square-outline"} size={20} color={neantChirurgical ? "#2ECC71" : "#8AC8F9"} />
-                  <Text style={{ color: neantChirurgical ? "#2ECC71" : "#8AC8F9", fontSize: 13, fontWeight: 'bold' }}>Néant</Text>
+                  <Text style={[styles.neantText, neantChirurgical && styles.neantTextActive]}>Néant</Text>
                 </TouchableOpacity>
               </View>
 
@@ -1056,13 +1056,13 @@ export default function PatientDetailsScreen() {
             {/* 3. Antécédents Gynéco-Obstétricaux (Conditionnel: Sexe F ET Age > 15) */}
             {patient.sexe === 'F' && age !== null && age > 15 && (
               <View style={styles.card}>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <View style={styles.cardHeaderRow}>
+                  <View style={styles.cardTitleGroup}>
                     <Ionicons name="woman-outline" size={20} color="#FF6B6B" />
-                    <Text style={styles.cardTitle}>Antécédents Gynéco-Obstétricaux</Text>
+                    <Text style={styles.cardTitle} numberOfLines={1}>Gynéco-Obstétriques</Text>
                   </View>
                   <TouchableOpacity
-                    style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
+                    style={styles.neantBtn}
                     onPress={() => {
                       const val = !neantGyneco;
                       setNeantGyneco(val);
@@ -1070,7 +1070,7 @@ export default function PatientDetailsScreen() {
                     }}
                   >
                     <Ionicons name={neantGyneco ? "checkbox" : "square-outline"} size={20} color={neantGyneco ? "#2ECC71" : "#8AC8F9"} />
-                    <Text style={{ color: neantGyneco ? "#2ECC71" : "#8AC8F9", fontSize: 13, fontWeight: 'bold' }}>Néant</Text>
+                    <Text style={[styles.neantText, neantGyneco && styles.neantTextActive]}>Néant</Text>
                   </TouchableOpacity>
                 </View>
 
@@ -1095,13 +1095,13 @@ export default function PatientDetailsScreen() {
 
             {/* 4. Antécédents Familiaux */}
             <View style={styles.card}>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <View style={styles.cardHeaderRow}>
+                <View style={styles.cardTitleGroup}>
                   <Ionicons name="people-outline" size={20} color="#FFD700" />
-                  <Text style={styles.cardTitle}>Antécédents Familiaux</Text>
+                  <Text style={styles.cardTitle} numberOfLines={1}>Antécédents Familiaux</Text>
                 </View>
                 <TouchableOpacity
-                  style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
+                  style={styles.neantBtn}
                   onPress={() => {
                     const val = !neantFamilial;
                     setNeantFamilial(val);
@@ -1109,7 +1109,7 @@ export default function PatientDetailsScreen() {
                   }}
                 >
                   <Ionicons name={neantFamilial ? "checkbox" : "square-outline"} size={20} color={neantFamilial ? "#2ECC71" : "#8AC8F9"} />
-                  <Text style={{ color: neantFamilial ? "#2ECC71" : "#8AC8F9", fontSize: 13, fontWeight: 'bold' }}>Néant</Text>
+                  <Text style={[styles.neantText, neantFamilial && styles.neantTextActive]}>Néant</Text>
                 </TouchableOpacity>
               </View>
 
@@ -1138,13 +1138,13 @@ export default function PatientDetailsScreen() {
 
             {/* 5. Terrain & Addictions (Toxiques) */}
             <View style={styles.card}>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <View style={styles.cardHeaderRow}>
+                <View style={styles.cardTitleGroup}>
                   <Ionicons name="flame-outline" size={20} color="#E67E22" />
-                  <Text style={styles.cardTitle}>Terrain & Toxiques (Habitudes de vie)</Text>
+                  <Text style={styles.cardTitle} numberOfLines={1}>Terrain & Toxiques</Text>
                 </View>
                 <TouchableOpacity
-                  style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
+                  style={styles.neantBtn}
                   onPress={() => {
                     const val = !neantToxique;
                     setNeantToxique(val);
@@ -1152,7 +1152,7 @@ export default function PatientDetailsScreen() {
                   }}
                 >
                   <Ionicons name={neantToxique ? "checkbox" : "square-outline"} size={20} color={neantToxique ? "#2ECC71" : "#8AC8F9"} />
-                  <Text style={{ color: neantToxique ? "#2ECC71" : "#8AC8F9", fontSize: 13, fontWeight: 'bold' }}>Néant</Text>
+                  <Text style={[styles.neantText, neantToxique && styles.neantTextActive]}>Néant</Text>
                 </TouchableOpacity>
               </View>
 
@@ -1247,13 +1247,13 @@ export default function PatientDetailsScreen() {
 
             {/* 6. Allergies Détaillées (Substance + Réaction) */}
             <View style={styles.card}>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <View style={styles.cardHeaderRow}>
+                <View style={styles.cardTitleGroup}>
                   <Ionicons name="warning-outline" size={20} color="#FF6B6B" />
-                  <Text style={styles.cardTitle}>Allergies Détaillées</Text>
+                  <Text style={styles.cardTitle} numberOfLines={1}>Allergies Détaillées</Text>
                 </View>
                 <TouchableOpacity
-                  style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
+                  style={styles.neantBtn}
                   onPress={() => {
                     const val = !neantAllergie;
                     setNeantAllergie(val);
@@ -1261,7 +1261,7 @@ export default function PatientDetailsScreen() {
                   }}
                 >
                   <Ionicons name={neantAllergie ? "checkbox" : "square-outline"} size={20} color={neantAllergie ? "#2ECC71" : "#8AC8F9"} />
-                  <Text style={{ color: neantAllergie ? "#2ECC71" : "#8AC8F9", fontSize: 13, fontWeight: 'bold' }}>Néant</Text>
+                  <Text style={[styles.neantText, neantAllergie && styles.neantTextActive]}>Néant</Text>
                 </TouchableOpacity>
               </View>
 
@@ -3158,10 +3158,46 @@ const styles = StyleSheet.create({
     color: '#8AC8F9',
     fontSize: 11,
   },
+  cardHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+    gap: 8,
+  },
+  cardTitleGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flex: 1,
+    flexShrink: 1,
+  },
   cardTitle: {
     color: '#FFFFFF',
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: 'bold',
+    flexShrink: 1,
+  },
+  neantBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    flexShrink: 0,
+    paddingVertical: 2,
+    paddingHorizontal: 4,
+  },
+  neantText: {
+    color: '#8AC8F9',
+    fontSize: 13,
+    fontWeight: 'bold',
+    ...Platform.select({
+      web: {
+        whiteSpace: 'nowrap',
+      },
+    }),
+  },
+  neantTextActive: {
+    color: '#2ECC71',
   },
   neantBadge: {
     backgroundColor: '#0F2C3D',
