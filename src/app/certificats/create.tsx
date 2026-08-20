@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   StyleSheet,
   View,
@@ -19,7 +19,9 @@ import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import * as FileSystem from 'expo-file-system/legacy';
 import { supabase } from '../../lib/supabase';
-import { addCertificat, getPatientById, Patient } from '../../database/SQLiteDatabaseManager';
+import { addCertificat, getPatientById as getPatientByIdDb } from '../../database/SQLiteDatabaseManager';
+import { getPatientById as getPatientByIdApi } from '../../services/api/patientsService';
+import { Patient } from '../../types';
 import { calculateAge, formatDateFR, formatDoctorName } from '../../utils/helpers';
 import { useSecurity } from '../../security/SecurityContext';
 import DatePickerDOB from '@/components/DatePickerDOB';
@@ -28,8 +30,35 @@ type CertType = 'CM_REPOS' | 'CM_VISITE' | 'CM_COUPS_BLESSURES' | 'APTITUDE' | '
 
 export default function CreateCertificatScreen() {
   const router = useRouter();
-  const { patientId } = useLocalSearchParams<{ patientId: string }>();
+  const params = useLocalSearchParams<{ patientId?: string; id?: string; patient_id?: string }>();
   const { user } = useSecurity();
+  const isMountedRef = useRef(true);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
+  const getEffectivePatientId = (): string => {
+    if (params.patientId) return params.patientId;
+    if (params.id) return params.id;
+    if (params.patient_id) return params.patient_id;
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      try {
+        const searchParams = new URLSearchParams(window.location.search);
+        const hashParams = new URLSearchParams(window.location.hash.split('?')[1] || '');
+        return searchParams.get('patientId') || searchParams.get('id') || searchParams.get('patient_id') ||
+               hashParams.get('patientId') || hashParams.get('id') || hashParams.get('patient_id') || '';
+      } catch (e) {
+        return '';
+      }
+    }
+    return '';
+  };
+
+  const patientId = getEffectivePatientId();
 
   const [patient, setPatient] = useState<Patient | null>(null);
   const [loading, setLoading] = useState(true);
@@ -50,11 +79,6 @@ export default function CreateCertificatScreen() {
     }
   };
 
-  const formatDoctorName = (nameStr: string) => {
-    const clean = nameStr.replace(/\b(dr|docteur)\.?\b/gi, '').replace(/\s+/g, ' ').trim();
-    return clean ? `Dr ${clean}` : 'Dr Mohamadou Bamba Diop';
-  };
-
   const calculateDaysCount = (startStr: string, endStr: string): number => {
     if (!startStr || !endStr) return 0;
     const start = new Date(startStr);
@@ -65,42 +89,95 @@ export default function CreateCertificatScreen() {
     return Math.round(diffTime / (1000 * 60 * 60 * 24)) + 1;
   };
 
-  const generateTemplateText = (t: CertType, start: string, end: string, itt: string, dName: string): string => {
+  const generateTemplateText = (
+    t: CertType,
+    start: string,
+    end: string,
+    itt: string,
+    dName: string,
+    currentPatient: Patient | null
+  ): string => {
+    let patientDesignation = 'le patient susnommé';
+    if (currentPatient && (currentPatient.nom || currentPatient.prenom)) {
+      const civ = currentPatient.sexe === 'F' ? 'Mme/Mlle' : (currentPatient.sexe === 'M' ? 'M.' : '');
+      const fullName = `${currentPatient.prenom} ${currentPatient.nom.toUpperCase()}`.trim();
+      patientDesignation = civ ? `${civ} ${fullName}` : fullName;
+    }
+
     if (t === 'CM_REPOS') {
       const days = calculateDaysCount(start, end);
       const daysText = days > 0 ? `${days}` : '___';
       const startFormatted = start ? formatDateFR(start) : '___';
       const endFormatted = end ? formatDateFR(end) : '___';
-      return `Je soussigné, ${dName}, certifie que l'état de santé du patient susnommé nécessite un repos médical d'une durée de ${daysText} jours, allant du ${startFormatted} au ${endFormatted} inclus. Ce présent certificat lui est délivré pour valoir et faire valoir ce que de droit.`;
+      return `Je soussigné, ${dName}, certifie que l'état de santé de ${patientDesignation} nécessite un repos médical d'une durée de ${daysText} jours, allant du ${startFormatted} au ${endFormatted} inclus. Ce présent certificat lui est délivré pour valoir et faire valoir ce que de droit.`;
     }
     if (t === 'CM_VISITE') {
-      return `Je soussigné, ${dName}, certifie avoir examiné ce jour le patient susnommé dans le cadre d'une visite / contre-visite médicale. Les constatations cliniques établies sont les suivantes : `;
+      return `Je soussigné, ${dName}, certifie avoir examiné ce jour ${patientDesignation} dans le cadre d'une visite / contre-visite médicale. Les constatations cliniques établies sont les suivantes : `;
     }
     if (t === 'CM_COUPS_BLESSURES') {
       const ittText = itt ? `${itt}` : '___';
-      return `Je soussigné, ${dName}, certifie avoir examiné ce jour le patient susnommé qui présente des lésions de coups et blessures. Les constatations cliniques entraînent une Incapacité Totale de Travail (ITT) fixée à ${ittText} jours, sous réserve de complications ultérieures.`;
+      return `Je soussigné, ${dName}, certifie avoir examiné ce jour ${patientDesignation} qui présente des lésions de coups et blessures. Les constatations cliniques entraînent une Incapacité Totale de Travail (ITT) fixée à ${ittText} jours, sous réserve de complications ultérieures.`;
     }
     if (t === 'APTITUDE') {
-      return `Je soussigné, ${dName}, certifie après examen clinique ce jour n'avoir pas constaté de contre-indication médicale à l'aptitude physique et sportive de : `;
+      return `Je soussigné, ${dName}, certifie après examen clinique ce jour n'avoir pas constaté de contre-indication médicale à l'aptitude physique et sportive de ${patientDesignation}.`;
     }
     if (t === 'INAPTITUDE') {
-      return `Je soussigné, ${dName}, certifie après examen clinique ce jour que le patient susnommé présente une inaptitude médicale temporaire à : `;
+      return `Je soussigné, ${dName}, certifie après examen clinique ce jour que ${patientDesignation} présente une inaptitude médicale temporaire à : `;
     }
     return '';
   };
 
-  useEffect(() => {
-    if (patientId) {
-      loadPatient();
+  const loadPatient = async (targetId: string) => {
+    if (!targetId) {
+      if (isMountedRef.current) setLoading(false);
+      return;
     }
-  }, [patientId]);
+    if (isMountedRef.current) setLoading(true);
+    try {
+      // 1. Essai prioritaire via Supabase API (Web et données synchronisées)
+      let p: Patient | null = null;
+      try {
+        p = await getPatientByIdApi(targetId);
+      } catch (apiErr) {
+        console.warn('Supabase getPatientById note:', apiErr);
+      }
+
+      // 2. Repli vers SQLite local si nécessaire (mode hors-ligne natif)
+      if (!p) {
+        try {
+          p = await getPatientByIdDb(targetId);
+        } catch (dbErr) {
+          console.warn('SQLite getPatientById note:', dbErr);
+        }
+      }
+
+      if (isMountedRef.current) {
+        setPatient(p);
+      }
+    } catch (err) {
+      console.error('loadPatient unexpected error:', err);
+    } finally {
+      if (isMountedRef.current) {
+        setLoading(false);
+      }
+    }
+  };
+
+  useEffect(() => {
+    const id = getEffectivePatientId();
+    if (id) {
+      loadPatient(id);
+    } else {
+      setLoading(false);
+    }
+  }, [params.patientId, params.id, params.patient_id]);
 
   // Update description template whenever type or dates or ITT change
   useEffect(() => {
     const rawDocName = user ? `${user.prenom || ''} ${user.nom || ''}`.trim() : 'Mohamadou Bamba Diop';
     const docName = formatDoctorName(rawDocName);
-    setDescription(generateTemplateText(type, dateDebut, dateFin, ittJours, docName));
-  }, [type, dateDebut, dateFin, ittJours, user]);
+    setDescription(generateTemplateText(type, dateDebut, dateFin, ittJours, docName, patient));
+  }, [type, dateDebut, dateFin, ittJours, user, patient]);
 
   // Load signature
   useEffect(() => {
@@ -120,19 +197,6 @@ export default function CreateCertificatScreen() {
     };
     loadSignature();
   }, []);
-
-  const loadPatient = async () => {
-    setLoading(true);
-    try {
-      const p = await getPatientById(patientId);
-      setPatient(p);
-    } catch (err) {
-      console.error(err);
-      Alert.alert('Erreur', 'Impossible de charger le patient.');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const executeWebIframePrint = (htmlContent: string) => {
     return new Promise<void>((resolve) => {
@@ -434,33 +498,44 @@ export default function CreateCertificatScreen() {
 
   const handleGeneratePDF = async () => {
     if (!description.trim() || !dateDebut.trim()) {
-      Alert.alert('Erreur', 'Veuillez remplir les champs obligatoires.');
+      showAlert('Erreur', 'Veuillez remplir les champs obligatoires.');
       return;
     }
 
     const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
     if (!dateRegex.test(dateDebut) || (dateFin.trim() && !dateRegex.test(dateFin))) {
-      Alert.alert('Date invalide', 'Le format de date doit être AAAA-MM-JJ.');
+      showAlert('Date invalide', 'Le format de date doit être AAAA-MM-JJ.');
       return;
     }
 
-    if (!patient || !user) return;
+    if (!patient) {
+      showAlert('Patient manquant', 'Veuillez patienter pendant le chargement du dossier patient.');
+      return;
+    }
 
     setGenerating(true);
     try {
-      const newCert = await addCertificat(
-        {
-          patient_id: patientId,
-          type,
-          description: description.trim(),
-          date_debut: dateDebut.trim(),
-          date_fin: dateFin.trim() || null,
-          pdf_url: null,
-        },
-        user.id
-      );
+      let certId = `CERT_${Date.now()}`;
+      if (user) {
+        try {
+          const newCert = await addCertificat(
+            {
+              patient_id: patient.id,
+              type,
+              description: description.trim(),
+              date_debut: dateDebut.trim(),
+              date_fin: dateFin.trim() || null,
+              pdf_url: null,
+            },
+            user.id
+          );
+          certId = newCert.id;
+        } catch (dbErr) {
+          console.warn('addCertificat note:', dbErr);
+        }
+      }
 
-      const htmlContent = generateCertificatHTML(newCert.id);
+      const htmlContent = generateCertificatHTML(certId);
 
       if (Platform.OS === 'web') {
         await executeWebIframePrint(htmlContent);
@@ -469,7 +544,7 @@ export default function CreateCertificatScreen() {
       }
     } catch (err) {
       console.error('Certificat PDF generation error:', err);
-      Alert.alert('Erreur', 'Impossible de lancer l\'impression.');
+      showAlert('Erreur', 'Impossible de lancer l\'impression.');
     } finally {
       setGenerating(false);
     }
@@ -477,7 +552,7 @@ export default function CreateCertificatScreen() {
 
   const handleShareWhatsApp = async () => {
     if (!patient) {
-      showAlert('Patient introuvable', 'Les informations du patient sont en cours de chargement. Veuillez patienter un instant.');
+      showAlert('Patient manquant', 'Veuillez patienter pendant le chargement du dossier patient.');
       return;
     }
     if (!description.trim()) {
@@ -660,10 +735,21 @@ export default function CreateCertificatScreen() {
         <View style={styles.placeholder} />
       </View>
 
-      {patient && (
+      {loading ? (
+        <View style={[styles.patientBanner, { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }]}>
+          <ActivityIndicator size="small" color="#28C2FF" />
+          <Text style={styles.patientBannerText}>Chargement du dossier patient...</Text>
+        </View>
+      ) : patient ? (
         <View style={styles.patientBanner}>
           <Text style={styles.patientBannerText}>
-            Patient: {patient.prenom} {patient.nom.toUpperCase()} ({patient.numero_dossier})
+            Patient : {patient.prenom} {patient.nom.toUpperCase()} {patient.numero_dossier ? `(${patient.numero_dossier})` : ''}
+          </Text>
+        </View>
+      ) : (
+        <View style={[styles.patientBanner, { backgroundColor: '#3D2020' }]}>
+          <Text style={[styles.patientBannerText, { color: '#FFAAAA' }]}>
+            ⚠️ Aucun dossier patient associé
           </Text>
         </View>
       )}
@@ -729,9 +815,10 @@ export default function CreateCertificatScreen() {
 
         <View style={styles.actionsContainer}>
           <TouchableOpacity
-            style={[styles.actionBtn, styles.singlePrintBtn, generating && styles.disabledButton]}
+            style={[styles.actionBtn, styles.singlePrintBtn, (loading || generating || !patient) && styles.disabledButton]}
             onPress={handleGeneratePDF}
-            disabled={generating}
+            disabled={loading || generating || !patient}
+            activeOpacity={0.7}
           >
             {generating ? (
               <ActivityIndicator color="#0F2C3D" />
@@ -744,9 +831,9 @@ export default function CreateCertificatScreen() {
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[styles.actionBtn, styles.whatsappBtn, generating && styles.disabledButton]}
+            style={[styles.actionBtn, styles.whatsappBtn, (loading || generating || !patient) && styles.disabledButton]}
             onPress={handleShareWhatsApp}
-            disabled={generating}
+            disabled={loading || generating || !patient}
             activeOpacity={0.7}
           >
             {generating ? (
