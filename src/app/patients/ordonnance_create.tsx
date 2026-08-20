@@ -17,6 +17,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
+import * as FileSystem from 'expo-file-system/legacy';
 import { getPatientById } from '../../services/api/patientsService';
 import { getConsultationById } from '../../services/api/consultationsService';
 import {
@@ -501,15 +502,27 @@ export default function CreateOrdonnanceScreen() {
       if (!docId || !patient) return;
       const htmlContent = generateOrdonnanceHTML(docId);
 
+      const cleanNom = (patient.nom || 'PATIENT').trim().replace(/[^a-zA-Z0-9]/g, '_').toUpperCase();
+      const cleanPrenom = (patient.prenom || '').trim().replace(/[^a-zA-Z0-9]/g, '_');
+      const dateFileStr = new Date().toLocaleDateString('fr-FR').replace(/\//g, '_');
+      const pdfFileName = `Ordonnance_${cleanNom}_${cleanPrenom}_${dateFileStr}.pdf`;
+
       if (Platform.OS === 'web') {
         // On Web, open native browser print dialog (Save as PDF) seamlessly with zero alert errors
         await executeWebIframePrint(htmlContent);
       } else {
         try {
           const { uri } = await Print.printToFileAsync({ html: htmlContent });
-          await Sharing.shareAsync(uri, {
+          const targetUri = `${FileSystem.cacheDirectory}${pdfFileName}`;
+          try {
+            await FileSystem.copyAsync({ from: uri, to: targetUri });
+          } catch (copyErr) {
+            console.log('FileSystem copy error:', copyErr);
+          }
+          const fileToShare = (await FileSystem.getInfoAsync(targetUri)).exists ? targetUri : uri;
+          await Sharing.shareAsync(fileToShare, {
             mimeType: 'application/pdf',
-            dialogTitle: `Ordonnance_${patient.nom.toUpperCase()}`,
+            dialogTitle: `Ordonnance_${cleanNom}_${cleanPrenom}`,
             UTI: 'com.adobe.pdf',
           });
         } catch (nativeErr) {
@@ -554,59 +567,69 @@ export default function CreateOrdonnanceScreen() {
     const rawDocName = user ? `${user.prenom || ''} ${user.nom || ''}`.trim() : 'Mohamadou Bamba Diop';
     const docName = formatDoctorName(rawDocName);
     const dateStr = formatDateFR(new Date());
+    const dateFileStr = new Date().toLocaleDateString('fr-FR').replace(/\//g, '_');
+    const cleanNom = (patient.nom || 'PATIENT').trim().replace(/[^a-zA-Z0-9]/g, '_').toUpperCase();
+    const cleanPrenom = (patient.prenom || '').trim().replace(/[^a-zA-Z0-9]/g, '_');
+    const pdfFileName = `Ordonnance_${cleanNom}_${cleanPrenom}_${dateFileStr}.pdf`;
 
+    setGenerating(true);
     try {
       const docId = await handleSaveOrdonnance();
       const htmlContent = generateOrdonnanceHTML(docId || 'DOC-ORD');
 
-      // Lien direct vers la page de l'ordonnance pour l'Option B
-      const baseUrl = Platform.OS === 'web' 
-        ? window.location.origin + window.location.pathname 
-        : 'https://fallou1033.github.io/medrecord/';
-      const directDocLink = `${baseUrl}#/patients/ordonnance_create?consultationId=${consultationId}&patientId=${patientId}`;
-
       if (Platform.OS === 'web') {
-        // Option A: Tenter le partage du fichier réel via l'API Web Share (navigator.share) sur mobile web
-        const fileName = `Ordonnance_${patient.nom.toUpperCase()}_${patient.prenom}.html`;
-        const docFile = new File([htmlContent], fileName, { type: 'text/html' });
-
-        if (typeof navigator !== 'undefined' && navigator.canShare && navigator.canShare({ files: [docFile] })) {
-          try {
-            await navigator.share({
-              files: [docFile],
-              title: `Ordonnance Médicale - ${patient.prenom} ${patient.nom.toUpperCase()}`,
-              text: `Bonjour ${patient.prenom} ${patient.nom.toUpperCase()},\n\nVoici votre ordonnance médicale du ${docName} du ${dateStr}.\n\n📄 Document officiel à consulter et télécharger au format PDF A4.`,
-            });
-            return;
-          } catch (shareErr) {
-            console.log('Web Share annulé ou échoué, repli sur le lien WhatsApp Web:', shareErr);
-          }
-        }
-
-        // Option B (Desktop / WhatsApp Web): Déclencher la boîte de sauvegarde PDF + lien direct dans WhatsApp Web
+        // 1. Déclencher l'impression / enregistrement PDF via le navigateur
         await executeWebIframePrint(htmlContent);
 
-        const message = `Bonjour ${patient.prenom} ${patient.nom.toUpperCase()},\n\nVoici votre ordonnance médicale du ${docName} du ${dateStr} :\n\n📄 *CONSULTER & TELECHARGER L'ORDONNANCE PDF* :\n${directDocLink}\n\n📋 *DÉTAIL DU TRAITEMENT* :\n${contenu.trim()}\n\n---\n*MedRecord* - Dossier Médical Numérique`;
+        // 2. Télécharger automatiquement le fichier pour le praticien
+        const htmlFileName = `Ordonnance_${cleanNom}_${cleanPrenom}_${dateFileStr}.html`;
+        const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
+        const blobUrl = URL.createObjectURL(blob);
+        const downloadLink = document.createElement('a');
+        downloadLink.href = blobUrl;
+        downloadLink.download = htmlFileName;
+        document.body.appendChild(downloadLink);
+        downloadLink.click();
+        setTimeout(() => {
+          document.body.removeChild(downloadLink);
+          URL.revokeObjectURL(blobUrl);
+        }, 500);
+
+        // 3. Ouvrir WhatsApp Web avec un message de courtoisie professionnel sans URL brute
+        const message = `Bonjour ${patient.prenom} ${patient.nom.toUpperCase()},\n\nVeuillez trouver ci-joint votre ordonnance médicale délivrée par le ${docName} le ${dateStr}.\n\n📋 *Prescription médicale* :\n${contenu.trim()}\n\n---\n*Cabinet Médical* — Document officiel MedRecord`;
         const whatsappUrl = `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodeURIComponent(message)}`;
-        
         window.open(whatsappUrl, '_blank');
       } else {
-        // On Mobile Native App (iOS / Android): Générer et partager le fichier PDF binaire directement sur WhatsApp
-        setGenerating(true);
+        // Sur Mobile Natif (Android / iOS) :
+        // 1. Génération immédiate du véritable fichier PDF officiel
         const { uri } = await Print.printToFileAsync({ html: htmlContent });
-        await Sharing.shareAsync(uri, {
-          mimeType: 'application/pdf',
-          dialogTitle: `Partager l'ordonnance PDF de ${patient.prenom} ${patient.nom}`,
-          UTI: 'com.adobe.pdf',
-        });
+        
+        // 2. Attribution d'un nom de fichier clair et professionnel (ex : Ordonnance_Nom_Patient_Date.pdf)
+        const targetUri = `${FileSystem.cacheDirectory}${pdfFileName}`;
+        try {
+          await FileSystem.copyAsync({ from: uri, to: targetUri });
+        } catch (copyErr) {
+          console.log('FileSystem copy error:', copyErr);
+        }
+
+        const fileToShare = (await FileSystem.getInfoAsync(targetUri)).exists ? targetUri : uri;
+
+        // 3. Partage natif du document PDF vers WhatsApp / Applications de messagerie
+        if (await Sharing.isAvailableAsync()) {
+          await Sharing.shareAsync(fileToShare, {
+            mimeType: 'application/pdf',
+            dialogTitle: `Partager l'ordonnance PDF de ${patient.prenom} ${patient.nom.toUpperCase()}`,
+            UTI: 'com.adobe.pdf',
+          });
+        } else {
+          const message = `Bonjour ${patient.prenom} ${patient.nom.toUpperCase()},\n\nVoici votre ordonnance médicale délivrée par le ${docName} le ${dateStr}.\n\n📋 *Prescription* :\n${contenu.trim()}`;
+          const whatsappUrl = `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodeURIComponent(message)}`;
+          await Linking.openURL(whatsappUrl);
+        }
       }
     } catch (err) {
       console.error('WhatsApp PDF Share error:', err);
-      const baseUrl = Platform.OS === 'web' 
-        ? window.location.origin + window.location.pathname 
-        : 'https://fallou1033.github.io/medrecord/';
-      const directDocLink = `${baseUrl}#/patients/ordonnance_create?consultationId=${consultationId}&patientId=${patientId}`;
-      const message = `Bonjour ${patient.prenom} ${patient.nom.toUpperCase()},\n\nVoici votre ordonnance médicale du ${docName} du ${dateStr} :\n\n📄 *LIEN ORDONNANCE PDF* :\n${directDocLink}\n\n📋 *TRAITEMENT* :\n${contenu.trim()}\n\n---\n*MedRecord* - Dossier Médical Numérique`;
+      const message = `Bonjour ${patient.prenom} ${patient.nom.toUpperCase()},\n\nVoici votre ordonnance médicale délivrée par le ${docName} du ${dateStr} :\n\n📋 *Prescription* :\n${contenu.trim()}\n\n---\n*Cabinet Médical* — MedRecord`;
       const whatsappUrl = `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodeURIComponent(message)}`;
       if (Platform.OS === 'web') {
         window.open(whatsappUrl, '_blank');

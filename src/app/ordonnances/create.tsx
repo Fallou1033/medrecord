@@ -16,6 +16,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
+import * as FileSystem from 'expo-file-system/legacy';
 import { getPatientById } from '../../services/api/patientsService';
 import { getConsultationById } from '../../services/api/consultationsService';
 import {
@@ -237,17 +238,47 @@ export default function CreateOrdonnanceScreen() {
         </html>
       `;
 
-      // 3. Print to File
-      const { uri } = await Print.printToFileAsync({ html: htmlContent });
+      const cleanNom = (patient.nom || 'PATIENT').trim().replace(/[^a-zA-Z0-9]/g, '_').toUpperCase();
+      const cleanPrenom = (patient.prenom || '').trim().replace(/[^a-zA-Z0-9]/g, '_');
+      const dateFileStr = new Date().toLocaleDateString('fr-FR').replace(/\//g, '_');
+      const pdfFileName = `Ordonnance_${cleanNom}_${cleanPrenom}_${dateFileStr}.pdf`;
 
-      // 4. Share PDF File
-      await Sharing.shareAsync(uri, {
-        mimeType: 'application/pdf',
-        dialogTitle: `Ordonnance_${patient.nom.toUpperCase()}_${dateStr}`,
-        UTI: 'com.adobe.pdf',
-      });
+      if (Platform.OS === 'web') {
+        if (typeof window !== 'undefined') {
+          const printWin = window.open('', '_blank');
+          if (printWin) {
+            printWin.document.open();
+            printWin.document.write(htmlContent);
+            printWin.document.close();
+            printWin.focus();
+            setTimeout(() => {
+              printWin.print();
+            }, 500);
+          }
+        }
+      } else {
+        // 3. Print to File
+        const { uri } = await Print.printToFileAsync({ html: htmlContent });
+        const targetUri = `${FileSystem.cacheDirectory}${pdfFileName}`;
+        try {
+          await FileSystem.copyAsync({ from: uri, to: targetUri });
+        } catch (copyErr) {
+          console.log('FileSystem copy error:', copyErr);
+        }
+
+        const fileToShare = (await FileSystem.getInfoAsync(targetUri)).exists ? targetUri : uri;
+
+        // 4. Share PDF File
+        if (await Sharing.isAvailableAsync()) {
+          await Sharing.shareAsync(fileToShare, {
+            mimeType: 'application/pdf',
+            dialogTitle: `Ordonnance_${cleanNom}_${cleanPrenom}`,
+            UTI: 'com.adobe.pdf',
+          });
+        }
+      }
       
-      showAlert('Succès', 'Ordonnance générée et partagée avec succès.');
+      showAlert('Succès', 'Ordonnance générée et prête pour le partage.');
     } catch (err) {
       console.error(err);
       showAlert('Erreur', 'Impossible de générer le PDF.');
