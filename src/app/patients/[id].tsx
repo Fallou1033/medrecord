@@ -13,6 +13,7 @@ import {
   Platform,
   StatusBar,
   Image,
+  useWindowDimensions,
 } from 'react-native';
 import { useLocalSearchParams, useRouter, Link } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -79,6 +80,8 @@ export default function PatientDetailsScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { user } = useSecurity();
+  const { width } = useWindowDimensions();
+  const isDesktop = width >= 768;
   const isMountedRef = useRef(true);
 
   useEffect(() => {
@@ -830,7 +833,10 @@ export default function PatientDetailsScreen() {
           horizontal
           showsHorizontalScrollIndicator={false}
           style={styles.tabBar}
-          contentContainerStyle={styles.tabBarScroll}
+          contentContainerStyle={[
+            styles.tabBarScroll,
+            isDesktop && styles.tabBarScrollDesktop,
+          ]}
         >
           {(
             (age !== null && age < 15)
@@ -848,10 +854,22 @@ export default function PatientDetailsScreen() {
             return (
               <TouchableOpacity
                 key={tab}
-                style={[styles.tabItem, isActive && styles.tabItemActive]}
+                style={[
+                  styles.tabItem,
+                  isDesktop && styles.tabItemDesktop,
+                  isActive && styles.tabItemActive,
+                ]}
                 onPress={() => setActiveTab(tab as SubTab)}
+                activeOpacity={0.7}
               >
-                <Text style={[styles.tabLabel, isActive && styles.tabLabelActive]}>
+                <Text
+                  style={[
+                    styles.tabLabel,
+                    isDesktop && styles.tabLabelDesktop,
+                    isActive && styles.tabLabelActive,
+                  ]}
+                  numberOfLines={1}
+                >
                   {label}
                 </Text>
               </TouchableOpacity>
@@ -2704,6 +2722,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     minWidth: '100%',
   },
+  tabBarScrollDesktop: {
+    width: '100%',
+    paddingHorizontal: 0,
+    justifyContent: 'space-between',
+  },
   tabItem: {
     paddingVertical: 12,
     paddingHorizontal: 16,
@@ -2712,6 +2735,12 @@ const styles = StyleSheet.create({
     borderBottomWidth: 3,
     borderBottomColor: 'transparent',
     flexShrink: 0,
+  },
+  tabItemDesktop: {
+    flex: 1,
+    paddingVertical: 14,
+    paddingHorizontal: 8,
+    flexShrink: 1,
   },
   tabItemActive: {
     borderBottomColor: '#28C2FF',
@@ -2728,6 +2757,9 @@ const styles = StyleSheet.create({
         userSelect: 'none',
       },
     }),
+  },
+  tabLabelDesktop: {
+    fontSize: 15,
   },
   tabLabelActive: {
     color: '#28C2FF',
