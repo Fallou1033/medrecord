@@ -18,6 +18,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import * as FileSystem from 'expo-file-system/legacy';
+import { supabase } from '../../lib/supabase';
 import { getPatientById } from '../../services/api/patientsService';
 import { getConsultationById } from '../../services/api/consultationsService';
 import {
@@ -577,9 +578,60 @@ export default function CreateOrdonnanceScreen() {
       const docId = await handleSaveOrdonnance();
       const htmlContent = generateOrdonnanceHTML(docId || 'DOC-ORD');
 
+      // 1. Tentative d'hébergement du document PDF / HTML sur Supabase Storage
+      let publicDocUrl: string | null = null;
+      try {
+        const bucketNames = ['prescriptions', 'documents', 'medical-documents'];
+        const filePath = `ordonnances/${docId || Date.now()}_${pdfFileName}`;
+        const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
+        for (const bName of bucketNames) {
+          const { data: upData, error: upErr } = await supabase.storage
+            .from(bName)
+            .upload(filePath, blob, { contentType: 'text/html;charset=utf-8', upsert: true });
+          if (!upErr && upData) {
+            const { data: pubData } = supabase.storage.from(bName).getPublicUrl(upData.path);
+            if (pubData?.publicUrl) {
+              publicDocUrl = pubData.publicUrl;
+              break;
+            }
+          }
+        }
+      } catch (storageErr) {
+        console.warn('Storage upload note:', storageErr);
+      }
+
+      // Lien direct vers le document officiel
+      const directDocLink = publicDocUrl || (
+        Platform.OS === 'web' && typeof window !== 'undefined'
+          ? `${window.location.origin}${window.location.pathname}#/patients/ordonnance_create?consultationId=${consultationId || ''}&patientId=${patientId}`
+          : `https://fallou1033.github.io/medrecord/#/patients/ordonnance_create?consultationId=${consultationId || ''}&patientId=${patientId}`
+      );
+
+      // Message d'accompagnement officiel complet avec lien direct et récapitulatif
+      const message = `Bonjour ${patient.prenom} ${patient.nom.toUpperCase()},\n\nVoici votre ordonnance médicale officielle émise par le ${docName} le ${dateStr}.\n\n📄 *Document officiel à consulter / télécharger* :\n${directDocLink}\n\n📋 *Traitement prescrit* :\n${contenu.trim()}\n\n---\n*Cabinet Médical* — Document officiel MedRecord`;
+      const whatsappUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;
+
       if (Platform.OS === 'web') {
-        // 1. Télécharger automatiquement le fichier pour le praticien SANS ouvrir la boîte d'impression
         const htmlFileName = `Ordonnance_${cleanNom}_${cleanPrenom}_${dateFileStr}.html`;
+
+        // A. Sur smartphone / Mobile Web : tentative de partage natif avec fichier joint
+        if (typeof navigator !== 'undefined' && navigator.canShare) {
+          try {
+            const docFile = new File([htmlContent], htmlFileName, { type: 'text/html' });
+            if (navigator.canShare({ files: [docFile] })) {
+              await navigator.share({
+                files: [docFile],
+                title: `Ordonnance - ${patient.prenom} ${patient.nom.toUpperCase()}`,
+                text: message,
+              });
+              return;
+            }
+          } catch (shareErr) {
+            console.log('Mobile Web share fallback to WhatsApp Web:', shareErr);
+          }
+        }
+
+        // B. Sur Ordinateur (Desktop) : Téléchargement direct du fichier + ouverture de la discussion WhatsApp
         const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
         const blobUrl = URL.createObjectURL(blob);
         const downloadLink = document.createElement('a');
@@ -592,9 +644,6 @@ export default function CreateOrdonnanceScreen() {
           URL.revokeObjectURL(blobUrl);
         }, 500);
 
-        // 2. Redirection directe et exclusive vers WhatsApp
-        const message = `Bonjour ${patient.prenom} ${patient.nom.toUpperCase()},\n\nVoici votre ordonnance médicale délivrée par le ${docName} le ${dateStr} :\n\n📋 *Traitement prescrit* :\n${contenu.trim()}\n\n---\n*Cabinet Médical* — Document officiel MedRecord`;
-        const whatsappUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;
         window.open(whatsappUrl, '_blank');
       } else {
         // Sur Mobile Natif (Android / iOS) :
@@ -611,7 +660,7 @@ export default function CreateOrdonnanceScreen() {
 
         const fileToShare = (await FileSystem.getInfoAsync(targetUri)).exists ? targetUri : uri;
 
-        // 3. Partage natif du document PDF vers WhatsApp / Applications de messagerie
+        // 3. Partage natif du document PDF vers WhatsApp en pièce jointe directe
         if (await Sharing.isAvailableAsync()) {
           await Sharing.shareAsync(fileToShare, {
             mimeType: 'application/pdf',
@@ -619,14 +668,12 @@ export default function CreateOrdonnanceScreen() {
             UTI: 'com.adobe.pdf',
           });
         } else {
-          const message = `Bonjour ${patient.prenom} ${patient.nom.toUpperCase()},\n\nVoici votre ordonnance médicale délivrée par le ${docName} le ${dateStr} :\n\n📋 *Traitement prescrit* :\n${contenu.trim()}`;
-          const whatsappUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;
           await Linking.openURL(whatsappUrl);
         }
       }
     } catch (err) {
       console.error('WhatsApp PDF Share error:', err);
-      const message = `Bonjour ${patient.prenom} ${patient.nom.toUpperCase()},\n\nVoici votre ordonnance médicale délivrée par le ${docName} du ${dateStr} :\n\n📋 *Traitement prescrit* :\n${contenu.trim()}\n\n---\n*Cabinet Médical* — MedRecord`;
+      const message = `Bonjour ${patient.prenom} ${patient.nom.toUpperCase()},\n\nVoici votre ordonnance médicale officielle délivrée par le ${docName} du ${dateStr} :\n\n📋 *Traitement prescrit* :\n${contenu.trim()}\n\n---\n*Cabinet Médical* — MedRecord`;
       const whatsappUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;
       if (Platform.OS === 'web') {
         window.open(whatsappUrl, '_blank');

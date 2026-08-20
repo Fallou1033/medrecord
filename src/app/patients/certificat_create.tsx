@@ -18,6 +18,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import * as FileSystem from 'expo-file-system/legacy';
+import { supabase } from '../../lib/supabase';
 import { addCertificat, getPatientById, Patient } from '../../database/SQLiteDatabaseManager';
 import { calculateAge, formatDateFR } from '../../utils/helpers';
 import { useSecurity } from '../../security/SecurityContext';
@@ -530,9 +531,60 @@ export default function CreateCertificatScreen() {
 
       const htmlContent = generateCertificatHTML(certId);
 
+      // 1. Tentative d'hébergement du certificat sur Supabase Storage
+      let publicDocUrl: string | null = null;
+      try {
+        const bucketNames = ['prescriptions', 'documents', 'medical-documents'];
+        const filePath = `certificats/${certId}_${pdfFileName}`;
+        const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
+        for (const bName of bucketNames) {
+          const { data: upData, error: upErr } = await supabase.storage
+            .from(bName)
+            .upload(filePath, blob, { contentType: 'text/html;charset=utf-8', upsert: true });
+          if (!upErr && upData) {
+            const { data: pubData } = supabase.storage.from(bName).getPublicUrl(upData.path);
+            if (pubData?.publicUrl) {
+              publicDocUrl = pubData.publicUrl;
+              break;
+            }
+          }
+        }
+      } catch (storageErr) {
+        console.warn('Storage upload note:', storageErr);
+      }
+
+      // Lien direct vers le document officiel
+      const directDocLink = publicDocUrl || (
+        Platform.OS === 'web' && typeof window !== 'undefined'
+          ? `${window.location.origin}${window.location.pathname}#/patients/certificat_create?patientId=${patientId}`
+          : `https://fallou1033.github.io/medrecord/#/patients/certificat_create?patientId=${patientId}`
+      );
+
+      // Message d'accompagnement officiel complet
+      const message = `Bonjour ${patient.prenom} ${patient.nom.toUpperCase()},\n\nVoici votre certificat médical officiel délivré par le ${cleanDocName} le ${dateStr}.\n\n📄 *Document officiel à consulter / télécharger* :\n${directDocLink}\n\n---\n*Cabinet Médical* — Document officiel MedRecord`;
+      const whatsappUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;
+
       if (Platform.OS === 'web') {
-        // 1. Télécharger automatiquement le fichier pour le praticien SANS ouvrir la boîte d'impression
         const htmlFileName = `Certificat_${cleanNom}_${cleanPrenom}_${dateFileStr}.html`;
+
+        // A. Sur smartphone / Mobile Web : tentative de partage natif avec fichier joint
+        if (typeof navigator !== 'undefined' && navigator.canShare) {
+          try {
+            const docFile = new File([htmlContent], htmlFileName, { type: 'text/html' });
+            if (navigator.canShare({ files: [docFile] })) {
+              await navigator.share({
+                files: [docFile],
+                title: `Certificat Médical - ${patient.prenom} ${patient.nom.toUpperCase()}`,
+                text: message,
+              });
+              return;
+            }
+          } catch (shareErr) {
+            console.log('Mobile Web share fallback to WhatsApp Web:', shareErr);
+          }
+        }
+
+        // B. Sur Ordinateur (Desktop) : Téléchargement direct du fichier + ouverture de WhatsApp Web
         const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
         const blobUrl = URL.createObjectURL(blob);
         const downloadLink = document.createElement('a');
@@ -545,9 +597,6 @@ export default function CreateCertificatScreen() {
           URL.revokeObjectURL(blobUrl);
         }, 500);
 
-        // 2. Redirection directe et exclusive vers WhatsApp
-        const message = `Bonjour ${patient.prenom} ${patient.nom.toUpperCase()},\n\nVeuillez trouver ci-joint votre certificat médical délivré par le ${cleanDocName} le ${dateStr}.\n\n---\n*Cabinet Médical* — Document officiel MedRecord`;
-        const whatsappUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;
         window.open(whatsappUrl, '_blank');
       } else {
         // Sur Mobile Natif (Android / iOS) :
@@ -572,8 +621,6 @@ export default function CreateCertificatScreen() {
             UTI: 'com.adobe.pdf',
           });
         } else {
-          const message = `Bonjour ${patient.prenom} ${patient.nom.toUpperCase()},\n\nVoici votre certificat médical délivré par le ${cleanDocName} le ${dateStr}.`;
-          const whatsappUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;
           await Linking.openURL(whatsappUrl);
         }
       }
