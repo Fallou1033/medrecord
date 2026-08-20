@@ -142,7 +142,9 @@ function fixHtmlFile(filePath) {
   }
 
   if (!html.includes('<base ')) {
-    html = html.replace('<head>', '<head>\n    <base href="/medrecord/" />');
+    const isVercel = Boolean(process.env.VERCEL || process.env.VERCEL_ENV);
+    const baseHref = isVercel ? '/' : '/medrecord/';
+    html = html.replace('<head>', `<head>\n    <base href="${baseHref}" />`);
   }
   if (fontCss) {
     html = html.replace('</head>', `${fontCss}</head>`);

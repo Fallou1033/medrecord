@@ -55,6 +55,7 @@
     "ios": "expo run:ios",
     "web": "expo start --web",
     "lint": "expo lint",
+    "build": "npx expo export -p web && node ./scripts/post-export.js",
     "predeploy": "npx expo export -p web && node ./scripts/post-export.js",
     "deploy": "gh-pages -d dist"
   },
