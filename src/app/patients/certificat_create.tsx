@@ -531,10 +531,7 @@ export default function CreateCertificatScreen() {
       const htmlContent = generateCertificatHTML(certId);
 
       if (Platform.OS === 'web') {
-        // 1. Déclencher l'impression / enregistrement PDF via le navigateur
-        await executeWebIframePrint(htmlContent);
-
-        // 2. Télécharger automatiquement le fichier pour le praticien
+        // 1. Télécharger automatiquement le fichier pour le praticien SANS ouvrir la boîte d'impression
         const htmlFileName = `Certificat_${cleanNom}_${cleanPrenom}_${dateFileStr}.html`;
         const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
         const blobUrl = URL.createObjectURL(blob);
@@ -548,9 +545,9 @@ export default function CreateCertificatScreen() {
           URL.revokeObjectURL(blobUrl);
         }, 500);
 
-        // 3. Ouvrir WhatsApp Web avec un message de transmission soigné et professionnel
+        // 2. Redirection directe et exclusive vers WhatsApp
         const message = `Bonjour ${patient.prenom} ${patient.nom.toUpperCase()},\n\nVeuillez trouver ci-joint votre certificat médical délivré par le ${cleanDocName} le ${dateStr}.\n\n---\n*Cabinet Médical* — Document officiel MedRecord`;
-        const whatsappUrl = `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodeURIComponent(message)}`;
+        const whatsappUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;
         window.open(whatsappUrl, '_blank');
       } else {
         // Sur Mobile Natif (Android / iOS) :
@@ -576,14 +573,14 @@ export default function CreateCertificatScreen() {
           });
         } else {
           const message = `Bonjour ${patient.prenom} ${patient.nom.toUpperCase()},\n\nVoici votre certificat médical délivré par le ${cleanDocName} le ${dateStr}.`;
-          const whatsappUrl = `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodeURIComponent(message)}`;
+          const whatsappUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;
           await Linking.openURL(whatsappUrl);
         }
       }
     } catch (err) {
       console.error('WhatsApp share error:', err);
       const message = `Bonjour ${patient.prenom} ${patient.nom.toUpperCase()},\n\nVoici votre certificat médical délivré par le ${cleanDocName} le ${dateStr}.`;
-      const whatsappUrl = `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodeURIComponent(message)}`;
+      const whatsappUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;
       if (Platform.OS === 'web') {
         window.open(whatsappUrl, '_blank');
       } else {
